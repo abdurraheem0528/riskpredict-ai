@@ -1,0 +1,73 @@
+# Fetch and store the public feeds every 15 minutes.
+# Skips cleanly (exit 0, with a notice) until the DATABASE_URL_FEEDS secret exists.
+# This repository is public: the CLI prints only per-source status and counts,
+# never record contents, and the secret is passed only to the steps that need it.
+name: feeds
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "'all' or comma-separated source names (e.g. usgs,gdacs)"
+        required: false
+        default: all
+      force:
+        description: "Run sources even if their minimum interval has not passed"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: feeds
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check for database secret
+        id: secret
+        env:
+          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+        run: |
+          if [ -z "${DATABASE_URL_FEEDS}" ]; then
+            echo "::notice title=Feeds skipped::The DATABASE_URL_FEEDS secret is not set, so nothing was fetched or stored."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secret.outputs.configured == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        if: steps.secret.outputs.configured == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: jobs/requirements.txt
+
+      - name: Install
+        if: steps.secret.outputs.configured == 'true'
+        run: pip install -r jobs/requirements.txt
+
+      - name: Apply migrations
+        if: steps.secret.outputs.configured == 'true'
+        env:
+          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+        run: python -m jobs.migrate
+
+      - name: Fetch feeds
+        if: steps.secret.outputs.configured == 'true'
+        env:
+          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+          SOURCES: ${{ inputs.sources || 'all' }}
+          FORCE: ${{ inputs.force && '--force' || '' }}
+        run: python -m jobs.run --sources "$SOURCES" $FORCE

@@ -1,0 +1,40 @@
+# Self-hosted stack: Postgres 16 + the public-feed jobs (fetch every 15 min).
+#   docker compose up -d --build
+#   docker compose logs -f jobs
+#   docker compose down -v        # remove everything, including the data volume
+# The api, worker and web services join this file in later steps.
+name: riskpredict
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: riskpredict
+      POSTGRES_USER: riskpredict
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-riskpredict-local}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432" # local machine only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U riskpredict -d riskpredict"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  jobs:
+    build:
+      context: .
+      dockerfile: jobs/Dockerfile
+    environment:
+      DATABASE_URL_FEEDS: postgresql://riskpredict:${POSTGRES_PASSWORD:-riskpredict-local}@postgres:5432/riskpredict
+      RUN_EVERY_SECONDS: "900"
+      SOURCES: ${SOURCES:-all}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
