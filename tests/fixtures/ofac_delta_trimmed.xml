@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<sanctionsData xmlns="https://www.treasury.gov/ofac/DeltaFile/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://www.treasury.gov/ofac/DeltaFile/1.0 https://www.treasury.gov/ofac/downloads/sanctions/1.0/DeltaFile.xsd">
+  <publicationInfo>
+    <datePublished>2026-11-23T00:00:00-05:00</datePublished>
+    <publicationType>Standard Action</publicationType>
+  </publicationInfo>
+  <referenceValues />
+  <featureTypes />
+  <entities>
+    <entity id="59110" action="add">
+      <generalInfo>
+        <identityId>50549</identityId>
+        <entityType refId="601">Entity</entityType>
+      </generalInfo>
+      <sanctionsLists>
+        <sanctionsList id="61785" refId="1550" datePublished="2026-11-23">SDN List</sanctionsList>
+      </sanctionsLists>
+      <sanctionsPrograms>
+        <sanctionsProgram id="65099" refId="91167">IFSR</sanctionsProgram>
+        <sanctionsProgram id="64933" refId="211">SDGT</sanctionsProgram>
+      </sanctionsPrograms>
+      <sanctionsTypes>
+        <sanctionsType id="51783" refId="1705">Block</sanctionsType>
+      </sanctionsTypes>
+      <legalAuthorities>
+        <legalAuthority id="51169" refId="1828">Executive Order 13224 (Terrorism)</legalAuthority>
+      </legalAuthorities>
+      <names>
+        <name id="91357">
+          <isPrimary>true</isPrimary>
+          <isLowQuality>false</isLowQuality>
+          <translations>
+            <translation id="92287">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <formattedLastName>H N B TRADING CO LLC</formattedLastName>
+              <formattedFullName>H N B TRADING CO LLC</formattedFullName>
+              <nameParts>
+                <namePart id="152977">
+                  <type refId="1525">Entity Name</type>
+                  <value>H N B TRADING CO LLC</value>
+                </namePart>
+              </nameParts>
+            </translation>
+          </translations>
+        </name>
+      </names>
+      <addresses>
+        <address id="91118">
+          <country refId="11210">United Arab Emirates</country>
+          <translations>
+            <translation id="69334">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <addressParts>
+                <addressPart id="126157">
+                  <type refId="1451">ADDRESS1</type>
+                  <value>Office 0541, Al Karama</value>
+                </addressPart>
+                <addressPart id="126158">
+                  <type refId="1452">ADDRESS2</type>
+                  <value>PO Box 12</value>
+                </addressPart>
+                <addressPart id="126159">
+                  <type refId="1454">CITY</type>
+                  <value>Dubai</value>
+                </addressPart>
+              </addressParts>
+            </translation>
+          </translations>
+        </address>
+      </addresses>
+      <features>
+        <feature id="104919">
+          <type featureTypeId="646">Organization Established Date</type>
+          <versionId>102474</versionId>
+          <value>21 Jun 2023</value>
+          <valueDate id="159065">
+            <fromDateBegin>2023-06-21</fromDateBegin>
+            <fromDateEnd>2023-06-21</fromDateEnd>
+            <toDateBegin>2023-06-21</toDateBegin>
+            <toDateEnd>2023-06-21</toDateEnd>
+            <isApproximate>false</isApproximate>
+            <isDateRange>false</isDateRange>
+          </valueDate>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="105180">
+          <type featureTypeId="504">Secondary sanctions risk:</type>
+          <versionId>102735</versionId>
+          <value>section 1(b) of Executive Order 13224, as amended by Executive Order 13886</value>
+          <valueRefId>92084</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+      </features>
+      <identityDocuments>
+        <identityDocument id="54086">
+          <type refId="91504">License</type>
+          <name nameId="91357" nameTranslationId="92287">H N B TRADING CO LLC</name>
+          <documentNumber>1202024</documentNumber>
+          <isValid>true</isValid>
+          <issuingCountry refId="11210">United Arab Emirates</issuingCountry>
+        </identityDocument>
+      </identityDocuments>
+      <relationships>
+        <relationship id="26162">
+          <type refId="15001">Providing support to</type>
+          <relatedEntity entityId="46350">SEPEHR ENERGY JAHAN NAMA PARS COMPANY</relatedEntity>
+        </relationship>
+      </relationships>
+    </entity>
+    <entity id="59120" action="add">
+      <generalInfo>
+        <identityId>50559</identityId>
+        <entityType refId="600">Individual</entityType>
+      </generalInfo>
+      <sanctionsLists>
+        <sanctionsList id="61795" refId="1550" datePublished="2026-11-23">SDN List</sanctionsList>
+      </sanctionsLists>
+      <sanctionsPrograms>
+        <sanctionsProgram id="64943" refId="91901">IRAN-EO13902</sanctionsProgram>
+      </sanctionsPrograms>
+      <sanctionsTypes>
+        <sanctionsType id="51793" refId="1705">Block</sanctionsType>
+      </sanctionsTypes>
+      <legalAuthorities>
+        <legalAuthority id="51180" refId="91902">Executive Order 13902 (Iran)</legalAuthority>
+      </legalAuthorities>
+      <names>
+        <name id="91370">
+          <isPrimary>true</isPrimary>
+          <isLowQuality>false</isLowQuality>
+          <translations>
+            <translation id="92307">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <formattedFirstName>Ali</formattedFirstName>
+              <formattedLastName>KALHOR</formattedLastName>
+              <formattedFullName>KALHOR, Ali</formattedFullName>
+              <nameParts>
+                <namePart id="152998">
+                  <type refId="1521">First Name</type>
+                  <value>Ali</value>
+                </namePart>
+                <namePart id="152997">
+                  <type refId="1520">Last Name</type>
+                  <value>Kalhor</value>
+                </namePart>
+              </nameParts>
+            </translation>
+            <translation id="92309">
+              <isPrimary>false</isPrimary>
+              <script refId="20100">Arabic</script>
+              <formattedLastName>‫علی کلهر‬</formattedLastName>
+              <formattedFullName>‫علی کلهر‬</formattedFullName>
+              <nameParts>
+                <namePart id="153001">
+                  <type refId="1521">First Name</type>
+                  <value>علی</value>
+                </namePart>
+                <namePart id="153000">
+                  <type refId="1520">Last Name</type>
+                  <value>کلهر</value>
+                </namePart>
+              </nameParts>
+            </translation>
+          </translations>
+        </name>
+      </names>
+      <addresses>
+        <address id="91140">
+          <country refId="11109">Iran</country>
+          <translations>
+            <translation id="69345">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+            </translation>
+          </translations>
+        </address>
+      </addresses>
+      <features>
+        <feature id="105239">
+          <type featureTypeId="125">Additional Sanctions Information -</type>
+          <versionId>102794</versionId>
+          <value>Subject to Secondary Sanctions</value>
+          <valueRefId>91473</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="105173">
+          <type featureTypeId="8">Birthdate</type>
+          <versionId>102728</versionId>
+          <value>08 Oct 1963</value>
+          <valueDate id="159537">
+            <fromDateBegin>1963-10-08</fromDateBegin>
+            <fromDateEnd>1963-10-08</fromDateEnd>
+            <toDateBegin>1963-10-08</toDateBegin>
+            <toDateEnd>1963-10-08</toDateEnd>
+            <isApproximate>false</isApproximate>
+            <isDateRange>false</isDateRange>
+          </valueDate>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="104932">
+          <type featureTypeId="224">Gender</type>
+          <versionId>102487</versionId>
+          <value>Male</value>
+          <valueRefId>91526</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="104935">
+          <type featureTypeId="10">Nationality Country</type>
+          <versionId>102490</versionId>
+          <value>Iran</value>
+          <valueRefId>11109</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="105174">
+          <type featureTypeId="9">Place of Birth</type>
+          <versionId>102729</versionId>
+          <value>Tehran, Iran</value>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="104933">
+          <type featureTypeId="504">Secondary sanctions risk:</type>
+          <versionId>102488</versionId>
+          <value>See Section 2 of E.O. 13902</value>
+          <valueRefId>92912</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+      </features>
+      <identityDocuments>
+        <identityDocument id="54104">
+          <type refId="1584">National ID No.</type>
+          <name nameId="91370" nameTranslationId="92307">KALHOR, Ali</name>
+          <documentNumber>0045764190</documentNumber>
+          <isValid>true</isValid>
+          <issuingCountry refId="11109">Iran</issuingCountry>
+        </identityDocument>
+      </identityDocuments>
+      <relationships>
+        <relationship id="26163">
+          <type refId="15002">Acting for or on behalf of</type>
+          <relatedEntity entityId="59113">RAHBAR BAZARGANI NESIM BAHARAN QESHM COMPANY</relatedEntity>
+        </relationship>
+      </relationships>
+    </entity>
+    <entity id="59123" action="add">
+      <generalInfo>
+        <identityId>50562</identityId>
+        <entityType refId="600">Individual</entityType>
+      </generalInfo>
+      <sanctionsLists>
+        <sanctionsList id="61798" refId="1550" datePublished="2026-11-23">SDN List</sanctionsList>
+      </sanctionsLists>
+      <sanctionsPrograms>
+        <sanctionsProgram id="64946" refId="91901">IRAN-EO13902</sanctionsProgram>
+      </sanctionsPrograms>
+      <sanctionsTypes>
+        <sanctionsType id="51796" refId="1705">Block</sanctionsType>
+      </sanctionsTypes>
+      <legalAuthorities>
+        <legalAuthority id="51183" refId="91902">Executive Order 13902 (Iran)</legalAuthority>
+      </legalAuthorities>
+      <names>
+        <name id="91374">
+          <isPrimary>true</isPrimary>
+          <isLowQuality>false</isLowQuality>
+          <translations>
+            <translation id="92313">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <formattedFirstName>Valiollah</formattedFirstName>
+              <formattedLastName>HEMMATI</formattedLastName>
+              <formattedFullName>HEMMATI, Valiollah</formattedFullName>
+              <nameParts>
+                <namePart id="153006">
+                  <type refId="1521">First Name</type>
+                  <value>Valiollah</value>
+                </namePart>
+                <namePart id="153005">
+                  <type refId="1520">Last Name</type>
+                  <value>Hemmati</value>
+                </namePart>
+              </nameParts>
+            </translation>
+            <translation id="92315">
+              <isPrimary>false</isPrimary>
+              <script refId="20100">Arabic</script>
+              <formattedLastName>‫ولی اله همتی‬</formattedLastName>
+              <formattedFullName>‫ولی اله همتی‬</formattedFullName>
+              <nameParts>
+                <namePart id="153009">
+                  <type refId="1521">First Name</type>
+                  <value>ولی اله</value>
+                </namePart>
+                <namePart id="153008">
+                  <type refId="1520">Last Name</type>
+                  <value>همتی</value>
+                </namePart>
+              </nameParts>
+            </translation>
+          </translations>
+        </name>
+      </names>
+      <addresses>
+        <address id="91144">
+          <country refId="11109">Iran</country>
+          <translations>
+            <translation id="69347">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+            </translation>
+          </translations>
+        </address>
+      </addresses>
+      <features>
+        <feature id="105237">
+          <type featureTypeId="125">Additional Sanctions Information -</type>
+          <versionId>102792</versionId>
+          <value>Subject to Secondary Sanctions</value>
+          <valueRefId>91473</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="105175">
+          <type featureTypeId="8">Birthdate</type>
+          <versionId>102730</versionId>
+          <value>20 Jun 1972</value>
+          <valueDate id="159538">
+            <fromDateBegin>1972-06-20</fromDateBegin>
+            <fromDateEnd>1972-06-20</fromDateEnd>
+            <toDateBegin>1972-06-20</toDateBegin>
+            <toDateEnd>1972-06-20</toDateEnd>
+            <isApproximate>false</isApproximate>
+            <isDateRange>false</isDateRange>
+          </valueDate>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="104937">
+          <type featureTypeId="224">Gender</type>
+          <versionId>102492</versionId>
+          <value>Male</value>
+          <valueRefId>91526</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="104938">
+          <type featureTypeId="10">Nationality Country</type>
+          <versionId>102493</versionId>
+          <value>Iran</value>
+          <valueRefId>11109</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="105176">
+          <type featureTypeId="9">Place of Birth</type>
+          <versionId>102731</versionId>
+          <value>Tehran, Iran</value>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="104939">
+          <type featureTypeId="504">Secondary sanctions risk:</type>
+          <versionId>102494</versionId>
+          <value>See Section 2 of E.O. 13902</value>
+          <valueRefId>92912</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+      </features>
+      <identityDocuments>
+        <identityDocument id="54108">
+          <type refId="1584">National ID No.</type>
+          <name nameId="91374" nameTranslationId="92313">HEMMATI, Valiollah</name>
+          <documentNumber>0057267448</documentNumber>
+          <isValid>true</isValid>
+          <issuingCountry refId="11109">Iran</issuingCountry>
+        </identityDocument>
+      </identityDocuments>
+      <relationships>
+        <relationship id="26164">
+          <type refId="15002">Acting for or on behalf of</type>
+          <relatedEntity entityId="59113">RAHBAR BAZARGANI NESIM BAHARAN QESHM COMPANY</relatedEntity>
+        </relationship>
+      </relationships>
+    </entity>
+  </entities>
+</sanctionsData>

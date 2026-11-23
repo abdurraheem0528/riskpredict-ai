@@ -1,0 +1,6 @@
+# Runtime dependencies for jobs/ (all free, open source).
+httpx==0.28.1
+psycopg[binary]==3.3.9
+pycountry==26.2.16
+cvss==3.6
+defusedxml==0.7.1
