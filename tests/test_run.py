@@ -1,6 +1,8 @@
 """The CLI end to end, with every source served from saved real responses."""
 
 import gzip
+import io
+import zipfile
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -24,8 +26,19 @@ ROUTES = {
 }
 
 
+def gkg_zip() -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("20190301001500.gkg.csv", fixture_bytes("gdelt_gkg_trimmed.csv"))
+    return buf.getvalue()
+
+
 def handler(request: httpx.Request) -> httpx.Response:
     host = request.url.host
+    if host == "data.gdeltproject.org":
+        if request.url.path.endswith("lastupdate.txt"):
+            return httpx.Response(200, content=fixture_bytes("gdelt_lastupdate.txt"))
+        return httpx.Response(200, content=gkg_zip())
     if host == "epss.empiricalsecurity.com":
         return httpx.Response(200, content=gzip.compress(fixture_bytes("epss_scores_trimmed.csv")))
     if host == "services9.arcgis.com":

@@ -2,11 +2,12 @@
 
     python -m jobs.analyse.bench [--out results.json] [--n 100]
 
-Prints only four aggregates: model size on disk, peak RAM, seconds per 100
-events and the number of tags per event type. Per-title results and timing
-detail go to ``--out`` if given, never to stdout. The fixtures are public responses saved in ``tests/fixtures``; for the
-timing run they are cycled up to ``--n`` titles, so timings reflect real title
-lengths, not a larger set of distinct articles.
+Prints only aggregates: model size on disk (the model's own files, and the
+whole Hugging Face cache), peak RAM, seconds per 100 events and the number of
+tags per event type. Per-title results and timing detail go to ``--out`` if
+given, never to stdout. The fixtures are public responses saved in
+``tests/fixtures``; for the timing run they are cycled up to ``--n`` titles, so
+timings reflect real title lengths, not a larger set of distinct articles.
 """
 
 from __future__ import annotations
@@ -51,14 +52,42 @@ def peak_rss_mb() -> float:
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024  # KiB on Linux
 
 
-def dir_mb(path: str) -> float:
+def disk_bytes(*paths: str) -> int:
+    """Bytes on disk under ``paths``, following symlinks, each file counted once.
+
+    The Hugging Face cache keeps the real files in ``blobs/`` and points at them
+    from ``snapshots/<revision>/`` with symlinks (or, on some setups, keeps them
+    elsewhere), so the snapshot is walked with symlinks resolved and every
+    distinct file (by device and inode) is counted once: a blob shared by two
+    revisions, a hard link or a file reached both directly and through a link
+    adds its size only once. Broken links are skipped.
+    """
+    seen_files: set[tuple[int, int]] = set()
+    seen_dirs: set[tuple[int, int]] = set()
     total = 0
-    for root, _, files in os.walk(path):
-        for f in files:
-            p = os.path.join(root, f)
-            if not os.path.islink(p):
-                total += os.path.getsize(p)
-    return total / 2**20
+    for top in paths:
+        if not os.path.exists(top):
+            continue
+        for root, dirs, files in os.walk(top, followlinks=True):
+            st = os.stat(root)
+            if (st.st_dev, st.st_ino) in seen_dirs:  # symlink loop or a directory reached twice
+                dirs[:] = []
+                continue
+            seen_dirs.add((st.st_dev, st.st_ino))
+            for f in files:
+                try:
+                    st = os.stat(os.path.join(root, f))  # follows the link
+                except OSError:
+                    continue
+                key = (st.st_dev, st.st_ino)
+                if key not in seen_files:
+                    seen_files.add(key)
+                    total += st.st_size
+    return total
+
+
+def disk_mb(*paths: str) -> float:
+    return disk_bytes(*paths) / 2**20
 
 
 def main(argv=None) -> int:
@@ -78,7 +107,6 @@ def main(argv=None) -> int:
     load_s = time.monotonic() - t0
     rss_loaded = rss_mb()
     snapshot = snapshot_download(model.name, revision=model.revision, local_files_only=True)
-    blobs = os.path.join(constants.HF_HUB_CACHE, "models--" + model.name.replace("/", "--"))
 
     raw = model.predict([i.title for i in items])  # warm-up + the results we keep
     tags = [tagging.build_tag(i, r) for i, r in zip(items, raw)]
@@ -89,7 +117,11 @@ def main(argv=None) -> int:
     per_100 = (time.monotonic() - t1) * 100 / args.n
 
     report = {
-        "model_files_mb": round(dir_mb(blobs), 1),
+        # The files the model is loaded from (weights included, via the snapshot's
+        # symlinks), and the whole HF cache the workflows save (it also holds
+        # whatever else loading pulled in, e.g. the encoder's tokenizer).
+        "model_files_mb": round(disk_mb(snapshot), 1),
+        "hf_cache_mb": round(disk_mb(constants.HF_HUB_CACHE), 1),
         "peak_rss_mb": round(peak_rss_mb()),
         "s_per_100_events": round(per_100, 2),
         "tags_per_type": {t: sum(1 for x in tags if x.event_type == t) for t in sorted({x.event_type for x in tags})},

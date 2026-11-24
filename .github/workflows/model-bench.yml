@@ -1,7 +1,7 @@
 # Measure the tagging model on GitHub's runner (manual only).
 # Runs jobs.analyse.bench on the saved real fixture titles in tests/fixtures and
-# prints only four aggregates: model size on disk, peak RAM, seconds per 100
-# events and the number of tags per event type. No secrets, no database.
+# prints only aggregates: model size on disk (model files and whole HF cache),
+# peak RAM, seconds per 100 events and the number of tags per event type. No secrets, no database.
 name: model-bench
 
 on:

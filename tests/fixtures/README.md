@@ -9,6 +9,8 @@ were dropped, and the records that remain are byte-for-byte unchanged.
 |---|---|---|
 | `gdelt_artlist.json` | `api.gdeltproject.org/api/v2/doc/doc?query="supply chain" disruption&mode=artlist&format=json&maxrecords=10&timespan=1d` | no (GDELT returned 1 article) |
 | `gdelt_throttle.txt` | GDELT DOC 2.0, second request inside 5 s (HTTP 429, plain text) | no |
+| `gdelt_lastupdate.txt` (step 3) | `data.gdeltproject.org/gdeltv2/lastupdate.txt` as published for the 2026-11-16 16:30 UTC window (read through a web-fetch service, because this sandbox cannot reach data.gdeltproject.org) | no |
+| `gdelt_gkg_trimmed.csv` (step 3) | GKG 2.1 file `20190301001500.gkg.csv` from GDELT's mirror in the AWS Open Data bucket `gdelt-open-data` (`v2/gkg/`), same format as `data.gdeltproject.org/gdeltv2/*.gkg.csv.zip`; fetched 2026-11-24. The mirror ends in 2019, so these rows predate the `<PAGE_TITLE>` block (added Sept 2019) | yes: 5 of 2,656 rows (ids `-0`, `-201`, `-910`, `-1825`, `-2133`); tests zip it in memory |
 | `cisa_kev_trimmed.json` | `www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` | yes: 5 of 1,790 entries (2 oldest, 3 newest); header fields kept |
 | `epss_scores_trimmed.csv` | `epss.empiricalsecurity.com/epss_scores-current.csv.gz` (decompressed) | yes: metadata + header + first 4 rows + first 3 rows scoring ≥ 0.5 |
 | `osv_jinja2_trimmed.json` | `POST api.osv.dev/v1/query {"package":{"name":"jinja2","ecosystem":"PyPI"}}` | yes: 4 of 20 vulns |

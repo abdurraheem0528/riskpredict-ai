@@ -27,6 +27,9 @@ class RunContext:
     now: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     watch_terms: list[WatchTerm] = field(default_factory=list)
     sleep: Callable[[float], None] = _sleep
+    # Each source's notes from its previous run (feeds.source_health.notes), e.g.
+    # the last GDELT file window stored. Empty on a dry run.
+    state: dict[str, dict] = field(default_factory=dict)
 
     def terms(self, kind: str) -> list[WatchTerm]:
         return [t for t in self.watch_terms if t.kind == kind]

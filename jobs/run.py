@@ -219,13 +219,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         terms = DEFAULT_TERMS
         last_success: dict[str, datetime | None] = {}
+        state: dict[str, dict] = {}
     else:
         dsn = db.dsn_from_env()
         if not dsn:
             print(f"{db.ENV_VAR} is not set (use --dry-run to fetch without a database)", file=sys.stderr)
             return 2
         try:
-            terms, last_success = db.load_state(dsn)
+            terms, last_success, state = db.load_state(dsn)
         except db.DatabaseError as exc:
             print(f"database: {exc}", file=sys.stderr)
             return 1
@@ -241,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
         print("nothing to do")
         return 0
 
-    ctx = RunContext(now=now, watch_terms=list(terms))
+    ctx = RunContext(now=now, watch_terms=list(terms), state=state)
     results = fetch_all(due, ctx)
 
     written = None

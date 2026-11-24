@@ -33,7 +33,7 @@ everything is portable (`docker-compose.yml`) and removable.
 
 | Source | What is stored | Every |
 |---|---|---|
-| GDELT DOC 2.0 | news articles for watch terms (`feeds.watch_terms`, kind `gdelt_query`) | 15 min |
+| GDELT 2.0 | news articles matching watch terms (`feeds.watch_terms`, kind `gdelt_query`), from the 15-minute GKG files; one DOC API call as fallback | 15 min |
 | CISA KEV | known exploited vulnerabilities | 1 h |
 | FIRST EPSS | daily exploit-probability scores ≥ `EPSS_MIN_SCORE` (default 0.5) | 6 h |
 | OSV.dev | vulnerabilities for watched packages (kind `osv_package`) | 6 h |
@@ -128,7 +128,16 @@ With a database (`DATABASE_URL_FEEDS` set):
 python -m jobs.migrate
 python -m jobs.run --sources all                    # skips sources not due yet
 python -m jobs.run --sources usgs,gdacs --force
+python -m jobs.prune --dry-run                      # what retention would delete
 ```
+
+**Retention** (`python -m jobs.prune`, run by `feeds.yml` after each fetch, deleting at
+most once a day) keeps the database inside Neon's free 1 GB: events whose event time
+*and* first-stored time are older than `RETAIN_EVENTS_DAYS` (90), with their tags;
+series observations older than `RETAIN_SERIES_DAYS` (400) except the newest
+`RETAIN_SERIES_MIN_POINTS` (60) of each series key, so annual World Bank series keep
+their history; and anomaly flags whose point is gone. It prints rows deleted and
+`pg_database_size`.
 
 Self-hosted, with Postgres 16 in Docker: `docker compose up -d --build`. The
 container runs spike detection after every fetch. To include tagging, build with
