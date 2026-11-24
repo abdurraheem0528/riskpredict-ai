@@ -1,0 +1,2551 @@
+openapi: 3.1.0
+info:
+  title: RiskPredict AI API
+  version: 0.1.0
+  summary: Business data, risks and map layers for the RiskPredict dashboard.
+  description: |
+    Contract between the FastAPI service (`api/`, session B) and the dashboard
+    (`web/`, session D). The risk engine (session C) is described in
+    `risk-engine.md`, and the public feed tables in `feeds-schema.md`.
+
+    ## Conventions (defined once, apply everywhere)
+
+    * **Base URL**: `https://<api host>/v1`; JSON only (`application/json`) except
+      `/v1/stream` (`text/event-stream`) and map layers (`application/geo+json`).
+    * **Auth**: `Authorization: Bearer <access token>` on every endpoint except
+      sign-up, sign-in, refresh, the OAuth callbacks, `/v1/health` and the inbound
+      webhooks. Access tokens are JWTs (HS256), valid for 15 minutes. Refresh tokens
+      are opaque, valid for 30 days, rotated on every use, and kept by the web app
+      (not in a cookie: the API and the dashboard are on different sites).
+    * **Workspace**: endpoints marked with the `X-Workspace-Id` header act on that
+      workspace. The API checks the caller's membership, then sets
+      `app.workspace_id` / `app.user_id` for the transaction, so row-level security
+      applies too. A missing header is `400 workspace_required`; a workspace the
+      caller is not a member of is `404 not_found` (not 403, so ids don't leak).
+    * **Roles**: `viewer` can read; `editor` can also change sources, mappings,
+      risks' status, scenarios and alerts; `admin` can also manage connections and
+      members; `owner` can also delete the workspace. Too low a role is
+      `403 forbidden`.
+    * **Errors**: always `application/problem+json` (RFC 9457) with a stable
+      machine-readable `code` (see `Problem`).
+    * **Pagination**: lists take `limit` (1–200, default 50) and an opaque `cursor`.
+      They return `{"items": [...], "next_cursor": "..." | null}`. Order is stable.
+      Cursors stay valid for 24 hours.
+    * **Ids** are UUIDs, except feed events (`source` + `raw_id`). Times are RFC 3339
+      in UTC (`2026-11-24T12:00:00Z`). Country codes are ISO 3166-1 alpha-3, ports
+      UN/LOCODE (5 characters, no space), currencies ISO 4217.
+    * **Rate limits**: `429 rate_limited` with `Retry-After`. Sign-in is limited per
+      IP and per account.
+    * **No demo data**: every list is empty for a new workspace, and the dashboard
+      must render the empty states, not placeholders.
+
+    ## Dashboard screens → endpoints
+
+    | Screen | Data |
+    |---|---|
+    | **Empty** (no connections yet) | `GET /v1/me`, `GET /v1/connections` (empty list), `GET /v1/feeds/health`, `GET /v1/map/events` (the live world map still works) |
+    | **Connect** (pick a tool) | `GET /v1/connections/providers`, `POST /v1/connections/google/start` → Google consent → `GET /v1/connections/google/callback` → `POST /v1/connections/{id}/google/picker-token` → Google Picker → `POST /v1/sources`; or `POST /v1/connections/composio` → hosted auth → `GET /v1/connections/{id}/browse` → `POST /v1/sources` |
+    | **Confirm** (review the AI's column mapping on the map) | `GET /v1/sources/{id}` (columns + samples), `POST /v1/sources/{id}/mapping/suggest`, `GET /v1/sources/{id}/mapping`, `POST /v1/sources/{id}/mapping/preview` (GeoJSON of would-be entities + row problems), `POST /v1/sources/{id}/mapping/confirm`; SSE `mapping.suggested`, `source.synced` |
+    | **Main** (full-screen map with risks, sheet of top risks) | `GET /v1/map/entities`, `GET /v1/map/risks`, `GET /v1/map/events`, `GET /v1/map/disruptions`, `GET /v1/risks/summary`, `GET /v1/risks?sort=-score`, `GET /v1/alerts?unread=true`; SSE `risk.*`, `alert.created`, `feeds.updated` |
+    | **Risk** (one risk with evidence and advice) | `GET /v1/risks/{id}` (evidence, factors, history, advice), `GET /v1/feeds/series` (chart for anomaly evidence), `PATCH /v1/risks/{id}` |
+    | **Scenario** (what-if) | `POST /v1/scenarios`, `GET /v1/scenarios`, `GET /v1/scenarios/{id}`, `GET /v1/entities` (to pick overrides) |
+servers:
+  - url: http://localhost:8000
+    description: Local (`docker compose up`)
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+    description: "Sign-up, sign-in, refresh tokens (own accounts, argon2id)"
+  - name: workspaces
+    description: "Workspaces, settings and members"
+  - name: connections
+    description: "Connected tools: Google Sheets directly, others via Composio"
+  - name: sources
+    description: "Connected sheets/tables and their column mapping"
+  - name: entities
+    description: "The business's suppliers, sites, customers, routes, ports, currencies, commodities and software"
+  - name: risks
+    description: "Scored risks (score = 100 × likelihood × impact) with evidence"
+  - name: map
+    description: "GeoJSON layers for the MapLibre dashboard"
+  - name: feeds
+    description: "Read-only public feed data"
+  - name: scenarios
+    description: "What-if runs of the risk engine"
+  - name: alerts
+    description: "In-app alerts"
+  - name: stream
+    description: "Server-sent events"
+  - name: webhooks
+    description: "Inbound notifications from Google Drive and Composio"
+  - name: internal
+    description: "Worker → API only; not public"
+  - name: system
+    description: "Health"
+
+paths:
+  /v1/health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: Liveness, plus the migration the API expects
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version, schema_version]
+                properties:
+                  status: {type: string, enum: [ok]}
+                  version: {type: string, description: API build version}
+                  schema_version: {type: string, description: "latest applied migration, e.g. 007_biz_lookups"}
+
+  # --- auth ------------------------------------------------------------------
+  /v1/auth/sign-up:
+    post:
+      tags: [auth]
+      operationId: signUp
+      summary: Create an account and its first workspace (caller becomes owner)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, workspace_name]
+              properties:
+                email: {type: string, format: email, maxLength: 254}
+                password: {type: string, minLength: 12, maxLength: 128, description: "Hashed with argon2id (m=19456 KiB, t=2, p=1); never logged"}
+                display_name: {type: string, maxLength: 120}
+                workspace_name: {type: string, minLength: 1, maxLength: 120}
+      responses:
+        "201":
+          description: Signed up and signed in
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AuthResult"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+
+  /v1/auth/sign-in:
+    post:
+      tags: [auth]
+      operationId: signIn
+      summary: Exchange email and password for tokens
+      description: Wrong email and wrong password give the same `401 invalid_credentials`. Ten failures lock the account for 15 minutes (`423`-style `401 account_locked`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: {type: string, format: email}
+                password: {type: string, maxLength: 128}
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AuthResult"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+
+  /v1/auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshTokens
+      summary: Rotate the refresh token and get a new access token
+      description: Each refresh token works once. Presenting an already-rotated token revokes its whole family (all devices signed in from that sign-in) and returns `401 refresh_reused`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: {type: string}
+      responses:
+        "200":
+          description: New tokens
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Tokens"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/auth/sign-out:
+    post:
+      tags: [auth]
+      operationId: signOut
+      summary: Revoke the refresh token's family
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: {type: string}
+                everywhere: {type: boolean, default: false, description: Revoke every session of this user}
+      responses:
+        "204": {description: Signed out (also when the token was already invalid)}
+        "400": {$ref: "#/components/responses/BadRequest"}
+
+  /v1/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: The signed-in user and their workspaces
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, memberships]
+                properties:
+                  user: {$ref: "#/components/schemas/User"}
+                  memberships:
+                    type: array
+                    items:
+                      type: object
+                      required: [workspace, role]
+                      properties:
+                        workspace: {$ref: "#/components/schemas/Workspace"}
+                        role: {$ref: "#/components/schemas/Role"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    patch:
+      tags: [auth]
+      operationId: updateMe
+      summary: Change display name or password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name: {type: string, maxLength: 120}
+                current_password: {type: string, description: Required with new_password}
+                new_password: {type: string, minLength: 12, maxLength: 128, description: Changing it revokes every other session}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/User"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  # --- workspaces ----------------------------------------------------------------
+  /v1/workspaces:
+    get:
+      tags: [workspaces]
+      operationId: listWorkspaces
+      summary: Workspaces the caller belongs to
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Workspace"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    post:
+      tags: [workspaces]
+      operationId: createWorkspace
+      summary: Create another workspace (caller becomes owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WorkspaceInput"}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Workspace"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/workspaces/{workspace_id}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkspaceIdPath"}
+    get:
+      tags: [workspaces]
+      operationId: getWorkspace
+      summary: One workspace
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Workspace"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    patch:
+      tags: [workspaces]
+      operationId: updateWorkspace
+      summary: Rename or change settings (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/WorkspaceInput"}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Workspace"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [workspaces]
+      operationId: deleteWorkspace
+      summary: Delete the workspace and everything in it (owner)
+      description: Revokes Google tokens and Drive channels, deletes Composio connected accounts, then deletes all rows (cascade). Cannot be undone.
+      responses:
+        "204": {description: Deleted}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /v1/workspaces/{workspace_id}/members:
+    parameters:
+      - {$ref: "#/components/parameters/WorkspaceIdPath"}
+    get:
+      tags: [workspaces]
+      operationId: listMembers
+      summary: Members of the workspace
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Member"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    post:
+      tags: [workspaces]
+      operationId: addMember
+      summary: Add an existing account by email (admin)
+      description: There is no email service, so only people who already signed up can be added. An unknown email is `404 not_found`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: {type: string, format: email}
+                role: {$ref: "#/components/schemas/Role"}
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Member"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  /v1/workspaces/{workspace_id}/members/{user_id}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkspaceIdPath"}
+      - name: user_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    patch:
+      tags: [workspaces]
+      operationId: updateMember
+      summary: Change a member's role (admin; only an owner can make or unmake owners)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: {$ref: "#/components/schemas/Role"}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Member"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+    delete:
+      tags: [workspaces]
+      operationId: removeMember
+      summary: Remove a member, or leave (yourself). The last owner cannot leave (409).
+      responses:
+        "204": {description: Removed}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  # --- connections -----------------------------------------------------------------
+  /v1/connections/providers:
+    get:
+      tags: [connections]
+      operationId: listProviders
+      summary: Tools that can be connected (Connect screen)
+      description: Google Sheets is direct. Others go through Composio and are listed only when `COMPOSIO_API_KEY` is configured on the server.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Provider"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/connections:
+    get:
+      tags: [connections]
+      operationId: listConnections
+      summary: The workspace's connections (empty list = Empty screen)
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Connection"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/connections/google/start:
+    post:
+      tags: [connections]
+      operationId: startGoogleConnection
+      summary: Begin Google OAuth for Sheets (admin)
+      description: |
+        Creates a `pending` connection and returns Google's consent URL
+        (scope `https://www.googleapis.com/auth/drive.file`, `access_type=offline`,
+        `prompt=consent`, PKCE S256). The browser navigates to it; Google redirects to
+        `GET /v1/connections/google/callback`, which redirects back to the dashboard.
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                return_path: {type: string, default: /connect, pattern: "^/[A-Za-z0-9/_-]*$", description: Dashboard path to return to}
+      responses:
+        "201":
+          description: Consent URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connection_id, authorization_url]
+                properties:
+                  connection_id: {type: string, format: uuid}
+                  authorization_url: {type: string, format: uri}
+        "403": {$ref: "#/components/responses/Forbidden"}
+
+  /v1/connections/google/callback:
+    get:
+      tags: [connections]
+      operationId: googleCallback
+      summary: Google redirects here; the API redirects to the dashboard
+      description: |
+        Verifies `state` (sha256 stored in `biz.connections.oauth_state_hash`), exchanges
+        the code, encrypts the refresh token (AES-256-GCM) and marks the connection
+        `active`. Then redirects (302) to
+        `${WEB_ORIGIN}<return_path>?connection_id=<id>&status=ok|error&code=<problem code>`.
+      security: []
+      parameters:
+        - {name: code, in: query, schema: {type: string}}
+        - {name: state, in: query, required: true, schema: {type: string}}
+        - {name: error, in: query, schema: {type: string}}
+      responses:
+        "302": {description: Redirect to the dashboard}
+        "400": {$ref: "#/components/responses/BadRequest"}
+
+  /v1/connections/{connection_id}/google/picker-token:
+    post:
+      tags: [connections]
+      operationId: getGooglePickerToken
+      summary: Short-lived credentials for the Google Picker in the browser
+      description: The access token is scoped to `drive.file` and lives at most 1 hour. Files the user picks become readable by the API.
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/ConnectionIdPath"}
+      responses:
+        "200":
+          description: Picker credentials
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/GooglePickerToken"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  /v1/connections/composio:
+    post:
+      tags: [connections]
+      operationId: startComposioConnection
+      summary: Get a Composio hosted-auth link for another tool (admin)
+      description: |
+        Creates a `pending` `composio:<app>` connection and returns Composio's
+        redirect URL. Composio uses `ws_<workspace id>` as its user id. After auth,
+        Composio redirects to `${WEB_ORIGIN}/connect?connection_id=<id>`; the dashboard
+        then polls `GET /v1/connections/{id}` (or waits for SSE `connection.updated`)
+        until it is `active`.
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [app]
+              properties:
+                app: {type: string, pattern: "^[a-z0-9_]{1,60}$", examples: [airtable]}
+      responses:
+        "201":
+          description: Link created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connection_id, redirect_url]
+                properties:
+                  connection_id: {type: string, format: uuid}
+                  redirect_url: {type: string, format: uri}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+        "503": {$ref: "#/components/responses/Unavailable"}
+
+  /v1/connections/{connection_id}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkspaceHeader"}
+      - {$ref: "#/components/parameters/ConnectionIdPath"}
+    get:
+      tags: [connections]
+      operationId: getConnection
+      summary: One connection (a pending Composio one is re-checked with Composio)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Connection"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [connections]
+      operationId: deleteConnection
+      summary: Disconnect (admin)
+      description: Revokes the Google token and stops the Drive channel, or deletes the Composio connected account; then deletes its sources, entities and risks.
+      responses:
+        "204": {description: Deleted}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /v1/connections/{connection_id}/browse:
+    get:
+      tags: [connections]
+      operationId: browseConnection
+      summary: List bases/tables in a Composio connection (Google uses the Picker instead)
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/ConnectionIdPath"}
+        - {name: parent_id, in: query, description: "Omit for top level (e.g. Airtable bases); a base id lists its tables", schema: {type: string}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, kind, selectable]
+                      properties:
+                        id: {type: string}
+                        name: {type: string}
+                        kind: {type: string, enum: [base, table]}
+                        selectable: {type: boolean, description: true when it can become a source}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  # --- sources & column mapping -------------------------------------------------------
+  /v1/sources:
+    get:
+      tags: [sources]
+      operationId: listSources
+      summary: List sources
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {name: connection_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Source"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    post:
+      tags: [sources]
+      operationId: createSource
+      summary: Add a picked sheet tab or table (editor)
+      description: Reads the header row and up to 5 sample values per column, stores them in `columns`, and starts a mapping suggestion in the background (SSE `mapping.suggested`).
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connection_id, external_id]
+              properties:
+                connection_id: {type: string, format: uuid}
+                external_id: {type: string, description: "Google spreadsheet id, or Composio base id"}
+                external_table_id: {type: string, default: "", description: "Sheet gid (\"\" = first tab), or table id"}
+                header_row: {type: integer, minimum: 1, default: 1}
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Source"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/sources/{source_id}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkspaceHeader"}
+      - {$ref: "#/components/parameters/SourceIdPath"}
+    get:
+      tags: [sources]
+      operationId: getSource
+      summary: Get source
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Source"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    patch:
+      tags: [sources]
+      operationId: updateSource
+      summary: Pause/resume syncing or change the header row (editor)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paused: {type: boolean}
+                header_row: {type: integer, minimum: 1}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Source"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    delete:
+      tags: [sources]
+      operationId: deleteSource
+      summary: Remove the source with its entities and risks (editor)
+      responses:
+        "204": {description: Deleted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/sources/{source_id}/sync:
+    post:
+      tags: [sources]
+      operationId: syncSource
+      summary: Re-read the source now (editor)
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/SourceIdPath"}
+      responses:
+        "202": {description: "Queued; SSE `source.synced` or `source.sync_failed` follows"}
+        "409": {$ref: "#/components/responses/Conflict"}
+
+  /v1/sources/{source_id}/mapping:
+    get:
+      tags: [sources]
+      operationId: getMapping
+      summary: Latest suggestion and the confirmed mapping (either may be null)
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/SourceIdPath"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [suggested, confirmed, fields]
+                properties:
+                  suggested:
+                    oneOf: [{$ref: "#/components/schemas/ColumnMapping"}, {type: "null"}]
+                  confirmed:
+                    oneOf: [{$ref: "#/components/schemas/ColumnMapping"}, {type: "null"}]
+                  fields:
+                    type: array
+                    description: Target fields the UI can offer, with which entity kinds use them
+                    items: {$ref: "#/components/schemas/MappingFieldInfo"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/sources/{source_id}/mapping/suggest:
+    post:
+      tags: [sources]
+      operationId: suggestMapping
+      summary: Ask Groq for a column mapping (editor)
+      description: |
+        Sends only the header names and up to 5 sample values per column to Groq
+        (`GROQ_MAPPING_MODEL`). The model's JSON is validated against `MappingSpec`;
+        anything invalid is dropped. This never writes entities. If Groq is
+        unavailable, the API returns `503 ai_unavailable` and the user maps by hand.
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/SourceIdPath"}
+      responses:
+        "200":
+          description: Suggestion stored (status `suggested`)
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ColumnMapping"}
+        "503": {$ref: "#/components/responses/Unavailable"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/sources/{source_id}/mapping/preview:
+    post:
+      tags: [sources]
+      operationId: previewMapping
+      summary: Apply a candidate mapping to the first rows without saving (Confirm screen)
+      description: Reads up to `limit` rows live from the tool, applies the mapping and normalisation, and returns map features plus per-row problems.
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/SourceIdPath"}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 100}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MappingSpec"}
+      responses:
+        "200":
+          description: Preview
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MappingPreview"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/sources/{source_id}/mapping/confirm:
+    post:
+      tags: [sources]
+      operationId: confirmMapping
+      summary: Confirm a mapping (editor); starts a full sync
+      description: Stores a new `confirmed` version (the previous one becomes `superseded`), sets the source `active`, and syncs. Entities from rows that no longer map are deleted with their risks.
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/SourceIdPath"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MappingSpec"}
+      responses:
+        "200":
+          description: Confirmed
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ColumnMapping"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  # --- entities ------------------------------------------------------------------------
+  /v1/entities:
+    get:
+      tags: [entities]
+      operationId: listEntities
+      summary: List entities
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {name: kind, in: query, schema: {$ref: "#/components/schemas/EntityKind"}}
+        - {name: country, in: query, schema: {$ref: "#/components/schemas/Country"}}
+        - {name: source_id, in: query, schema: {type: string, format: uuid}}
+        - {name: q, in: query, description: Case-insensitive substring of the name, schema: {type: string, maxLength: 100}}
+      responses:
+        "200":
+          description: Page of entities, ordered by kind then name
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: "#/components/schemas/Page"}
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: "#/components/schemas/Entity"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/entities/{entity_id}:
+    get:
+      tags: [entities]
+      operationId: getEntity
+      summary: One entity with its open risks (entities are read-only; edit them in the source tool)
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {name: entity_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: "#/components/schemas/Entity"}
+                  - type: object
+                    required: [risks]
+                    properties:
+                      risks:
+                        type: array
+                        items: {$ref: "#/components/schemas/Risk"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  # --- risks ------------------------------------------------------------------------
+  /v1/risks:
+    get:
+      tags: [risks]
+      operationId: listRisks
+      summary: Filtered list of risks (Main screen sheet)
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+        - name: status
+          in: query
+          description: Comma-separated; default `open,acknowledged,mitigating`
+          schema: {type: string, examples: ["open,acknowledged"]}
+        - name: category
+          in: query
+          description: Comma-separated RiskCategory values
+          schema: {type: string}
+        - {name: min_score, in: query, schema: {type: number, minimum: 0, maximum: 100}}
+        - {name: entity_id, in: query, schema: {type: string, format: uuid}}
+        - {name: entity_kind, in: query, schema: {$ref: "#/components/schemas/EntityKind"}}
+        - {name: country, in: query, schema: {$ref: "#/components/schemas/Country"}}
+        - {name: port, in: query, schema: {$ref: "#/components/schemas/Locode"}}
+        - {name: since, in: query, description: last_seen_at on or after, schema: {type: string, format: date-time}}
+        - name: sort
+          in: query
+          schema: {type: string, enum: ["-score", "-last_seen_at", "-first_seen_at", "-likelihood", "-impact"], default: "-score"}
+      responses:
+        "200":
+          description: Page of risks
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: "#/components/schemas/Page"}
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: "#/components/schemas/Risk"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/risks/summary:
+    get:
+      tags: [risks]
+      operationId: getRiskSummary
+      summary: Counts and top risks for the Main screen header
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RiskSummary"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/risks/{risk_id}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkspaceHeader"}
+      - {$ref: "#/components/parameters/RiskIdPath"}
+    get:
+      tags: [risks]
+      operationId: getRisk
+      summary: One risk with entity, evidence, factors, history and advice (Risk screen)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RiskDetail"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    patch:
+      tags: [risks]
+      operationId: updateRisk
+      summary: Change status (editor)
+      description: Users may set `acknowledged`, `mitigating`, `dismissed` or back to `open`. `resolved` is set by the engine only (422 otherwise).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: {type: string, enum: [open, acknowledged, mitigating, dismissed]}
+                note: {type: string, maxLength: 2000}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Risk"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  # --- map layers (GeoJSON) ------------------------------------------------------------
+  /v1/map/entities:
+    get:
+      tags: [map]
+      operationId: mapEntities
+      summary: The workspace's entities as map features
+      description: Entities with `lat`/`lon` are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Not paginated; at most 5,000 features (then `truncated` is true).
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {name: kind, in: query, schema: {$ref: "#/components/schemas/EntityKind"}}
+        - {name: source_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        "200":
+          description: FeatureCollection
+          content:
+            application/geo+json:
+              schema: {$ref: "#/components/schemas/EntityFeatureCollection"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/map/risks:
+    get:
+      tags: [map]
+      operationId: mapRisks
+      summary: Risks grouped by place (country, port or point)
+      description: One feature per place, with the count, max score and the top 5 risk ids there. `place_type` = `point` features have a geometry; `country` and `port` features have `geometry` null and are joined client-side on `place_key`.
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {name: status, in: query, description: "Comma-separated; default open,acknowledged,mitigating", schema: {type: string}}
+        - {name: category, in: query, schema: {type: string}}
+        - {name: min_score, in: query, schema: {type: number, minimum: 0, maximum: 100, default: 0}}
+      responses:
+        "200":
+          description: FeatureCollection
+          content:
+            application/geo+json:
+              schema: {$ref: "#/components/schemas/RiskPlaceFeatureCollection"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/map/events:
+    get:
+      tags: [map]
+      operationId: mapEvents
+      summary: Live feed events with a position or country (public data; no workspace needed)
+      parameters:
+        - {$ref: "#/components/parameters/Bbox"}
+        - {name: since, in: query, description: "Default: 7 days ago", schema: {type: string, format: date-time}}
+        - {name: types, in: query, description: "Comma-separated type prefixes, e.g. hazard.,port.disruption", schema: {type: string}}
+        - {name: min_severity, in: query, schema: {type: number, minimum: 0, maximum: 1}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 5000, default: 2000}}
+      responses:
+        "200":
+          description: FeatureCollection, newest first
+          content:
+            application/geo+json:
+              schema: {$ref: "#/components/schemas/FeedEventFeatureCollection"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/map/disruptions:
+    get:
+      tags: [map]
+      operationId: mapDisruptions
+      summary: Port disruptions (PortWatch) and chokepoints with their current status
+      description: Chokepoints come from the engine's static table (risk-engine.md §5.3). `status` is `disrupted` if a matching event in the last 7 days has severity ≥ 0.66, `watch` if any matching event, else `normal`.
+      parameters:
+        - {$ref: "#/components/parameters/Bbox"}
+      responses:
+        "200":
+          description: FeatureCollection
+          content:
+            application/geo+json:
+              schema: {$ref: "#/components/schemas/DisruptionFeatureCollection"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # --- feeds (read-only public data) ---------------------------------------------------
+  /v1/feeds/events:
+    get:
+      tags: [feeds]
+      operationId: listFeedEvents
+      summary: List feed events
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {name: source, in: query, schema: {type: string}}
+        - {name: type, in: query, description: Exact type or a prefix ending in "." , schema: {type: string}}
+        - {name: country, in: query, schema: {$ref: "#/components/schemas/Country"}}
+        - {name: port, in: query, schema: {$ref: "#/components/schemas/Locode"}}
+        - {name: software, in: query, description: "Exact software key, e.g. PyPI:requests", schema: {type: string}}
+        - {name: event_type, in: query, description: Tagged event type (event_tags), schema: {$ref: "#/components/schemas/TaggedEventType"}}
+        - {name: since, in: query, schema: {type: string, format: date-time}}
+        - {$ref: "#/components/parameters/Bbox"}
+      responses:
+        "200":
+          description: Page of events, newest first (published_at, then first_seen_at)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: "#/components/schemas/Page"}
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: "#/components/schemas/FeedEvent"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/feeds/events/{source}/{raw_id}:
+    get:
+      tags: [feeds]
+      operationId: getFeedEvent
+      summary: Get feed event
+      parameters:
+        - {name: source, in: path, required: true, schema: {type: string}}
+        - {name: raw_id, in: path, required: true, description: URL-encoded, schema: {type: string}}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FeedEvent"}
+        "404": {$ref: "#/components/responses/NotFound"}
+
+  /v1/feeds/anomalies:
+    get:
+      tags: [feeds]
+      operationId: listAnomalies
+      summary: List anomalies
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {name: series, in: query, description: Exact series or prefix ending in ".", schema: {type: string}}
+        - {name: key, in: query, schema: {type: string}}
+        - {name: method, in: query, schema: {type: string, enum: [robust_z, isolation_forest]}}
+        - {name: since, in: query, schema: {type: string, format: date-time}}
+      responses:
+        "200":
+          description: Page of anomalies, newest ts first
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: "#/components/schemas/Page"}
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: "#/components/schemas/Anomaly"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/feeds/series:
+    get:
+      tags: [feeds]
+      operationId: getSeries
+      summary: Points of one series key (for evidence charts)
+      parameters:
+        - {name: series, in: query, required: true, schema: {type: string, examples: [fx.rate]}}
+        - {name: key, in: query, required: true, schema: {type: string, examples: [EUR/TRY]}}
+        - {name: since, in: query, description: "Default: 120 days ago", schema: {type: string, format: date-time}}
+      responses:
+        "200":
+          description: Points in time order, plus anomalies flagged on them
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [series, key, unit, points, anomalies]
+                properties:
+                  series: {type: string}
+                  key: {type: string}
+                  unit: {type: [string, "null"]}
+                  points:
+                    type: array
+                    items:
+                      type: object
+                      required: [ts, value]
+                      properties:
+                        ts: {type: string, format: date-time}
+                        value: {type: number}
+                  anomalies:
+                    type: array
+                    items: {$ref: "#/components/schemas/Anomaly"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/feeds/health:
+    get:
+      tags: [feeds]
+      operationId: getFeedHealth
+      summary: Freshness of every public source and analysis ("data as of")
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sources, analyses]
+                properties:
+                  sources:
+                    type: array
+                    items: {$ref: "#/components/schemas/SourceHealth"}
+                  analyses:
+                    type: array
+                    description: Only subject `*` rows (one per analysis job)
+                    items:
+                      type: object
+                      required: [analysis, status, last_run_at]
+                      properties:
+                        analysis: {type: string, enum: [tagging, anomalies]}
+                        status: {type: string}
+                        last_run_at: {type: string, format: date-time}
+                        last_success_at: {type: [string, "null"], format: date-time}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # --- scenarios ------------------------------------------------------------------
+  /v1/scenarios:
+    get:
+      tags: [scenarios]
+      operationId: listScenarios
+      summary: List scenarios
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+      responses:
+        "200":
+          description: Page of scenarios, newest first (without `results`)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: "#/components/schemas/Page"}
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: "#/components/schemas/ScenarioSummary"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+    post:
+      tags: [scenarios]
+      operationId: runScenario
+      summary: Run a what-if (editor); synchronous, at most 20 s
+      description: Runs the engine on the workspace's entities with the inputs applied (`engine.run_scenario`). Writes only the `biz.scenarios` row; real risks are untouched.
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, inputs]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 200}
+                description: {type: string, maxLength: 2000}
+                inputs: {$ref: "#/components/schemas/ScenarioInputs"}
+      responses:
+        "201":
+          description: Completed (or failed, with `error`)
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Scenario"}
+        "422": {$ref: "#/components/responses/Unprocessable"}
+
+  /v1/scenarios/{scenario_id}:
+    parameters:
+      - {$ref: "#/components/parameters/WorkspaceHeader"}
+      - {name: scenario_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      tags: [scenarios]
+      operationId: getScenario
+      summary: Get scenario
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Scenario"}
+        "404": {$ref: "#/components/responses/NotFound"}
+    delete:
+      tags: [scenarios]
+      operationId: deleteScenario
+      summary: Delete scenario
+      responses:
+        "204": {description: Deleted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # --- alerts --------------------------------------------------------------------------
+  /v1/alerts:
+    get:
+      tags: [alerts]
+      operationId: listAlerts
+      summary: List alerts
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {name: unread, in: query, schema: {type: boolean}}
+      responses:
+        "200":
+          description: Page of alerts, newest first
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: "#/components/schemas/Page"}
+                  - type: object
+                    required: [items, unread_count]
+                    properties:
+                      items:
+                        type: array
+                        items: {$ref: "#/components/schemas/Alert"}
+                      unread_count: {type: integer, minimum: 0}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/alerts/{alert_id}:
+    patch:
+      tags: [alerts]
+      operationId: updateAlert
+      summary: Update alert
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {name: alert_id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [read]
+              properties:
+                read: {type: boolean}
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Alert"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/alerts/read-all:
+    post:
+      tags: [alerts]
+      operationId: readAllAlerts
+      summary: Read all alerts
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+      responses:
+        "204": {description: All marked read}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # --- server-sent events --------------------------------------------------------------
+  /v1/stream/ticket:
+    post:
+      tags: [stream]
+      operationId: createStreamTicket
+      summary: One-time ticket for opening the event stream
+      description: "`EventSource` cannot send an Authorization header, so the dashboard first gets a ticket (single use, valid 60 s, bound to the user and workspace) and opens `/v1/stream?ticket=...`."
+      parameters:
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+      responses:
+        "201":
+          description: Ticket
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ticket, expires_at]
+                properties:
+                  ticket: {type: string}
+                  expires_at: {type: string, format: date-time}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /v1/stream:
+    get:
+      tags: [stream]
+      operationId: openStream
+      summary: Live updates for one workspace (SSE)
+      description: |
+        `text/event-stream`. Each message has `id` (monotonic per workspace),
+        `event` (one of the names below) and `data` (one line of JSON, the matching
+        schema). A comment line `: ping` is sent every 25 s. After a reconnect,
+        `Last-Event-ID` resumes from the API's in-memory buffer (last 500 events per
+        workspace). If that is not possible, the first event is `resync` and the
+        client should refetch what it shows.
+
+        | event | data |
+        |---|---|
+        | `risk.created` | `RiskEvent` |
+        | `risk.updated` | `RiskEvent` (score moved ≥ 1, or status changed) |
+        | `risk.resolved` | `RiskEvent` |
+        | `alert.created` | `Alert` |
+        | `source.sync_started` | `SourceEvent` |
+        | `source.synced` | `SourceEvent` |
+        | `source.sync_failed` | `SourceEvent` |
+        | `mapping.suggested` | `MappingEvent` |
+        | `connection.updated` | `ConnectionEvent` |
+        | `feeds.updated` | `FeedsUpdatedEvent` |
+        | `resync` | `{}` |
+
+        No database connection is held open for a stream: the worker pushes events
+        to the API (`POST /internal/events`), and the API fans them out from memory.
+        This keeps Neon able to scale to zero.
+      security: []
+      parameters:
+        - {name: ticket, in: query, required: true, schema: {type: string}}
+        - {name: Last-Event-ID, in: header, schema: {type: string}}
+      responses:
+        "200":
+          description: Event stream
+          content:
+            text/event-stream:
+              schema: {$ref: "#/components/schemas/StreamEvent"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # --- inbound webhooks ---------------------------------------------------------------
+  /v1/webhooks/google-drive:
+    post:
+      tags: [webhooks]
+      operationId: driveNotification
+      summary: Google Drive changes.watch push notification
+      description: |
+        Google sends no body. The API:
+        1. Looks up `X-Goog-Channel-ID` with `biz.route_drive_channel`.
+        2. Compares sha256(`X-Goog-Channel-Token`) with `watch_token_hash` (constant time) and checks `X-Goog-Resource-ID`.
+        3. Inserts `biz.webhook_events` with delivery id `<channel id>:<message number>`, ON CONFLICT DO NOTHING.
+        4. For `X-Goog-Resource-State: change`, queues a `changes.list` check for the connection.
+        It answers 200 quickly for every well-formed notification, also for unknown
+        channels or a wrong token, so Google does not retry and a caller learns nothing.
+        A request without the required `X-Goog-*` headers gets 400. `sync` messages are
+        recorded and ignored.
+      security: []
+      parameters:
+        - {name: X-Goog-Channel-ID, in: header, required: true, schema: {type: string}}
+        - {name: X-Goog-Channel-Token, in: header, required: true, schema: {type: string}}
+        - {name: X-Goog-Resource-ID, in: header, required: true, schema: {type: string}}
+        - {name: X-Goog-Resource-State, in: header, required: true, schema: {type: string, enum: [sync, change, add, remove, update, trash, untrash]}}
+        - {name: X-Goog-Message-Number, in: header, required: true, schema: {type: string}}
+        - {name: X-Goog-Channel-Expiration, in: header, schema: {type: string}}
+      responses:
+        "200": {description: Accepted}
+        "400": {$ref: "#/components/responses/BadRequest"}
+
+  /v1/webhooks/composio:
+    post:
+      tags: [webhooks]
+      operationId: composioTrigger
+      summary: Composio trigger / connection-status webhook
+      description: |
+        The API:
+        1. Verifies the signature (`webhook-id`, `webhook-timestamp` and `webhook-signature`, HMAC-SHA256 with `COMPOSIO_WEBHOOK_SECRET`, Standard Webhooks scheme, timestamps no more than 5 minutes old). An invalid signature gets 401.
+        2. Routes the delivery by `connected_account_id` with `biz.route_composio_account`.
+        3. Inserts `biz.webhook_events` (delivery id = `webhook-id`), ON CONFLICT DO NOTHING.
+        4. Queues a source sync or a connection-status update.
+        Unknown accounts get 200, and the delivery is dropped.
+      security: []
+      parameters:
+        - {name: webhook-id, in: header, required: true, schema: {type: string}}
+        - {name: webhook-timestamp, in: header, required: true, schema: {type: string}}
+        - {name: webhook-signature, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Composio's payload; only these fields are read.
+              properties:
+                type: {type: string}
+                data:
+                  type: object
+                  additionalProperties: true
+                  properties:
+                    connected_account_id: {type: string}
+                    trigger_slug: {type: string}
+                    status: {type: string}
+      responses:
+        "200": {description: Accepted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  # --- internal (worker → api, private network only) -----------------------------------
+  /internal/events:
+    post:
+      tags: [internal]
+      operationId: pushStreamEvents
+      summary: The worker hands SSE events to the API for fan-out
+      description: "Only reachable on the Northflank private network. It is also authenticated with `Authorization: Bearer ${INTERNAL_TOKEN}`. Not part of the public API, and the dashboard never calls it."
+      x-internal: true
+      security:
+        - internalToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  maxItems: 500
+                  items:
+                    type: object
+                    required: [workspace_id, event, data]
+                    properties:
+                      workspace_id: {type: string, format: uuid}
+                      event: {$ref: "#/components/schemas/StreamEventName"}
+                      data: {type: object}
+      responses:
+        "202": {description: Accepted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Access token from sign-in/refresh. Claims: `sub` (user id), `sid` (session id), `iat`, `exp`, `iss` = "riskpredict-api", `aud` = "riskpredict-web". HS256 with `JWT_SIGNING_KEY`.'
+    internalToken:
+      type: http
+      scheme: bearer
+      description: Shared secret `INTERNAL_TOKEN` between worker and api.
+
+  parameters:
+    WorkspaceHeader:
+      name: X-Workspace-Id
+      in: header
+      required: true
+      description: The workspace to act on; the caller must be a member.
+      schema: {type: string, format: uuid}
+    WorkspaceIdPath:
+      name: workspace_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ConnectionIdPath:
+      name: connection_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    SourceIdPath:
+      name: source_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    RiskIdPath:
+      name: risk_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque; from the previous page's `next_cursor`
+      schema: {type: string}
+    Bbox:
+      name: bbox
+      in: query
+      description: "minLon,minLat,maxLon,maxLat (WGS84). Features without a position are included when their country intersects the box."
+      schema: {type: string, pattern: "^-?\\d+(\\.\\d+)?(,-?\\d+(\\.\\d+)?){3}$", examples: ["-10,35,30,60"]}
+
+  responses:
+    BadRequest:
+      description: Malformed request
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unauthorized:
+      description: Missing, invalid or expired credentials
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Forbidden:
+      description: Role too low
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    NotFound:
+      description: Not found (or not visible to the caller)
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Conflict:
+      description: Conflicts with the current state
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unprocessable:
+      description: Validation failed; see `errors`
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema: {type: integer}
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+    Unavailable:
+      description: An upstream service (Groq, Google, Composio) is unavailable
+      content:
+        application/problem+json:
+          schema: {$ref: "#/components/schemas/Problem"}
+
+  schemas:
+    # --- shared ---------------------------------------------------------------------------
+    Problem:
+      type: object
+      description: RFC 9457 problem details. `detail` is safe to show; it never contains tokens, SQL or row contents.
+      required: [type, title, status, code]
+      properties:
+        type: {type: string, format: uri-reference, default: about:blank}
+        title: {type: string}
+        status: {type: integer}
+        code:
+          type: string
+          enum:
+            - bad_request
+            - workspace_required
+            - unauthenticated
+            - invalid_credentials
+            - account_locked
+            - token_expired
+            - refresh_reused
+            - forbidden
+            - not_found
+            - conflict
+            - email_taken
+            - last_owner
+            - connection_not_active
+            - validation_failed
+            - rate_limited
+            - ai_unavailable
+            - upstream_unavailable
+            - internal
+        detail: {type: string}
+        instance: {type: string}
+        errors:
+          type: array
+          description: Field errors for `validation_failed`
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: {type: string, description: "JSON pointer into the request body, e.g. /inputs/shocks/0/radius_km"}
+              message: {type: string}
+    Page:
+      type: object
+      required: [next_cursor]
+      properties:
+        next_cursor: {type: [string, "null"]}
+    Country:
+      type: string
+      pattern: "^[A-Z]{3}$"
+      description: ISO 3166-1 alpha-3
+    Locode:
+      type: string
+      pattern: "^[A-Z]{2}[A-Z2-9]{3}$"
+      description: UN/LOCODE without the space
+    Currency:
+      type: string
+      pattern: "^[A-Z]{3}$"
+      description: ISO 4217
+    Role:
+      type: string
+      enum: [owner, admin, editor, viewer]
+
+    # --- auth & workspaces ------------------------------------------------------------
+    Tokens:
+      type: object
+      required: [access_token, access_token_expires_at, refresh_token, refresh_token_expires_at, token_type]
+      properties:
+        token_type: {type: string, enum: [Bearer]}
+        access_token: {type: string}
+        access_token_expires_at: {type: string, format: date-time}
+        refresh_token: {type: string, description: "Opaque, 43 base64url characters (32 random bytes). Stored server-side as sha256 only."}
+        refresh_token_expires_at: {type: string, format: date-time}
+    AuthResult:
+      allOf:
+        - {$ref: "#/components/schemas/Tokens"}
+        - type: object
+          required: [user, workspace_id]
+          properties:
+            user: {$ref: "#/components/schemas/User"}
+            workspace_id: {type: string, format: uuid, description: "The new workspace (sign-up) or the most recently used one (sign-in)"}
+    User:
+      type: object
+      required: [id, email, display_name, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        display_name: {type: [string, "null"]}
+        created_at: {type: string, format: date-time}
+    Workspace:
+      type: object
+      required: [id, name, base_currency, alert_min_score, share_watch_terms, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        base_currency:
+          oneOf: [{$ref: "#/components/schemas/Currency"}, {type: "null"}]
+        alert_min_score: {type: number, minimum: 0, maximum: 100}
+        share_watch_terms: {type: boolean, description: "Opt-in: let the worker add package names and critical supplier names to the public feed queries (OSV, GDELT)"}
+        created_at: {type: string, format: date-time}
+    WorkspaceInput:
+      type: object
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        base_currency:
+          oneOf: [{$ref: "#/components/schemas/Currency"}, {type: "null"}]
+        alert_min_score: {type: number, minimum: 0, maximum: 100}
+        share_watch_terms: {type: boolean}
+    Member:
+      type: object
+      required: [user, role, created_at]
+      properties:
+        user: {$ref: "#/components/schemas/User"}
+        role: {$ref: "#/components/schemas/Role"}
+        created_at: {type: string, format: date-time}
+
+    # --- connections & sources ------------------------------------------------------------
+    Provider:
+      type: object
+      required: [id, name, kind, available]
+      properties:
+        id: {type: string, description: "`google_sheets` or `composio:<app>`", examples: [google_sheets, "composio:airtable"]}
+        name: {type: string, examples: [Google Sheets, Airtable]}
+        kind: {type: string, enum: [direct, composio]}
+        available: {type: boolean, description: false when the server lacks the credentials for it}
+    ConnectionStatus:
+      type: string
+      enum: [pending, active, needs_reauth, error, revoked]
+    Connection:
+      type: object
+      required: [id, provider, display_name, status, status_reason, account_label, source_count, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        provider: {type: string, examples: [google_sheets, "composio:airtable"]}
+        display_name: {type: string}
+        status: {$ref: "#/components/schemas/ConnectionStatus"}
+        status_reason: {type: [string, "null"]}
+        account_label: {type: [string, "null"], description: e.g. the Google account email}
+        source_count: {type: integer, minimum: 0}
+        watch:
+          description: Drive push channel (google_sheets only)
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [expires_at, renew_after]
+              properties:
+                expires_at: {type: string, format: date-time}
+                renew_after: {type: string, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    GooglePickerToken:
+      type: object
+      required: [access_token, expires_at, developer_key, app_id, scope]
+      properties:
+        access_token: {type: string}
+        expires_at: {type: string, format: date-time}
+        developer_key: {type: string, description: "Browser API key for the Picker (public, HTTP-referrer restricted)"}
+        app_id: {type: string, description: Google Cloud project number}
+        scope: {type: string, enum: ["https://www.googleapis.com/auth/drive.file"]}
+    SourceColumn:
+      type: object
+      required: [index, name, samples]
+      properties:
+        index: {type: integer, minimum: 0}
+        name: {type: string}
+        samples:
+          type: array
+          maxItems: 5
+          items: {type: string}
+    SourceStatus:
+      type: string
+      enum: [new, mapping_suggested, active, paused, error]
+    Source:
+      type: object
+      required: [id, connection_id, kind, external_id, external_table_id, name, url, status, status_reason, header_row, columns, row_count, entity_count, last_synced_at, last_change_at, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        connection_id: {type: string, format: uuid}
+        kind: {type: string, enum: [google_sheet, composio_table]}
+        external_id: {type: string}
+        external_table_id: {type: string}
+        name: {type: string}
+        url: {type: [string, "null"], format: uri}
+        status: {$ref: "#/components/schemas/SourceStatus"}
+        status_reason: {type: [string, "null"]}
+        header_row: {type: integer}
+        columns:
+          type: array
+          items: {$ref: "#/components/schemas/SourceColumn"}
+        row_count: {type: [integer, "null"]}
+        entity_count: {type: integer, minimum: 0}
+        last_synced_at: {type: [string, "null"], format: date-time}
+        last_change_at: {type: [string, "null"], format: date-time}
+        created_at: {type: string, format: date-time}
+
+    MappingField:
+      type: string
+      description: |
+        Where a column's values go. Normalisation (same rules as `jobs/codes.py`):
+        `country`/`countries` accept names, alpha-2 or alpha-3 → alpha-3; `port`/`ports`
+        accept UN/LOCODE with or without space; `currency` ISO 4217 or common symbols
+        are *not* guessed (only codes); `hs_code` digits only (2/4/6, dots removed);
+        `software` purl or CPE 2.3; `annual_spend`/`revenue_share` numbers
+        (`revenue_share` 0–1 or a percentage like "12%"); `criticality` low/medium/high/critical
+        (case-insensitive; also 1–4); `kind` one of EntityKind (case-insensitive,
+        singular or plural). Multi-value fields split on `split` (default `,;|`). A value
+        that cannot be normalised is left out and reported in the preview/sync
+        problems; it is never guessed.
+
+        Where they are stored: `row_key` → `source_row_key`; `country`/`countries` →
+        `countries`; `port`/`ports` → `ports`; for routes `route_origin_port` and
+        `route_destination_port` → `ports` (origin first, destination last) and
+        `via_chokepoints` (chokepoint ids or names) → `attrs.chokepoints`; `currency`/
+        `currencies` → `currencies`; `hs_code` → `hs_codes`; `commodity` → `commodities`
+        (lower case); `notes` → `attrs.notes`; exposure fields → the columns of the same name.
+      enum:
+        - name
+        - kind
+        - row_key
+        - country
+        - countries
+        - city
+        - address
+        - lat
+        - lon
+        - port
+        - ports
+        - route_origin_port
+        - route_destination_port
+        - via_chokepoints
+        - currency
+        - currencies
+        - hs_code
+        - commodity
+        - software
+        - annual_spend
+        - spend_currency
+        - revenue_share
+        - criticality
+        - notes
+        - ignore
+    MappingFieldInfo:
+      type: object
+      required: [field, label, kinds, multi]
+      properties:
+        field: {$ref: "#/components/schemas/MappingField"}
+        label: {type: string}
+        kinds:
+          type: array
+          items: {$ref: "#/components/schemas/EntityKind"}
+        multi: {type: boolean}
+    MappingSpec:
+      type: object
+      description: |
+        How rows become entities. Either every row has the same `entity_kind`, or a
+        column is mapped to `kind`. Exactly one column may be `name` (required);
+        `row_key` is optional (default: Airtable record id, or `row:<n>` for sheets,
+        which is unstable when rows are inserted, so the UI should suggest a key column).
+      required: [columns]
+      properties:
+        entity_kind:
+          oneOf: [{$ref: "#/components/schemas/EntityKind"}, {type: "null"}]
+        columns:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [column, field]
+            properties:
+              column: {type: string, description: Header name exactly as in SourceColumn.name}
+              field: {$ref: "#/components/schemas/MappingField"}
+              split: {type: string, maxLength: 5, description: "Separator characters for multi-value fields"}
+              confidence: {type: number, minimum: 0, maximum: 1, description: "Suggestions only: the model's confidence"}
+              reason: {type: string, maxLength: 200, description: "Suggestions only: one-line reason"}
+    ColumnMapping:
+      type: object
+      required: [id, source_id, version, status, spec, model, created_at, confirmed_at]
+      properties:
+        id: {type: string, format: uuid}
+        source_id: {type: string, format: uuid}
+        version: {type: integer, minimum: 1}
+        status: {type: string, enum: [suggested, confirmed, superseded, rejected]}
+        spec: {$ref: "#/components/schemas/MappingSpec"}
+        model: {type: [string, "null"], description: "e.g. groq:llama-3.3-70b-versatile; null when mapped by hand"}
+        created_at: {type: string, format: date-time}
+        confirmed_at: {type: [string, "null"], format: date-time}
+    MappingPreview:
+      type: object
+      required: [rows_read, entities, problems]
+      properties:
+        rows_read: {type: integer}
+        entities: {$ref: "#/components/schemas/EntityFeatureCollection"}
+        problems:
+          type: array
+          items:
+            type: object
+            required: [row_number, column, value, message]
+            properties:
+              row_number: {type: integer}
+              column: {type: string}
+              value: {type: string, maxLength: 100}
+              message: {type: string, examples: ["not a known country", "missing name"]}
+
+    # --- entities --------------------------------------------------------------------------
+    EntityKind:
+      type: string
+      enum: [supplier, site, customer, route, port, currency, commodity, software]
+    Criticality:
+      type: string
+      enum: [low, medium, high, critical]
+    Entity:
+      type: object
+      required: [id, kind, name, countries, ports, currencies, hs_codes, commodities, software, lat, lon, city, address, exposure, attrs, lineage, open_risk_count, max_score]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {$ref: "#/components/schemas/EntityKind"}
+        name: {type: string}
+        countries:
+          type: array
+          items: {$ref: "#/components/schemas/Country"}
+        ports:
+          type: array
+          description: For routes, ordered origin → destination
+          items: {$ref: "#/components/schemas/Locode"}
+        currencies:
+          type: array
+          items: {$ref: "#/components/schemas/Currency"}
+        hs_codes:
+          type: array
+          items: {type: string, pattern: "^[0-9]{2}([0-9]{2}([0-9]{2})?)?$"}
+        commodities:
+          type: array
+          items: {type: string}
+        software:
+          type: array
+          description: purl or CPE 2.3
+          items: {type: string}
+        lat: {type: [number, "null"]}
+        lon: {type: [number, "null"]}
+        city: {type: [string, "null"]}
+        address: {type: [string, "null"]}
+        exposure:
+          type: object
+          required: [annual_spend, spend_currency, revenue_share, criticality]
+          properties:
+            annual_spend: {type: [string, "null"], description: "Decimal as a string, e.g. \"125000.00\""}
+            spend_currency:
+              oneOf: [{$ref: "#/components/schemas/Currency"}, {type: "null"}]
+            revenue_share: {type: [number, "null"], minimum: 0, maximum: 1}
+            criticality:
+              oneOf: [{$ref: "#/components/schemas/Criticality"}, {type: "null"}]
+        attrs:
+          type: object
+          description: "Mapped extras: notes, and for routes `chokepoints` (ids)"
+          additionalProperties: true
+        lineage:
+          type: object
+          required: [source_id, source_name, row_key, row_number, mapping_version, synced_at]
+          properties:
+            source_id: {type: string, format: uuid}
+            source_name: {type: string}
+            row_key: {type: string}
+            row_number: {type: [integer, "null"]}
+            mapping_version: {type: integer}
+            synced_at: {type: string, format: date-time}
+            url: {type: [string, "null"], format: uri, description: Deep link to the row when the tool supports it}
+        open_risk_count: {type: integer, minimum: 0}
+        max_score: {type: [number, "null"], minimum: 0, maximum: 100}
+
+    # --- risks ------------------------------------------------------------------------------
+    RiskCategory:
+      type: string
+      enum: [natural_hazard, logistics, geopolitical, sanctions, trade_policy, cyber, financial, labour, other]
+    RiskStatus:
+      type: string
+      enum: [open, acknowledged, mitigating, resolved, dismissed]
+    Risk:
+      type: object
+      required: [id, entity, category, title, likelihood, impact, score, status, countries, ports, lat, lon, evidence_count, first_seen_at, last_seen_at, status_changed_at]
+      properties:
+        id: {type: string, format: uuid}
+        entity:
+          type: object
+          required: [id, kind, name]
+          properties:
+            id: {type: string, format: uuid}
+            kind: {$ref: "#/components/schemas/EntityKind"}
+            name: {type: string}
+        category: {$ref: "#/components/schemas/RiskCategory"}
+        title: {type: string}
+        likelihood: {type: number, minimum: 0, maximum: 1}
+        impact: {type: number, minimum: 0, maximum: 1}
+        score: {type: number, minimum: 0, maximum: 100, description: "100 × likelihood × impact, 1 decimal"}
+        status: {$ref: "#/components/schemas/RiskStatus"}
+        countries:
+          type: array
+          items: {$ref: "#/components/schemas/Country"}
+        ports:
+          type: array
+          items: {$ref: "#/components/schemas/Locode"}
+        lat: {type: [number, "null"]}
+        lon: {type: [number, "null"]}
+        evidence_count: {type: integer, minimum: 0}
+        first_seen_at: {type: string, format: date-time}
+        last_seen_at: {type: string, format: date-time}
+        status_changed_at: {type: string, format: date-time}
+    RiskDetail:
+      allOf:
+        - {$ref: "#/components/schemas/Risk"}
+        - type: object
+          required: [explanation, factors, advice, evidence, history, status_note, engine_version]
+          properties:
+            explanation: {type: string}
+            factors: {$ref: "#/components/schemas/RiskFactors"}
+            advice:
+              oneOf:
+                - type: "null"
+                - type: object
+                  required: [text, source, model, generated_at]
+                  properties:
+                    text: {type: string}
+                    source: {type: string, enum: [groq, template]}
+                    model: {type: [string, "null"]}
+                    generated_at: {type: string, format: date-time}
+            evidence:
+              type: array
+              description: Sorted by contribution, highest first
+              items: {$ref: "#/components/schemas/Evidence"}
+            history:
+              type: array
+              description: Oldest first, at most 200 points
+              items:
+                type: object
+                required: [recorded_at, likelihood, impact, score, status, reason]
+                properties:
+                  recorded_at: {type: string, format: date-time}
+                  likelihood: {type: number}
+                  impact: {type: number}
+                  score: {type: number}
+                  status: {$ref: "#/components/schemas/RiskStatus"}
+                  reason: {type: string, enum: [created, rescored, status_changed, resolved_by_engine, reopened]}
+            status_note: {type: [string, "null"]}
+            engine_version: {type: string}
+    RiskFactors:
+      type: object
+      description: Exactly the `factors` jsonb the engine writes (risk-engine.md §3)
+      required: [likelihood, impact, engine_version]
+      properties:
+        likelihood:
+          type: object
+          required: [method, value, items]
+          properties:
+            method: {type: string, enum: [noisy_or]}
+            value: {type: number}
+            items:
+              type: array
+              items:
+                type: object
+                required: [evidence_key, signal, recency, match_confidence, contribution]
+                properties:
+                  evidence_key: {type: string}
+                  signal: {type: number}
+                  recency: {type: number}
+                  match_confidence: {type: number}
+                  contribution: {type: number}
+        impact:
+          type: object
+          required: [value, criticality, criticality_weight, exposure_share, exposure_norm, category_multiplier]
+          properties:
+            value: {type: number}
+            criticality:
+              oneOf: [{$ref: "#/components/schemas/Criticality"}, {type: "null"}]
+            criticality_weight: {type: number}
+            exposure_share: {type: [number, "null"]}
+            exposure_norm: {type: [number, "null"]}
+            category_multiplier: {type: number}
+        engine_version: {type: string}
+    Evidence:
+      type: object
+      required: [evidence_key, kind, match_type, match_value, match_confidence, signal, recency, contribution, snapshot, still_in_feeds, last_linked_at]
+      properties:
+        evidence_key: {type: string, examples: ["event:usgs:us6000abcd"]}
+        kind: {type: string, enum: [event, anomaly]}
+        event:
+          description: Present for kind=event
+          type: object
+          required: [source, raw_id]
+          properties:
+            source: {type: string}
+            raw_id: {type: string}
+        anomaly:
+          description: Present for kind=anomaly
+          type: object
+          required: [series, key, ts, method]
+          properties:
+            series: {type: string}
+            key: {type: string}
+            ts: {type: string, format: date-time}
+            method: {type: string, enum: [robust_z, isolation_forest]}
+        match_type: {type: string, enum: [country, geo_radius, port, chokepoint, currency, commodity, software, sanctions_name, company_name]}
+        match_value: {type: string}
+        match_confidence: {type: number, minimum: 0, maximum: 1}
+        signal: {type: number, minimum: 0, maximum: 1}
+        recency: {type: number, minimum: 0, maximum: 1}
+        contribution: {type: number, minimum: 0, maximum: 1}
+        snapshot: {$ref: "#/components/schemas/EvidenceSnapshot"}
+        still_in_feeds: {type: boolean, description: false once feed retention removed the original row}
+        last_linked_at: {type: string, format: date-time}
+    EvidenceSnapshot:
+      type: object
+      required: [title]
+      properties:
+        title: {type: string}
+        url: {type: [string, "null"]}
+        type: {type: [string, "null"]}
+        published_at: {type: [string, "null"], format: date-time}
+        severity: {type: [number, "null"]}
+        lat: {type: [number, "null"]}
+        lon: {type: [number, "null"]}
+        countries:
+          type: array
+          items: {type: string}
+        ports:
+          type: array
+          items: {type: string}
+        value: {type: [number, "null"]}
+        baseline: {type: [number, "null"]}
+        score: {type: [number, "null"]}
+        unit: {type: [string, "null"]}
+    RiskSummary:
+      type: object
+      required: [open_count, by_category, by_status, max_score, top, last_scored_at, feeds_as_of]
+      properties:
+        open_count: {type: integer, description: "open + acknowledged + mitigating"}
+        by_category:
+          type: object
+          description: RiskCategory → open count (all categories present, 0 if none)
+          additionalProperties: {type: integer}
+        by_status:
+          type: object
+          additionalProperties: {type: integer}
+        max_score: {type: [number, "null"]}
+        top:
+          type: array
+          maxItems: 5
+          items: {$ref: "#/components/schemas/Risk"}
+        last_scored_at: {type: [string, "null"], format: date-time}
+        feeds_as_of: {type: [string, "null"], format: date-time, description: "max(feeds.source_health.last_success_at)"}
+
+    # --- GeoJSON (RFC 7946) -----------------------------------------------------------------
+    PointGeometry:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: {type: string, enum: [Point]}
+        coordinates:
+          type: array
+          description: "[lon, lat]"
+          minItems: 2
+          maxItems: 2
+          items: {type: number}
+    EntityFeatureCollection:
+      type: object
+      required: [type, features, truncated]
+      properties:
+        type: {type: string, enum: [FeatureCollection]}
+        truncated: {type: boolean}
+        features:
+          type: array
+          items:
+            type: object
+            required: [type, id, geometry, properties]
+            properties:
+              type: {type: string, enum: [Feature]}
+              id: {type: string, description: "Entity id; in a preview, `row:<n>`"}
+              geometry:
+                oneOf: [{$ref: "#/components/schemas/PointGeometry"}, {type: "null"}]
+              properties:
+                type: object
+                required: [kind, name, countries, ports, criticality, open_risk_count, max_score]
+                properties:
+                  kind: {$ref: "#/components/schemas/EntityKind"}
+                  name: {type: string}
+                  countries:
+                    type: array
+                    items: {type: string}
+                  ports:
+                    type: array
+                    items: {type: string}
+                  criticality: {type: [string, "null"]}
+                  open_risk_count: {type: integer}
+                  max_score: {type: [number, "null"]}
+                  row_number: {type: [integer, "null"], description: Preview only}
+    RiskPlaceFeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type: {type: string, enum: [FeatureCollection]}
+        features:
+          type: array
+          items:
+            type: object
+            required: [type, id, geometry, properties]
+            properties:
+              type: {type: string, enum: [Feature]}
+              id: {type: string, description: "`country:JPN`, `port:NLRTM` or `point:<entity id>`"}
+              geometry:
+                oneOf: [{$ref: "#/components/schemas/PointGeometry"}, {type: "null"}]
+              properties:
+                type: object
+                required: [place_type, place_key, risk_count, max_score, top_categories, top_risk_ids]
+                properties:
+                  place_type: {type: string, enum: [country, port, point]}
+                  place_key: {type: string, description: "alpha-3, LOCODE or entity id"}
+                  label: {type: [string, "null"]}
+                  risk_count: {type: integer}
+                  max_score: {type: number}
+                  top_categories:
+                    type: array
+                    items: {$ref: "#/components/schemas/RiskCategory"}
+                  top_risk_ids:
+                    type: array
+                    maxItems: 5
+                    items: {type: string, format: uuid}
+    FeedEventFeatureCollection:
+      type: object
+      required: [type, features, truncated]
+      properties:
+        type: {type: string, enum: [FeatureCollection]}
+        truncated: {type: boolean}
+        features:
+          type: array
+          items:
+            type: object
+            required: [type, id, geometry, properties]
+            properties:
+              type: {type: string, enum: [Feature]}
+              id: {type: string, description: "`<source>:<raw_id>`"}
+              geometry:
+                oneOf: [{$ref: "#/components/schemas/PointGeometry"}, {type: "null"}]
+              properties:
+                type: object
+                required: [source, raw_id, type, title, url, published_at, severity, countries, ports]
+                properties:
+                  source: {type: string}
+                  raw_id: {type: string}
+                  type: {type: string}
+                  title: {type: string}
+                  url: {type: [string, "null"]}
+                  published_at: {type: [string, "null"], format: date-time}
+                  severity: {type: [number, "null"]}
+                  countries:
+                    type: array
+                    items: {type: string}
+                  ports:
+                    type: array
+                    items: {type: string}
+                  event_type:
+                    oneOf: [{$ref: "#/components/schemas/TaggedEventType"}, {type: "null"}]
+    DisruptionFeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type: {type: string, enum: [FeatureCollection]}
+        features:
+          type: array
+          items:
+            type: object
+            required: [type, id, geometry, properties]
+            properties:
+              type: {type: string, enum: [Feature]}
+              id: {type: string, description: "`chokepoint:<id>` or `portwatch:<raw_id>`"}
+              geometry: {$ref: "#/components/schemas/PointGeometry"}
+              properties:
+                type: object
+                required: [kind, name, status, severity, ports, countries, event_ids, since]
+                properties:
+                  kind: {type: string, enum: [chokepoint, port_disruption]}
+                  name: {type: string}
+                  status: {type: string, enum: [normal, watch, disrupted]}
+                  severity: {type: [number, "null"]}
+                  radius_km: {type: [number, "null"], description: Chokepoints only}
+                  ports:
+                    type: array
+                    items: {type: string}
+                  countries:
+                    type: array
+                    items: {type: string}
+                  event_ids:
+                    type: array
+                    description: "`<source>:<raw_id>` of matching events"
+                    items: {type: string}
+                  since: {type: [string, "null"], format: date-time}
+
+    # --- feeds --------------------------------------------------------------------------------
+    TaggedEventType:
+      type: string
+      enum: [conflict, protest, sanctions, trade_policy, port_shipping_disruption, natural_hazard, cyber_incident, labour_action, financial_stress, other]
+    FeedEvent:
+      type: object
+      description: A `feeds.events` row (see feeds-schema.md), plus its newest tag
+      required: [source, raw_id, type, title, url, published_at, countries, ports, commodities, currencies, software, severity, lat, lon, attrs, first_seen_at, updated_at, tag]
+      properties:
+        source: {type: string}
+        raw_id: {type: string}
+        type: {type: string}
+        title: {type: string}
+        url: {type: [string, "null"]}
+        published_at: {type: [string, "null"], format: date-time}
+        countries:
+          type: array
+          items: {type: string}
+        ports:
+          type: array
+          items: {type: string}
+        commodities:
+          type: array
+          items: {type: string}
+        currencies:
+          type: array
+          items: {type: string}
+        software:
+          type: array
+          items: {type: string}
+        severity: {type: [number, "null"]}
+        lat: {type: [number, "null"]}
+        lon: {type: [number, "null"]}
+        attrs: {type: object, additionalProperties: true}
+        first_seen_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        tag:
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [event_type, type_confidence, type_source, entities, model]
+              properties:
+                event_type: {$ref: "#/components/schemas/TaggedEventType"}
+                type_confidence: {type: [number, "null"]}
+                type_source: {type: string, enum: [model, source]}
+                entities: {type: object, additionalProperties: true}
+                model: {type: string}
+    Anomaly:
+      type: object
+      required: [series, key, ts, method, value, baseline, score, attrs, detected_at]
+      properties:
+        series: {type: string}
+        key: {type: string}
+        ts: {type: string, format: date-time}
+        method: {type: string, enum: [robust_z, isolation_forest]}
+        value: {type: number}
+        baseline: {type: number}
+        score: {type: number}
+        attrs: {type: object, additionalProperties: true}
+        detected_at: {type: string, format: date-time}
+    SourceHealth:
+      type: object
+      required: [source, status, last_run_at, last_success_at, consecutive_failures, records_last_run]
+      properties:
+        source: {type: string}
+        status: {type: string, enum: [ok, empty, partial, throttled, error, skipped]}
+        last_run_at: {type: string, format: date-time}
+        last_success_at: {type: [string, "null"], format: date-time}
+        last_error: {type: [string, "null"]}
+        consecutive_failures: {type: integer}
+        records_last_run: {type: integer}
+
+    # --- scenarios -----------------------------------------------------------------------------
+    ScenarioInputs:
+      type: object
+      description: At least one of `shocks` or `entity_overrides`.
+      properties:
+        shocks:
+          type: array
+          maxItems: 20
+          items:
+            oneOf:
+              - {$ref: "#/components/schemas/HazardShock"}
+              - {$ref: "#/components/schemas/FxShock"}
+              - {$ref: "#/components/schemas/SanctionsShock"}
+            discriminator:
+              propertyName: type
+              mapping:
+                event: "#/components/schemas/HazardShock"
+                fx: "#/components/schemas/FxShock"
+                sanction: "#/components/schemas/SanctionsShock"
+        entity_overrides:
+          type: array
+          maxItems: 200
+          items:
+            type: object
+            required: [entity_id]
+            properties:
+              entity_id: {type: string, format: uuid}
+              exclude: {type: boolean, description: "e.g. dropping a supplier"}
+              criticality: {$ref: "#/components/schemas/Criticality"}
+              annual_spend: {type: string, description: Decimal as a string}
+              revenue_share: {type: number, minimum: 0, maximum: 1}
+              countries:
+                type: array
+                items: {$ref: "#/components/schemas/Country"}
+    HazardShock:
+      type: object
+      description: "A hypothetical event, run through the normal match rules as source `scenario`"
+      required: [type, category, severity]
+      properties:
+        type: {type: string, enum: [event]}
+        category: {$ref: "#/components/schemas/RiskCategory"}
+        severity: {type: number, minimum: 0, maximum: 1}
+        label: {type: string, maxLength: 200}
+        countries:
+          type: array
+          items: {$ref: "#/components/schemas/Country"}
+        ports:
+          type: array
+          items: {$ref: "#/components/schemas/Locode"}
+        chokepoints:
+          type: array
+          items: {type: string, description: chokepoint id}
+        lat: {type: number, minimum: -90, maximum: 90}
+        lon: {type: number, minimum: -180, maximum: 180}
+        radius_km: {type: number, minimum: 1, maximum: 2000}
+    FxShock:
+      type: object
+      description: "A move of `currency` against `base_currency` (default: the workspace's)"
+      required: [type, currency, pct_change]
+      properties:
+        type: {type: string, enum: [fx]}
+        currency: {$ref: "#/components/schemas/Currency"}
+        base_currency: {$ref: "#/components/schemas/Currency"}
+        pct_change: {type: number, minimum: -90, maximum: 500}
+    SanctionsShock:
+      type: object
+      description: Treat an entity as newly designated
+      required: [type, entity_id]
+      properties:
+        type: {type: string, enum: [sanction]}
+        entity_id: {type: string, format: uuid}
+    ScenarioSide:
+      type: object
+      required: [risk_count, max_score, portfolio_score, by_category]
+      properties:
+        risk_count: {type: integer}
+        max_score: {type: [number, "null"]}
+        portfolio_score: {type: number, minimum: 0, maximum: 100, description: "100 × (1 − Π(1 − score_i/100))"}
+        by_category:
+          type: object
+          additionalProperties: {type: integer}
+    ScenarioResults:
+      type: object
+      required: [baseline, scenario, changes, engine_version, as_of]
+      properties:
+        baseline: {$ref: "#/components/schemas/ScenarioSide"}
+        scenario: {$ref: "#/components/schemas/ScenarioSide"}
+        changes:
+          type: array
+          description: Risks whose score differs, largest absolute delta first (at most 200)
+          items:
+            type: object
+            required: [fingerprint, entity_id, entity_name, category, title, baseline_score, scenario_score, delta]
+            properties:
+              fingerprint: {type: string}
+              risk_id: {type: [string, "null"], format: uuid, description: "Existing risk, if any"}
+              entity_id: {type: string, format: uuid}
+              entity_name: {type: string}
+              category: {$ref: "#/components/schemas/RiskCategory"}
+              title: {type: string}
+              baseline_score: {type: [number, "null"]}
+              scenario_score: {type: [number, "null"]}
+              delta: {type: number}
+              lat: {type: [number, "null"]}
+              lon: {type: [number, "null"]}
+              countries:
+                type: array
+                items: {type: string}
+        engine_version: {type: string}
+        as_of: {type: string, format: date-time}
+    ScenarioSummary:
+      type: object
+      required: [id, name, description, status, created_at, completed_at]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: [string, "null"]}
+        status: {type: string, enum: [running, completed, failed]}
+        created_at: {type: string, format: date-time}
+        completed_at: {type: [string, "null"], format: date-time}
+    Scenario:
+      allOf:
+        - {$ref: "#/components/schemas/ScenarioSummary"}
+        - type: object
+          required: [inputs, results, error]
+          properties:
+            inputs: {$ref: "#/components/schemas/ScenarioInputs"}
+            results:
+              oneOf: [{$ref: "#/components/schemas/ScenarioResults"}, {type: "null"}]
+            error: {type: [string, "null"]}
+
+    # --- alerts --------------------------------------------------------------------------------
+    Alert:
+      type: object
+      required: [id, kind, severity, title, body, risk_id, connection_id, created_at, read_at]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [risk_new, risk_escalated, sanctions_match, connection_error, source_sync_failed]}
+        severity: {type: string, enum: [info, warning, critical]}
+        title: {type: string}
+        body: {type: string}
+        risk_id: {type: [string, "null"], format: uuid}
+        connection_id: {type: [string, "null"], format: uuid}
+        created_at: {type: string, format: date-time}
+        read_at: {type: [string, "null"], format: date-time}
+
+    # --- stream ---------------------------------------------------------------------------------
+    StreamEventName:
+      type: string
+      enum: [risk.created, risk.updated, risk.resolved, alert.created, source.sync_started, source.synced, source.sync_failed, mapping.suggested, connection.updated, feeds.updated, resync]
+    RiskEvent:
+      type: object
+      required: [risk]
+      properties:
+        risk: {$ref: "#/components/schemas/Risk"}
+        previous_score: {type: [number, "null"]}
+    SourceEvent:
+      type: object
+      required: [source_id, status]
+      properties:
+        source_id: {type: string, format: uuid}
+        status: {$ref: "#/components/schemas/SourceStatus"}
+        entities_upserted: {type: integer}
+        entities_deleted: {type: integer}
+        problems: {type: integer, description: Rows/values that could not be normalised}
+        error: {type: [string, "null"]}
+    MappingEvent:
+      type: object
+      required: [source_id, mapping_id, version]
+      properties:
+        source_id: {type: string, format: uuid}
+        mapping_id: {type: string, format: uuid}
+        version: {type: integer}
+    ConnectionEvent:
+      type: object
+      required: [connection_id, status]
+      properties:
+        connection_id: {type: string, format: uuid}
+        status: {$ref: "#/components/schemas/ConnectionStatus"}
+        status_reason: {type: [string, "null"]}
+    FeedsUpdatedEvent:
+      type: object
+      required: [as_of, sources]
+      properties:
+        as_of: {type: string, format: date-time}
+        sources:
+          type: array
+          description: Sources whose last_run_at advanced
+          items: {type: string}
+    StreamEvent:
+      type: object
+      description: "One SSE message: `id`, `event` and `data` (JSON of the schema for that event)"
+      required: [id, event, data]
+      properties:
+        id: {type: string}
+        event: {$ref: "#/components/schemas/StreamEventName"}
+        data:
+          oneOf:
+            - {$ref: "#/components/schemas/RiskEvent"}
+            - {$ref: "#/components/schemas/Alert"}
+            - {$ref: "#/components/schemas/SourceEvent"}
+            - {$ref: "#/components/schemas/MappingEvent"}
+            - {$ref: "#/components/schemas/ConnectionEvent"}
+            - {$ref: "#/components/schemas/FeedsUpdatedEvent"}
+            - {type: object, maxProperties: 0, description: resync}

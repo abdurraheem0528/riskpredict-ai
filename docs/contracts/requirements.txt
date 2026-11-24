@@ -1,0 +1,3 @@
+# Contract checks in tests/test_contracts.py (CI job `test`).
+PyYAML==6.0.3
+openapi-spec-validator==0.9.0

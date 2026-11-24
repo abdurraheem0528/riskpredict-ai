@@ -1,0 +1,9 @@
+# Lint config for openapi.yaml (CI job `contracts`):
+#   npx --yes @redocly/cli@2.76.0 lint --config docs/contracts/redocly.yaml docs/contracts/openapi.yaml
+# Errors fail CI; the two remaining warnings are expected:
+#   /v1/health has no 4xx response, and the Google OAuth callback answers 302 only.
+extends:
+  - recommended
+rules:
+  # The repository has no licence file yet.
+  info-license: off

@@ -8,11 +8,12 @@ business's own connected tools and shows the result on a map-first dashboard.
 ## Architecture
 
 ```
- public feeds ──► GitHub Actions (jobs/, every 15 min) ──► Neon Postgres: feeds schema (public data)
-                                                                 │
+ public feeds ──► GitHub Actions (jobs/, every 30 min) ──► Neon Postgres: feeds schema (public data)
+                                                                 │  read-only
  business tools ─► Northflank: api (FastAPI) + worker ──► Neon Postgres: biz schema (row-level security)
- (Google Sheets direct,                                          │
-  others via Composio)                                           ▼
+ (Google Sheets direct,          │          ▲                    │
+  others via Composio)           │ SSE      │ engine/ (risk scoring, a library)
+                                 ▼          │
                                    Cloudflare Pages: web (React + MapLibre dashboard)
 ```
 
@@ -20,14 +21,68 @@ business's own connected tools and shows the result on a map-first dashboard.
 |---|---|---|
 | `jobs/` – fetch and normalise public feeds | GitHub Actions (`.github/workflows/feeds.yml`) | **step 1** |
 | `jobs/analyse/` – news tagging (GLiNER2) and spike detection | GitHub Actions, after each fetch | **step 2** |
-| `infra/migrations/` – SQL for the `feeds` schema | applied by `python -m jobs.migrate` | **steps 1–2** |
-| `api/` – FastAPI for business data | Northflank Sandbox | later |
-| `worker/` – business data sync and analysis | Northflank Sandbox | later |
-| `web/` – dashboard | Cloudflare Pages | later |
+| `infra/migrations/` – SQL for the `feeds` and `biz` schemas, roles | applied by `python -m jobs.migrate` | **steps 1–3** |
+| `docs/contracts/` – API, engine and feed contracts | – | **step 3** |
+| `api/` – FastAPI for business data | Northflank Sandbox | next (session B) |
+| `worker/` – sync, watch renewal, scoring runs, advice | Northflank Sandbox | next (session B) |
+| `engine/` – risk engine library | imported by worker and api | next (session C) |
+| `web/` – dashboard | Cloudflare Pages | next (session D) |
 
 Ground rules: everything uses free tiers and free, open-source code; the platform never
 contains made-up data (demo data lives separately); nothing runs on the owner's computer;
 everything is portable (`docker-compose.yml`) and removable.
+
+## How the pieces fit together
+
+1. **Feeds.** Every 30 minutes the jobs (`rp_feeds`) write public events, series,
+   tags and anomalies to `feeds` ([`feeds-schema.md`](docs/contracts/feeds-schema.md)).
+2. **Connecting a tool.** A user signs up with the API (email + argon2id, no
+   third-party auth) and connects a tool. Google Sheets is direct (OAuth `drive.file`
+   + Google Picker); Airtable and others go through Composio. Picking a sheet or table
+   creates a *source*.
+3. **Column mapping.** Groq suggests how the source's columns map to entity fields.
+   The user confirms on the **Confirm** screen, with a map preview. The worker then
+   syncs rows into `biz.entities`, normalised to ISO country, UN/LOCODE, ISO 4217,
+   HS code and purl/CPE keys. Drive push notifications and Composio triggers keep
+   that up to date.
+4. **Scoring.** After each feed update or source sync, the worker runs the risk engine
+   per workspace ([`risk-engine.md`](docs/contracts/risk-engine.md)). It matches
+   entities to feed events and anomalies and writes `biz.risks` with
+   `score = 100 × likelihood × impact`. Groq only words the advice.
+5. **Dashboard.** The dashboard reads everything through the API
+   ([`openapi.yaml`](docs/contracts/openapi.yaml)): GeoJSON map layers, risks with
+   their evidence, scenarios and alerts. Live updates come over SSE, which the worker
+   feeds through the API without holding a database connection open.
+6. **Isolation.** Every `biz` row is isolated by forced row-level security keyed on
+   `app.workspace_id`. Roles and login setup: [`docs/database-roles.md`](docs/database-roles.md).
+   The decisions every part follows: [`docs/contracts/README.md`](docs/contracts/README.md).
+
+### Environment variables per service
+
+Secrets go in GitHub repository secrets, Northflank secret groups or Cloudflare
+Pages settings, never in the repository. "public" marks values that are safe to
+expose to the browser.
+
+| Variable | jobs | api | worker | web | What it is |
+|---|:-:|:-:|:-:|:-:|---|
+| `DATABASE_URL_MIGRATE` | ✓ (migrate step) | | | | Owner connection string; runs `python -m jobs.migrate` and `infra/scripts/create_login_roles.py` |
+| `DATABASE_URL_FEEDS` | ✓ | | | | Login role in `rp_feeds` (today still the owner; see `docs/database-roles.md`) |
+| `DATABASE_URL_APP` | | ✓ | ✓ | | Login role in `rp_app`, Neon **pooled** host |
+| `EPSS_MIN_SCORE` | optional | | | | Default 0.5 |
+| `JWT_SIGNING_KEY` | | ✓ | | | ≥ 32 random bytes, base64 |
+| `TOKEN_ENCRYPTION_KEYS` | | ✓ | ✓ | | `k1:<base64 32 bytes>[,k2:…]`; the first entry encrypts, every entry decrypts |
+| `INTERNAL_TOKEN` | | ✓ | ✓ | | Shared secret for `POST /internal/events` |
+| `WEB_ORIGIN` | | ✓ | | | Dashboard origin, for CORS and OAuth redirects |
+| `PUBLIC_API_URL` | | ✓ | ✓ | | The API's public HTTPS base; OAuth callback and Drive webhook address |
+| `API_INTERNAL_URL` | | | ✓ | | API on the private network, e.g. `http://api:8000` |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | ✓ | ✓ | | Google Cloud OAuth client (Drive API, Sheets API, Picker API enabled) |
+| `GOOGLE_PICKER_API_KEY` | | ✓ (public) | | | Browser key, HTTP-referrer restricted to `WEB_ORIGIN` |
+| `GOOGLE_CLOUD_PROJECT_NUMBER` | | ✓ (public) | | | Picker `app_id` |
+| `COMPOSIO_API_KEY` | | ✓ | ✓ | | Composio Hobby (free); without it only Google Sheets is offered |
+| `COMPOSIO_WEBHOOK_SECRET` | | ✓ | | | Verifies Composio webhooks |
+| `GROQ_API_KEY` | | ✓ | ✓ | | Groq free tier |
+| `GROQ_MAPPING_MODEL` / `GROQ_ADVICE_MODEL` | | ✓ | ✓ | | Llama model ids; configurable because Groq renames models |
+| `VITE_API_BASE_URL` | | | | ✓ (public) | The API base URL baked into the dashboard build |
 
 ## Public sources (step 1, no API keys)
 
@@ -122,7 +177,7 @@ python -m jobs.run --sources all --dry-run          # fetch and print counts, no
 python -m pytest                                    # parsers on saved real responses
 ```
 
-With a database (`DATABASE_URL_FEEDS` set):
+With a database (`DATABASE_URL_FEEDS` set; migrations need the owner role):
 
 ```bash
 python -m jobs.migrate
