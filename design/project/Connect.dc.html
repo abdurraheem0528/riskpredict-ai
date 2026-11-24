@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Connect a source</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#E7ECF1}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.app{--tx:#141518;--tx2:#5F646C;position:relative;height:100vh;min-height:640px;overflow:hidden;background:#E7ECF1;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;font-size:14px;line-height:20px;-webkit-font-smoothing:antialiased}
+.map,.ov{position:absolute;inset:0;width:100%;height:100%}
+.map{object-fit:cover;object-position:center}
+.glass{background:rgba(255,255,255,0.86);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 1px rgba(20,21,24,0.06),0 4px 16px rgba(20,21,24,0.08)}
+.top{position:absolute;left:20px;right:20px;top:16px;display:flex;align-items:center;gap:12px;z-index:4}
+.cap{display:inline-flex;align-items:center;height:48px;border-radius:24px;box-sizing:border-box}
+.navl{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;color:#141518;text-decoration:none;font-size:14px;line-height:20px;font-weight:500}
+.navl:hover{background:rgba(20,21,24,0.05);color:#141518}
+.navl.on{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.navl.off{color:#A3A7AE}
+.kbd{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:6px;background:rgba(20,21,24,0.06);font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.sheet{position:absolute;left:20px;top:84px;bottom:20px;width:420px;border-radius:20px;overflow:auto;z-index:3;box-sizing:border-box;padding:16px 24px 20px;display:flex;flex-direction:column;gap:16px}
+.side{position:absolute;right:20px;bottom:76px;width:330px;border-radius:20px;z-index:3;box-sizing:border-box;padding:20px 22px;display:flex;flex-direction:column;gap:14px}
+.lbl{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.search{box-sizing:border-box;width:100%;height:44px;padding:0 14px 0 40px;border:0;border-radius:12px;background:rgba(20,21,24,0.05);font:400 14px/20px Inter,-apple-system,system-ui,sans-serif;color:#141518}
+.search::placeholder{color:#5F646C}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile{display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px;align-items:center;min-height:60px;padding:8px 12px;box-sizing:border-box;border:0;border-radius:14px;background:rgba(20,21,24,0.04);color:#141518;font:inherit;text-align:left;cursor:pointer;text-decoration:none;transition:background-color .15s ease}
+.tile:hover{background:rgba(20,21,24,0.07);color:#141518}
+.tile.on{background:#FFFFFF;box-shadow:inset 0 0 0 1.5px #1766F0}
+.mg{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.08);font-size:11px;line-height:14px;font-weight:600;color:#5F646C}
+.tile b{display:block;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile span.s{display:block;font-size:12px;line-height:16px;color:#5F646C}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:13px;line-height:18px}
+.kv span:first-child{color:#5F646C}
+.kv span:last-child{font-weight:500;text-align:right}
+.prog{height:6px;border-radius:3px;background:rgba(20,21,24,0.08);overflow:hidden}
+.prog i{display:block;height:6px;width:82%;border-radius:3px;background:#141518}
+.ev{display:grid;grid-template-columns:56px minmax(0,1fr);gap:10px;font-size:12px;line-height:16px}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border:0;border-radius:22px;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;letter-spacing:-0.006em;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background-color .15s ease,transform .1s ease}
+.b:active{transform:scale(0.97)}
+.pri{background:#1766F0;color:#FFFFFF}.pri:hover{background:#0F55CF;color:#FFFFFF}
+.sec2{background:rgba(20,21,24,0.06);color:#141518}.sec2:hover{background:rgba(20,21,24,0.09);color:#141518}
+.dot{transform-box:fill-box;transform-origin:center;animation:pop .5s cubic-bezier(.2,.8,.2,1.2) both}
+@keyframes pop{0%{transform:scale(0);opacity:0}100%{transform:scale(1);opacity:1}}
+.ring{transform-box:fill-box;transform-origin:center;animation:ring 1.6s ease-out both}
+@keyframes ring{0%{transform:scale(0.4);opacity:0.7}100%{transform:scale(2.6);opacity:0}}
+.navs{flex:1;display:none;justify-content:center}
+.navm{position:relative}
+.navsum{gap:8px;padding:0 14px 0 18px;font-size:14px;line-height:20px;font-weight:500;color:#141518;cursor:pointer;list-style:none;user-select:none}
+.navsum::-webkit-details-marker{display:none}
+.navsum small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.navm[open] .navsum svg{transform:rotate(180deg)}
+.navmenu{position:absolute;left:50%;top:56px;transform:translateX(-50%);width:228px;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);display:flex;flex-direction:column}
+.mi{display:flex;align-items:center;justify-content:space-between;gap:12px;height:44px;margin:0 6px;padding:0 12px;border:0;border-radius:10px;background:transparent;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;color:#141518;text-decoration:none;cursor:pointer}
+.mi:hover{background:rgba(20,21,24,0.04);color:#141518}
+.mi.on{background:#E8F0FE;color:#0F55CF}
+.mi.off{color:#A3A7AE}
+.mi small{font-size:12px;line-height:16px;color:#5F646C}
+.mi.on small{color:#0F55CF}
+.mdiv{height:1px;margin:6px 18px;background:rgba(20,21,24,0.08)}
+.mjump{display:none}
+.grab{display:none;position:absolute;top:6px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:rgba(20,21,24,0.18)}
+.fold{display:none;flex-direction:column;gap:10px;padding-top:14px;border-top:1px solid rgba(20,21,24,0.07)}
+@media (prefers-reduced-motion:reduce){.dot,.ring{animation:none}.ring{opacity:0}}
+@media (max-width:1100px){.side{display:none !important}.fold{display:flex !important}}
+@media (max-width:900px){.navc{display:none !important}.navs{display:flex !important}.jtl{display:none !important}.jump{width:48px;padding:0 !important;justify-content:center}}
+@media (max-width:760px){.jump{display:none !important}.mjump{display:flex !important}.grab{display:block}.sheet{left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:62vh}.top{left:12px;right:12px}.wsn{display:none}}
+</style>
+</helmet>
+<div class="app">
+
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="">
+
+<svg class="ov" viewBox="0 0 1360 900" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Supplier locations from your Google Sheet appearing on the map: China, Taiwan, Vietnam, Malaysia, Thailand, Singapore, Indonesia, the Philippines, India, South Korea, Japan, the UAE, Germany and Poland">
+<g fill="#141518" stroke="#FFFFFF" stroke-width="1.5">
+<circle class="dot" style="animation-delay:.1s" cx="1153.8" cy="294.5" r="4"/>
+<circle class="dot" style="animation-delay:.2s" cx="1151.3" cy="287" r="4"/>
+<circle class="dot" style="animation-delay:.3s" cx="1194.1" cy="239.9" r="4"/>
+<circle class="dot" style="animation-delay:.4s" cx="1202" cy="246" r="4"/>
+<circle class="dot" style="animation-delay:.5s" cx="1106.7" cy="250.5" r="4"/>
+<circle class="dot" style="animation-delay:.6s" cx="1178" cy="282.1" r="4"/>
+<circle class="dot" style="animation-delay:.7s" cx="1192.3" cy="293.9" r="4"/>
+<circle class="dot" style="animation-delay:.8s" cx="1196.6" cy="280.2" r="4"/>
+<circle class="dot" style="animation-delay:.9s" cx="1203" cy="272" r="4"/>
+<circle class="dot" style="animation-delay:1s" cx="1068.3" cy="400.5" r="4"/>
+<circle class="dot" style="animation-delay:1.1s" cx="1076.1" cy="414.8" r="4"/>
+<circle class="dot" style="animation-delay:1.2s" cx="1107.9" cy="367" r="4"/>
+<circle class="dot" style="animation-delay:1.3s" cx="1102" cy="303.8" r="4"/>
+<circle class="dot" style="animation-delay:1.4s" cx="944.3" cy="352.8" r="4"/>
+<circle class="dot" style="animation-delay:1.5s" cx="927.5" cy="358" r="4"/>
+<circle class="dot" style="animation-delay:1.6s" cx="904.6" cy="319.3" r="4"/>
+<circle class="dot" style="animation-delay:1.7s" cx="1233.8" cy="201.5" r="4"/>
+<circle class="dot" style="animation-delay:1.8s" cx="1286.5" cy="218.9" r="4"/>
+<circle class="dot" style="animation-delay:1.9s" cx="1069.5" cy="348.8" r="4"/>
+<circle class="dot" style="animation-delay:2s" cx="1091.2" cy="432" r="4"/>
+<circle class="dot" style="animation-delay:2.1s" cx="1196.6" cy="343.5" r="4"/>
+<circle class="dot" style="animation-delay:2.2s" cx="1090" cy="424" r="4"/>
+<circle class="dot" style="animation-delay:2.3s" cx="789.3" cy="277.8" r="4"/>
+<circle class="dot" style="animation-delay:2.4s" cx="503.4" cy="131.4" r="4"/>
+<circle class="dot" style="animation-delay:2.5s" cx="551.8" cy="117.2" r="4"/>
+</g>
+<circle class="ring" style="animation-delay:2.5s" cx="551.8" cy="117.2" r="8" fill="none" stroke="#1766F0" stroke-width="1.5"/>
+<rect x="503.3" y="97" width="10" height="10" rx="2.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<text x="522" y="96" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518" paint-order="stroke" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round">Hamburg · your warehouse</text>
+<text x="1150" y="190" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#5F646C" paint-order="stroke" stroke="#FFFFFF" stroke-width="3">East Asia · 16 suppliers</text>
+<text x="1082" y="462" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#5F646C" paint-order="stroke" stroke="#FFFFFF" stroke-width="3">South-East Asia · 9</text>
+<text x="922" y="384" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#5F646C" paint-order="stroke" stroke="#FFFFFF" stroke-width="3">India · 4</text>
+</svg>
+
+<div class="top">
+<button type="button" class="cap glass" style="gap:10px;padding:0 14px 0 8px;border:0;color:#141518;font:inherit;cursor:pointer">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:16px;background:#141518;color:#FFFFFF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span>
+<span class="wsn" style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg>
+</button>
+<div class="navc" style="flex:1;display:flex;justify-content:center">
+<nav aria-label="Main" class="cap glass" style="gap:2px;padding:0 2px">
+<a class="navl" href="Empty.dc.html">Overview</a>
+<a class="navl off" href="Risk.dc.html">Register</a>
+<a class="navl off" href="Scenario.dc.html">Scenarios</a>
+<a class="navl on" href="Connect.dc.html" aria-current="page">Sources</a>
+</nav>
+</div>
+<div class="navs">
+<details class="navm">
+<summary class="cap glass navsum">Sources<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></summary>
+<nav aria-label="Sections" class="navmenu">
+<a class="mi" href="Empty.dc.html">Overview</a>
+<a class="mi off" href="Risk.dc.html">Register</a>
+<a class="mi off" href="Scenario.dc.html">Scenarios</a>
+<a class="mi on" href="Connect.dc.html" aria-current="page">Sources</a>
+<span class="mdiv mjump"></span>
+<button type="button" class="mi mjump" style="justify-content:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg>Jump to</button>
+</nav>
+</details>
+</div>
+<button type="button" class="cap glass jump" aria-label="Jump to" style="gap:10px;padding:0 8px 0 16px;border:0;color:#5F646C;font:inherit;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg><span class="jtl">Jump to</span><span class="kbd jtl">⌘K</span></button>
+<button type="button" class="cap glass" aria-label="Account" style="justify-content:center;width:48px;padding:0;border:0;font:600 12px/16px Inter,system-ui,sans-serif;color:#141518;cursor:pointer">RL</button>
+</div>
+
+<aside class="sheet glass" aria-label="Connect a source">
+<span class="grab" aria-hidden="true"></span>
+<div style="display:flex;align-items:center;justify-content:space-between;margin:-6px -12px -2px -14px">
+<a class="b" href="Empty.dc.html" style="height:44px;padding:0 12px 0 8px;background:transparent;color:#1766F0;font-size:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"/></svg>Overview</a>
+<span class="t12" style="padding-right:12px">Step 1 of 3</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;margin-top:-6px">
+<h1 style="margin:0;font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.02em">Connect a source</h1>
+<span style="font-size:15px;line-height:22px;color:#5F646C;letter-spacing:-0.006em">Pick wherever you already keep suppliers, shipments or invoices. Access is read-only, and changes sync on their own.</span>
+</div>
+<label style="position:relative;display:flex;align-items:center">
+<span style="position:absolute;left:14px;display:inline-flex;color:#5F646C"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg></span>
+<span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search tools</span>
+<input class="search" type="text" placeholder="Search tools">
+</label>
+<div class="tiles">
+<button type="button" class="tile on" aria-pressed="true"><span class="mg" style="color:#141518">GS</span><span><b>Google Sheets</b><span class="s" style="color:#0D7A47">Connected · live</span></span></button>
+<button type="button" class="tile"><span class="mg">XL</span><span><b>Excel · OneDrive</b><span class="s">Workbooks</span></span></button>
+<button type="button" class="tile"><span class="mg">AT</span><span><b>Airtable</b><span class="s">Bases</span></span></button>
+<button type="button" class="tile"><span class="mg">NO</span><span><b>Notion</b><span class="s">Databases</span></span></button>
+<button type="button" class="tile"><span class="mg">QB</span><span><b>QuickBooks</b><span class="s">Vendors, bills</span></span></button>
+<button type="button" class="tile"><span class="mg">XE</span><span><b>Xero</b><span class="s">Suppliers, invoices</span></span></button>
+<button type="button" class="tile"><span class="mg">SF</span><span><b>Salesforce</b><span class="s">Accounts</span></span></button>
+<button type="button" class="tile"><span class="mg">HS</span><span><b>HubSpot</b><span class="s">Companies</span></span></button>
+<button type="button" class="tile"><span class="mg">↑</span><span><b>Upload a file</b><span class="s">CSV or Excel</span></span></button>
+<button type="button" class="tile"><span class="mg">DB</span><span><b>Database</b><span class="s">Read-only user</span></span></button>
+</div>
+<span class="t12" style="margin-top:auto">Many more tools connect through Composio. Anything else can send changes to a webhook.</span>
+<div class="fold">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;line-height:18px;font-weight:600">Placing suppliers on the map</span><span class="t12" style="font-variant-numeric:tabular-nums">31 of 38</span></div>
+<a class="b pri" href="Confirm.dc.html">Review what we found</a>
+</div>
+</aside>
+
+<section class="side glass" aria-label="Google Sheets connection">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:15px;line-height:20px;font-weight:600">Google Sheets</span><span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:6px;height:6px;border-radius:3px;background:#1A9E5A"></span>Live</span></div>
+<span class="t12" style="margin-top:-8px">Atlas · Supply base · 3 tabs · syncs on every edit · read-only</span>
+<div style="display:flex;flex-direction:column;gap:8px;padding-top:14px;border-top:1px solid rgba(20,21,24,0.07)">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;line-height:18px;font-weight:600">Placing suppliers on the map</span><span class="t12" style="font-variant-numeric:tabular-nums">31 of 38</span></div>
+<div class="prog" role="progressbar" aria-valuenow="31" aria-valuemin="0" aria-valuemax="38" aria-label="Suppliers placed"><i></i></div>
+<span class="t12">4 are in Mexico and the US, outside this view. 3 need an address.</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;padding-top:14px;border-top:1px solid rgba(20,21,24,0.07)">
+<span class="lbl">Changes picked up</span>
+<div class="ev"><span class="t12" style="font-variant-numeric:tabular-nums">14:00:12</span><span>Suppliers row 38 · lead time edited</span></div>
+<div class="ev"><span class="t12" style="font-variant-numeric:tabular-nums">13:56:40</span><span>Shipments row 12 · port changed</span></div>
+</div>
+<div style="display:flex;gap:8px;margin-top:4px"><a class="b pri" href="Confirm.dc.html" style="flex:1">Review what we found</a></div>
+</section>
+
+<div class="glass" style="position:absolute;right:20px;bottom:20px;display:flex;align-items:center;gap:14px;height:44px;padding:0 18px;border-radius:22px;z-index:3;font-size:12px;line-height:16px;color:#5F646C">
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:4px;background:#141518"></span>Supplier from your sheet</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#141518"></span>Your warehouse</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:4px;box-shadow:inset 0 0 0 1.5px #1766F0"></span>Just placed</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

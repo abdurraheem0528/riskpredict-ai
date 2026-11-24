@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spacing, corners and depth</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.sheet{--tx:#141518;--tx2:#5F646C;--line:#E6E7EA;width:1440px;min-height:3240px;box-sizing:border-box;padding:96px;background:#F4F5F7;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:96px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:28px}
+.sh h2{margin:0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em}
+.sh p{margin:0;font-size:14px;line-height:20px;color:var(--tx2);max-width:560px;text-align:right}
+.item{display:flex;flex-direction:column;gap:10px;min-width:0}
+.cap{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.card{background:#FFFFFF;border-radius:16px;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 1px 2px rgba(20,21,24,0.05);box-sizing:border-box}
+.t15{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.sp{display:grid;grid-template-columns:44px 72px minmax(0,1fr);gap:12px;align-items:center;min-height:46px;border-top:1px solid var(--line)}
+.sp:first-child{border-top:0}
+.sv{font-size:15px;line-height:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.bar{height:12px;border-radius:3px;background:rgba(20,21,24,0.12)}
+.band{position:absolute;display:flex;align-items:center;justify-content:center;background:rgba(23,102,240,0.10);color:#0F55CF;font-size:11px;line-height:14px;font-weight:600;font-variant-numeric:tabular-nums;z-index:2;pointer-events:none}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px;box-sizing:border-box;padding:0 24px;border-top:1px solid var(--line)}
+.rn{font-size:15px;line-height:20px;font-weight:500;letter-spacing:-0.006em}
+.pill{display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 10px;border-radius:13px;font-size:13px;line-height:18px;font-weight:500;font-variant-numeric:tabular-nums}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border:0;border-radius:22px;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;letter-spacing:-0.006em;cursor:pointer}
+.mi{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 10px;border-radius:10px;font-size:14px;line-height:20px}
+.cr{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.tk{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;min-height:60px;border-top:1px solid var(--line)}
+.tk:first-child{border-top:0}
+.tn{display:flex;flex-direction:column}
+.tn b{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em}
+.tv{font-size:13px;line-height:18px;color:#5F646C;font-variant-numeric:tabular-nums;text-align:right}
+.m-glass{background:rgba(255,255,255,0.86);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 1px rgba(20,21,24,0.06),0 4px 16px rgba(20,21,24,0.08)}
+.m-map{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.m-ov{position:absolute;inset:0;width:100%;height:100%}
+.m-top{position:absolute;left:16px;right:16px;top:14px;display:flex;align-items:center;gap:12px;z-index:4}
+.m-caps{display:inline-flex;align-items:center;flex:0 0 auto;height:48px;border-radius:24px;box-sizing:border-box;color:#141518}
+.m-logo{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border-radius:16px;background:#141518;color:#FFFFFF}
+.m-navl{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;font-size:14px;line-height:20px;font-weight:500;white-space:nowrap;color:#141518}
+.m-navl.on{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.m-navl small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.m-dot{display:inline-block;width:6px;height:6px;border-radius:3px;background:#B3200F}
+.m-sheet{position:absolute;border-radius:20px;overflow:hidden;z-index:3;box-sizing:border-box}
+.m-sec{padding:14px 20px;border-top:1px solid rgba(20,21,24,0.07)}
+.m-sec:first-child{border-top:0}
+.m-lbl{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.m-rr{display:flex;align-items:center;gap:12px;min-height:48px;font-size:14px;line-height:20px;color:#141518}
+.m-rr svg{flex:0 0 auto;color:#5F646C}
+.m-rr b{flex:1;min-width:0;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-pill{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:34px;height:24px;padding:0 7px;box-sizing:border-box;border-radius:12px;font-size:12px;line-height:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.m-ctrl{position:absolute;display:flex;flex-direction:column;border-radius:22px;overflow:hidden;z-index:3}
+.m-mb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;color:#141518}
+.m-hr{height:1px;margin:0 10px;background:rgba(20,21,24,0.08)}
+.m-lg{position:absolute;display:inline-flex;align-items:center;gap:12px;height:44px;padding:0 18px;border-radius:22px;box-sizing:border-box;font-size:12px;line-height:16px;color:#5F646C;white-space:nowrap;z-index:3}
+.m-vr{width:1px;height:20px;background:rgba(20,21,24,0.1)}
+.m-band{position:absolute;display:flex;align-items:center;justify-content:center;background:rgba(23,102,240,0.14);color:#0F55CF;font-size:11px;line-height:14px;font-weight:600;font-variant-numeric:tabular-nums;z-index:6}
+.m-menu{position:absolute;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);z-index:5}
+.m-mi{display:flex;align-items:center;gap:12px;height:44px;margin:0 6px;padding:0 12px;border-radius:10px;font-size:14px;line-height:20px;color:#141518}
+.m-tip{position:absolute;display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;background:rgba(20,21,24,0.92);color:#FFFFFF;font-size:12px;line-height:16px;white-space:nowrap;z-index:6}
+</style>
+</helmet>
+<div class="sheet">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:24px">
+<h1 style="margin:0;font-size:40px;line-height:46px;font-weight:600;letter-spacing:-0.022em">Spacing, corners and depth</h1>
+<span style="font-size:13px;line-height:18px;font-weight:500;color:var(--tx2)">Step 3 of 8</span>
+</div>
+<p style="margin:0;max-width:720px;font-size:15px;line-height:22px;color:var(--tx2)">Everything sits on a 4-point grid. Corners grow with the size of the thing and nest neatly. Depth comes from soft light, not lines.</p>
+</header>
+
+<section>
+<div class="sh"><h2>Spacing</h2><p>Small gaps hold related things together. Large gaps separate ideas. Add space before adding a dividing line.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 5"><span class="cap">Ten steps</span>
+<div class="card" style="padding:8px 24px">
+<div class="sp"><span class="sv">4</span><div class="bar" style="width:4px"></div><span class="t13">Title to description, icon to label</span></div>
+<div class="sp"><span class="sv">8</span><div class="bar" style="width:8px"></div><span class="t13">Between related controls</span></div>
+<div class="sp"><span class="sv">12</span><div class="bar" style="width:12px"></div><span class="t13">Label to value</span></div>
+<div class="sp"><span class="sv">16</span><div class="bar" style="width:16px"></div><span class="t13">Between form fields</span></div>
+<div class="sp"><span class="sv">20</span><div class="bar" style="width:20px"></div><span class="t13">Compact panels</span></div>
+<div class="sp"><span class="sv">24</span><div class="bar" style="width:24px"></div><span class="t13">Card padding, gap between cards</span></div>
+<div class="sp"><span class="sv">32</span><div class="bar" style="width:32px"></div><span class="t13">Page margin</span></div>
+<div class="sp"><span class="sv">40</span><div class="bar" style="width:40px"></div><span class="t13">Between sections</span></div>
+<div class="sp"><span class="sv">48</span><div class="bar" style="width:48px"></div><span class="t13">Above a page title</span></div>
+<div class="sp"><span class="sv">64</span><div class="bar" style="width:64px"></div><span class="t13">Empty states and onboarding</span></div>
+</div>
+</div>
+<div class="item" style="grid-column:span 7"><span class="cap">Measured on real cards</span>
+<div class="card" style="padding:32px;background:#F9FAFB">
+<div class="card" style="position:relative;overflow:hidden">
+<div class="band" style="left:0;right:0;top:0;height:24px">24</div>
+<div class="band" style="left:0;top:24px;width:24px;height:42px">24</div>
+<div class="band" style="right:0;top:24px;width:24px;height:42px">24</div>
+<div class="band" style="left:24px;top:44px;width:120px;height:4px;background:rgba(23,102,240,0.22)"></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;height:90px;box-sizing:border-box;padding:24px">
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">Top risks</span><span class="t13">Matched to your suppliers</span></div>
+<a href="#spacing" style="font-size:14px;line-height:20px;font-weight:500;text-decoration:none">Open register</a>
+</div>
+<div class="row"><span class="rn">Supplier name matches a sanctions entry</span><span class="pill" style="background:#FADBD5;color:#8F1A0B">81</span></div>
+<div class="row"><span class="rn">Red Sea transit disruption</span><span class="pill" style="background:#FCE5E0;color:#A42D16">74</span></div>
+<div class="row"><span class="rn">Taiwan dollar volatility</span><span class="pill" style="background:#FBEAE6;color:#9C3522">52</span></div>
+</div>
+<div style="position:relative;height:24px"><div class="band" style="left:0;right:0;top:0;bottom:0;background:rgba(23,102,240,0.06)">24</div></div>
+<div class="card" style="overflow:hidden">
+<div style="display:flex;justify-content:space-between;align-items:center;height:68px;box-sizing:border-box;padding:24px"><span class="t15">Signals</span><span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:#5F646C"><span style="width:6px;height:6px;border-radius:3px;background:#1A9E5A"></span>Live</span></div>
+<div class="row"><span class="rn">Red Sea transit calls down week on week</span><span class="t13" style="font-variant-numeric:tabular-nums">13:12</span></div>
+</div>
+<span class="t12" style="display:block;margin-top:16px">Blue bands show the space: 24 around each card, 4 between a title and its description, 56 per row, 24 between cards.</span>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Layout</h2><p>The map fills the screen. Everything else floats over it at a fixed distance from the edge, so nothing sits in a frame.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 4"><span class="cap">Top left, full size</span>
+<div class="card" style="position:relative;height:340px;overflow:hidden;background:#E7ECF1">
+<img src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="position:absolute;left:0;top:0;width:1360px;height:900px">
+<span class="m-caps m-glass" style="position:absolute;left:20px;top:16px;gap:10px;padding:0 14px 0 8px;z-index:4"><span class="m-logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><span style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></span>
+<div class="m-sheet m-glass" style="left:20px;top:84px;width:344px;height:300px">
+<div class="m-sec" style="padding-top:18px"><span class="m-lbl">Risk index · Sun 23 Nov</span><div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font-size:40px;line-height:44px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">62</span><span style="font-size:13px;line-height:18px;font-weight:600;color:#A42D16">+4 from 58</span></div></div>
+<div class="m-sec">
+<div class="m-rr"><span class="m-pill" style="background:#FADBD5;color:#8F1A0B">81</span><b>Sanctions match, Gulf Components</b></div>
+<div class="m-rr"><span class="m-pill" style="background:#FCE5E0;color:#A42D16">74</span><b>Red Sea transit</b></div>
+<div class="m-rr"><span class="m-pill" style="background:#FCE5E0;color:#A42D16">68</span><b>Taiwan Strait</b></div>
+</div>
+</div>
+<div class="m-band" style="left:20px;top:0;width:210px;height:16px">16</div>
+<div class="m-band" style="left:0;top:16px;width:20px;height:48px">20</div>
+<div class="m-band" style="left:20px;top:64px;width:344px;height:20px">20</div>
+<div class="m-band" style="left:0;top:84px;width:20px;height:256px">20</div>
+<div class="m-band" style="left:20px;top:84px;width:20px;height:120px;background:rgba(23,102,240,0.10)">20</div>
+</div>
+<span class="t12" style="display:block;margin-top:4px">16 above the top row, 20 to the edge, 20 between the top row and the sheet, 20 inside the sheet</span>
+</div>
+<div class="item" style="grid-column:span 4"><span class="cap">Bottom right, full size</span>
+<div class="card" style="position:relative;height:340px;overflow:hidden;background:#E7ECF1">
+<img src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="position:absolute;right:0;bottom:0;width:1360px;height:900px">
+<div class="m-sheet m-glass" style="right:20px;bottom:76px;width:340px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:15px;line-height:20px;font-weight:600">Google Sheets</span><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:16px;color:#5F646C"><span style="width:6px;height:6px;border-radius:3px;background:#1A9E5A"></span>Live</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px;line-height:18px"><span style="font-weight:600">Placing suppliers on the map</span><span style="color:#5F646C;font-variant-numeric:tabular-nums">31 of 38</span></div>
+<div style="height:4px;border-radius:2px;background:rgba(20,21,24,0.1)"><div style="width:82%;height:4px;border-radius:2px;background:#1766F0"></div></div>
+<span style="display:inline-flex;align-items:center;justify-content:center;height:44px;border-radius:22px;background:#1766F0;color:#FFFFFF;font-size:15px;line-height:20px;font-weight:500">Review what we found</span>
+</div>
+<div class="m-lg m-glass" style="right:20px;bottom:20px"><span style="display:inline-flex;align-items:center;gap:6px;color:#141518"><span style="width:6px;height:6px;border-radius:3px;background:#1A9E5A"></span>9 of 9 feeds live</span><span class="m-vr"></span><span>GDELT, NVD and 7 more</span></div>
+<div class="m-band" style="right:20px;bottom:0;width:300px;height:20px">20</div>
+<div class="m-band" style="right:0;bottom:20px;width:20px;height:44px">20</div>
+<div class="m-band" style="right:20px;bottom:64px;width:340px;height:12px;font-size:10px;line-height:12px">12</div>
+<div class="m-band" style="right:0;bottom:76px;width:20px;height:152px">20</div>
+</div>
+<span class="t12" style="display:block;margin-top:4px">20 to the edges, 12 between a card and the legend under it</span>
+</div>
+<div class="item" style="grid-column:span 4"><span class="cap">Layout numbers</span>
+<div class="card" style="padding:8px 24px">
+<div class="tk"><span class="tn"><b>Edge gap</b><span class="t13">Map edge to anything floating</span></span><span class="tv">20 · 12 on phones</span></div>
+<div class="tk"><span class="tn"><b>Top row</b><span class="t13">Four capsules</span></span><span class="tv">48 high · 16 down</span></div>
+<div class="tk"><span class="tn"><b>Sheet</b><span class="t13">Under the top row</span></span><span class="tv">84 down · 20 up</span></div>
+<div class="tk"><span class="tn"><b>Sheet width</b><span class="t13">Lists, then detail</span></span><span class="tv">344 · 400 to 460</span></div>
+<div class="tk"><span class="tn"><b>Stacking</b><span class="t13">A card above the legend</span></span><span class="tv">12 apart</span></div>
+<div class="tk"><span class="tn"><b>Map controls</b><span class="t13">Right edge, centred</span></span><span class="tv">44 per button</span></div>
+<div class="tk"><span class="tn"><b>Breakpoints</b><span class="t13">Card folds, sections fold, sheet rises</span></span><span class="tv">1100 · 900 · 760</span></div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Corners</h2><p>Bigger things get rounder corners. Anything you press is a capsule. A shape inside another uses the outer corner minus the gap, so the two curves stay parallel.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 7"><span class="cap">Corners on real controls</span>
+<div class="card" style="padding:32px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 32px;align-items:start">
+<div class="cr"><button type="button" class="btn" style="background:#1766F0;color:#FFFFFF">Run what-if</button><span class="t12">Capsule · buttons, pills, chips</span></div>
+<div class="cr"><input type="text" aria-label="Search sources" placeholder="Search sources" style="box-sizing:border-box;width:100%;max-width:240px;height:44px;padding:0 14px;border:0;border-radius:10px;background:rgba(20,21,24,0.05);font:400 15px/20px Inter,-apple-system,system-ui,sans-serif;color:#141518"><span class="t12">10 · inputs and menu rows</span></div>
+<div class="cr">
+<div role="group" aria-label="Time range" style="display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:rgba(20,21,24,0.06)">
+<button type="button" style="height:38px;padding:0 16px;border:0;border-radius:9px;background:transparent;color:#5F646C;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer">24h</button>
+<button type="button" style="height:38px;padding:0 16px;border:0;border-radius:9px;background:transparent;color:#5F646C;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer">7d</button>
+<button type="button" aria-pressed="true" style="height:38px;padding:0 16px;border:0;border-radius:9px;background:#FFFFFF;color:#141518;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06);font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer">30d</button>
+</div>
+<span class="t12">12 outside, 9 inside · segmented controls</span></div>
+<div class="cr"><label style="display:inline-flex;align-items:center;gap:10px;min-height:44px;font-size:15px;line-height:20px;cursor:pointer"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:#1766F0" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>Include low risks</label><span class="t12">6 · checkboxes and tags</span></div>
+</div>
+</div>
+<div class="item" style="grid-column:span 5"><span class="cap">Nested corners</span>
+<div class="card" style="padding:32px;background:#F9FAFB">
+<div style="padding:8px;border-radius:24px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16)">
+<div style="height:140px;box-sizing:border-box;padding:20px;border-radius:16px;background:#F4F5F7;display:flex;flex-direction:column;justify-content:flex-end;gap:2px">
+<span class="t13">Risk index with this event</span>
+<span style="font-size:36px;line-height:40px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">62 → 74</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px;padding:18px 16px 12px"><span class="t15">Save this scenario?</span><span class="t13">You can run it again any time from Scenarios.</span></div>
+<div style="display:flex;justify-content:flex-end;gap:8px;padding:8px"><button type="button" class="btn" style="background:rgba(20,21,24,0.06);color:#141518">Cancel</button><button type="button" class="btn" style="background:#1766F0;color:#FFFFFF">Save</button></div>
+</div>
+<span class="t12" style="display:block;margin-top:16px">The dialog is 24 with an 8 gap, so the panel inside is 16. Both curves share one centre and the gap stays even.</span>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Depth</h2><p>The higher something floats, the softer and wider its shadow. A faint ring replaces borders, and never sits beside a dark line.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 8"><span class="cap">Raised, floating and overlay in one scene</span>
+<div class="card" style="padding:24px">
+<div style="position:relative;height:600px;border-radius:12px;overflow:hidden;background:#F4F5F7;box-shadow:inset 0 0 0 1px rgba(20,21,24,0.05)">
+<div class="card" style="position:absolute;left:24px;top:32px;width:456px">
+<div style="display:flex;justify-content:space-between;align-items:center;height:84px;box-sizing:border-box;padding:20px 20px 20px 24px">
+<span class="t15">Risk register</span>
+<button type="button" style="display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 14px;border:0;border-radius:22px;background:rgba(20,21,24,0.06);color:#141518;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer">Sort by score<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#5F646C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4 5 6.5 7.5 4"/></svg></button>
+</div>
+<div class="row"><span class="rn">Supplier name matches a sanctions entry</span><span class="pill" style="background:#FADBD5;color:#8F1A0B">81</span></div>
+<div class="row"><span class="rn">Red Sea transit disruption</span><span class="pill" style="background:#FCE5E0;color:#A42D16">74</span></div>
+<div class="row"><span class="rn">Taiwan Strait escalation</span><span class="pill" style="background:#FCE5E0;color:#A42D16">68</span></div>
+<div class="row"><span class="rn">Taiwan dollar volatility</span><span class="pill" style="background:#FBEAE6;color:#9C3522">52</span></div>
+</div>
+<div style="position:absolute;left:264px;top:110px;width:196px;box-sizing:border-box;padding:6px;border-radius:12px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 4px 16px rgba(20,21,24,0.08);z-index:2">
+<div class="mi" style="background:#E8F0FE;color:#0F55CF;font-weight:500"><span>Score</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#0F55CF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></div>
+<div class="mi"><span>Likelihood</span></div>
+<div class="mi"><span>Impact</span></div>
+<div class="mi"><span>Newest first</span></div>
+</div>
+<div style="position:absolute;left:504px;top:120px;width:248px;height:420px;border-radius:16px;overflow:hidden;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05)">
+<div style="padding:20px 18px 8px" class="t15">Sources</div>
+<div style="display:flex;justify-content:space-between;align-items:center;height:48px;padding:0 18px;border-top:1px solid var(--line);font-size:14px;line-height:20px"><span>Google Sheets</span><span style="width:6px;height:6px;border-radius:3px;background:#1A9E5A"></span></div>
+<div style="display:flex;align-items:center;height:48px;padding:0 18px;border-top:1px solid var(--line);font-size:14px;line-height:20px">Excel · OneDrive</div>
+<div style="display:flex;align-items:center;height:48px;padding:0 18px;border-top:1px solid var(--line);font-size:14px;line-height:20px">QuickBooks</div>
+<div style="display:flex;align-items:center;height:48px;padding:0 18px;border-top:1px solid var(--line);font-size:14px;line-height:20px">Salesforce</div>
+<div style="position:absolute;inset:0;background:rgba(20,21,24,0.24)"></div>
+<div style="position:absolute;left:12px;right:12px;top:100px;box-sizing:border-box;padding:18px 16px 16px;border-radius:20px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">Disconnect Google Sheets?</span><span class="t13">Alerts from this sheet stop until you reconnect it.</span></div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<button type="button" class="btn" style="background:#B3200F;color:#FFFFFF;font-size:14px">Disconnect</button>
+<button type="button" class="btn" style="background:rgba(20,21,24,0.06);color:#141518;font-size:14px">Cancel</button>
+</div>
+</div>
+</div>
+</div>
+<span class="t12" style="display:block;margin-top:14px">The register card is raised. Its sort menu floats above it. The disconnect dialog is an overlay above a dimmed screen.</span>
+</div>
+</div>
+<div class="item" style="grid-column:span 4"><span class="cap">Shadow tokens</span>
+<div class="card" style="padding:8px 24px">
+<div class="tk"><span class="tn"><b>Flat</b><span class="t13">Rows, inline content</span></span><span class="tv">none</span></div>
+<div class="tk"><span class="tn"><b>Raised</b><span class="t13">Cards, tables</span></span><span class="tv">ring 5% · 0 1 2, 5%</span></div>
+<div class="tk"><span class="tn"><b>Floating</b><span class="t13">Menus, popovers</span></span><span class="tv">ring 5% · 0 4 16, 8%</span></div>
+<div class="tk"><span class="tn"><b>Overlay</b><span class="t13">Dialogs, sheets</span></span><span class="tv">ring 5% · 0 24 48, 16%</span></div>
+<div class="tk"><span class="tn"><b>Scrim</b><span class="t13">Behind an overlay</span></span><span class="tv">ink 24%</span></div>
+<div class="tk"><span class="tn"><b>Glass</b><span class="t13">Capsules, sheets, legend</span></span><span class="tv">white 86% · blur 24</span></div>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3240}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

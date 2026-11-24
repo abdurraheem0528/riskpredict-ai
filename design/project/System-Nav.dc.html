@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Floating navigation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.sheet{--tx:#141518;--tx2:#5F646C;--line:#E6E7EA;width:1440px;min-height:3960px;box-sizing:border-box;padding:96px;background:#F4F5F7;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:96px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:28px}
+.sh h2{margin:0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em}
+.sh p{margin:0;font-size:14px;line-height:20px;color:var(--tx2);max-width:560px;text-align:right}
+.item{display:flex;flex-direction:column;gap:10px;min-width:0}
+.cap{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.t15{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.frame{position:relative;border-radius:16px;overflow:hidden;background:#E7ECF1;box-shadow:0 0 0 1px rgba(20,21,24,0.08),0 24px 48px rgba(20,21,24,0.10)}
+.flat{box-shadow:0 0 0 1px rgba(20,21,24,0.06)}
+.map,.ov{position:absolute;inset:0;width:100%;height:100%}
+.map{object-fit:cover;object-position:center}
+.glass{background:rgba(255,255,255,0.86);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 1px rgba(20,21,24,0.06),0 4px 16px rgba(20,21,24,0.08)}
+.top{position:absolute;left:20px;right:20px;top:16px;display:flex;align-items:center;gap:12px;z-index:4}
+.caps{display:inline-flex;align-items:center;height:48px;border:0;border-radius:24px;box-sizing:border-box;color:#141518;font:inherit;flex:0 0 auto}
+.logo{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border-radius:16px;background:#141518;color:#FFFFFF}
+.navl{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;color:#141518;text-decoration:none;font-size:14px;line-height:20px;font-weight:500;white-space:nowrap}
+.navl:hover,.navl.hov{background:rgba(20,21,24,0.05);color:#141518}
+.navl.on{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.navl.off{color:#A3A7AE}
+.navl small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500;font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:6px;height:6px;border-radius:3px;background:#B3200F}
+.kbd{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:6px;background:rgba(20,21,24,0.06);font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.lbl{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.sec{padding:14px 20px;border-top:1px solid rgba(20,21,24,0.07)}
+.chips{display:flex;flex-wrap:wrap;gap:12px 6px}
+.chip{position:relative;display:inline-flex;align-items:center;height:32px;padding:0 10px;border:0;border-radius:16px;background:rgba(20,21,24,0.05);color:#141518;font:500 12px/16px Inter,-apple-system,system-ui,sans-serif;cursor:pointer}
+.chip.on{background:#141518;color:#FFFFFF}
+.chip::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.pill{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:34px;height:24px;padding:0 7px;box-sizing:border-box;border-radius:12px;font-size:12px;line-height:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.p-c{background:#FADBD5;color:#8F1A0B}.p-h{background:#FCE5E0;color:#A42D16}.p-m{background:#FBEAE6;color:#9C3522}.p-l{background:#FBF1EF;color:#8A3B2E}
+.rr{display:flex;align-items:center;gap:12px;min-height:52px;margin:0 -8px;padding:0 8px;border-radius:10px}
+.rr.on{background:#E8F0FE}
+.rr .nm{display:flex;flex-direction:column;min-width:0}
+.rr .nm b{font-size:14px;line-height:20px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rr .nm span{font-size:12px;line-height:16px;color:#5F646C}
+.ctrl{display:flex;flex-direction:column;border-radius:22px;overflow:hidden}
+.mb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:transparent;color:#141518;cursor:pointer}
+.mb:hover{background:rgba(20,21,24,0.05)}
+.hr{height:1px;margin:0 10px;background:rgba(20,21,24,0.08)}
+.lg{display:inline-flex;align-items:center;gap:12px;height:44px;padding:0 18px;border-radius:22px;box-sizing:border-box;font-size:12px;line-height:16px;color:#5F646C;white-space:nowrap}
+.vr{width:1px;height:20px;background:rgba(20,21,24,0.1)}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 22px;border:0;border-radius:22px;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;letter-spacing:-0.006em;cursor:pointer;white-space:nowrap;text-decoration:none}
+.mi{display:flex;align-items:center;gap:12px;height:44px;margin:0 6px;padding:0 12px;border-radius:10px;font-size:14px;line-height:20px;color:#141518;text-decoration:none}
+.mi svg{flex:0 0 auto;color:#5F646C}
+.mi:hover{background:rgba(20,21,24,0.04);color:#141518}
+.mi.on{background:#E8F0FE;color:#0F55CF;font-weight:500}
+.mi.on svg{color:#0F55CF}
+.mdiv{height:1px;margin:6px 18px;background:rgba(20,21,24,0.08)}
+.pg{padding:12px 20px 4px;font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.pr{display:flex;align-items:center;gap:12px;height:48px;margin:0 8px;padding:0 12px;border-radius:10px;font-size:14px;line-height:20px}
+.pr svg{flex:0 0 auto;color:#5F646C}
+.zone{position:absolute;box-sizing:border-box;border:1px dashed rgba(20,21,24,0.32);border-radius:12px;background:rgba(255,255,255,0.72);display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 12px}
+.zone b{font-size:12px;line-height:16px;font-weight:600;color:#141518;white-space:nowrap}
+.zone span{font-size:11px;line-height:14px;color:#5F646C}
+.zone.c{align-items:center;padding:0}
+.tip{position:absolute;display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;background:rgba(20,21,24,0.92);color:#FFFFFF;font-size:12px;line-height:16px;white-space:nowrap;z-index:5}
+.grab{display:block;width:36px;height:5px;margin:0 auto;border-radius:3px;background:rgba(20,21,24,0.18)}
+.pulse{transform-box:fill-box;transform-origin:center;animation:pulse 2.8s ease-out infinite}
+.pulse.d2{animation-delay:1.4s}
+@keyframes pulse{0%{transform:scale(0.6);opacity:0.6}100%{transform:scale(1.8);opacity:0}}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none;opacity:0.3}}
+</style>
+</helmet>
+<div class="sheet">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:24px">
+<h1 style="margin:0;font-size:40px;line-height:46px;font-weight:600;letter-spacing:-0.022em">Floating navigation</h1>
+<span style="font-size:13px;line-height:18px;font-weight:500;color:var(--tx2)">Step 6 of 8</span>
+</div>
+<p style="margin:0;max-width:720px;font-size:15px;line-height:22px;color:var(--tx2)">Nothing frames the map. Four capsules float at the top, one sheet opens beside the content, and small controls sit in the corners.</p>
+</header>
+
+<section>
+<div class="item"><span class="cap">Every screen · Overview shown</span>
+<div class="frame" style="height:700px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="">
+<svg class="ov" viewBox="0 0 1360 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+<polyline points="1153.8,294.5 1150.1,322.4 1128.4,372.0 1100.5,415.4 1090.0,425.9 1069.5,412.3 1050.9,396.8 992.0,396.8 946.1,400.5 880.4,378.2 806.0,356.5 744.0,357.7 714.9,355.9 694.4,331.7 679.5,303.8 660.9,266.6 647.9,248.0 632.4,232.5 601.4,223.2 539.4,207.7 483.6,200.9 440.2,207.7 411.7,210.8 385.6,201.5 385.6,167.4 412.3,135.2 437.1,123.4 461.9,115.3 486.7,100.4 501.0,99.2 508.3,102.0" fill="none" stroke="#141518" stroke-opacity="0.45" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"/>
+<g fill="#141518" stroke="#FFFFFF" stroke-width="1.5">
+<circle cx="1151.3" cy="287" r="3.5"/><circle cx="1194.1" cy="239.9" r="3.5"/><circle cx="1202" cy="246" r="3.5"/><circle cx="1106.7" cy="250.5" r="3.5"/><circle cx="1178" cy="282.1" r="3.5"/><circle cx="1196.6" cy="280.2" r="3.5"/><circle cx="1203" cy="272" r="3.5"/><circle cx="1068.3" cy="400.5" r="3.5"/><circle cx="1076.1" cy="414.8" r="3.5"/><circle cx="1107.9" cy="367" r="3.5"/><circle cx="1102" cy="303.8" r="3.5"/><circle cx="927.5" cy="358" r="3.5"/><circle cx="904.6" cy="319.3" r="3.5"/><circle cx="1233.8" cy="201.5" r="3.5"/><circle cx="1286.5" cy="218.9" r="3.5"/><circle cx="1069.5" cy="348.8" r="3.5"/><circle cx="1091.2" cy="432" r="3.5"/><circle cx="1196.6" cy="343.5" r="3.5"/>
+</g>
+<circle class="pulse" cx="714.9" cy="355.9" r="16" fill="#DD6248" fill-opacity="0.35"/>
+<circle class="pulse d2" cx="789.3" cy="277.8" r="16" fill="#B3200F" fill-opacity="0.3"/>
+<g stroke="#FFFFFF" stroke-width="2">
+<circle cx="789.3" cy="277.8" r="7" fill="#B3200F"/>
+<circle cx="714.9" cy="355.9" r="8" fill="#DD6248"/>
+<circle cx="1187.9" cy="284" r="7" fill="#DD6248"/>
+<circle cx="1153.8" cy="294.5" r="6" fill="#E9A190"/>
+<circle cx="944.3" cy="352.8" r="6" fill="#E9A190"/>
+</g>
+<text x="714.9" y="384" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518" paint-order="stroke" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round">Red Sea</text>
+</svg>
+
+<div class="top">
+<button type="button" class="caps glass" style="gap:10px;padding:0 14px 0 8px;cursor:pointer"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><span style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></button>
+<div style="flex:1;display:flex;justify-content:center">
+<nav aria-label="Sections" class="caps glass" style="gap:2px;padding:0 2px"><a class="navl on" href="#overview" aria-current="page">Overview</a><a class="navl" href="#register">Register<small>7</small></a><a class="navl" href="#scenarios">Scenarios</a><a class="navl" href="#sources">Sources<span class="dot" role="img" aria-label="needs attention"></span></a></nav>
+</div>
+<button type="button" class="caps glass" style="gap:10px;padding:0 8px 0 16px;color:#5F646C;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg><span>Jump to</span><span class="kbd">⌘K</span></button>
+<button type="button" class="caps glass" aria-label="Account" style="justify-content:center;width:48px;padding:0;font-size:12px;line-height:16px;font-weight:600;cursor:pointer">RL</button>
+</div>
+
+<aside class="glass" aria-label="Risks" style="position:absolute;left:20px;top:84px;bottom:20px;width:344px;border-radius:20px;overflow:hidden;z-index:3;display:flex;flex-direction:column">
+<div class="sec" style="padding-top:18px;border-top:0">
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="lbl">Risk index · Sun 23 Nov</span><span class="t12" style="display:inline-flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:3px;background:#1A9E5A"></span>Live</span></div>
+<div style="display:flex;align-items:baseline;gap:8px;margin-top:6px"><span style="font-size:48px;line-height:52px;font-weight:600;letter-spacing:-0.035em;font-variant-numeric:tabular-nums">62</span><span style="font-size:13px;line-height:18px;font-weight:600;color:#A42D16">+4 from 58</span></div>
+</div>
+<div class="sec" style="padding-top:8px;padding-bottom:8px"><div class="chips" role="group" aria-label="Map layer"><button type="button" class="chip on">All</button><button type="button" class="chip">Geopolitical</button><button type="button" class="chip">Shipping</button><button type="button" class="chip">Hazards</button><button type="button" class="chip">Sanctions</button><button type="button" class="chip">Currency</button><button type="button" class="chip">Cyber</button></div></div>
+<div class="sec" style="display:flex;flex-direction:column">
+<span class="lbl" style="margin-bottom:6px">7 risks touch you</span>
+<div class="rr"><span class="pill p-c">81</span><span class="nm"><b>Sanctions match, Gulf Components</b><span>R-014 · Sanctions</span></span></div>
+<div class="rr on"><span class="pill p-h">74</span><span class="nm"><b style="color:#0F55CF">Red Sea transit</b><span>R-011 · Shipping</span></span></div>
+<div class="rr"><span class="pill p-h">68</span><span class="nm"><b>Taiwan Strait</b><span>R-009 · Geopolitical</span></span></div>
+<div class="rr"><span class="pill p-h">61</span><span class="nm"><b>VPN gateway, exploited flaw</b><span>R-016 · Cyber</span></span></div>
+<div class="rr"><span class="pill p-m">52</span><span class="nm"><b>Taiwan dollar +1.8%</b><span>R-007 · Currency</span></span></div>
+</div>
+</aside>
+
+<div class="ctrl glass" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);z-index:3">
+<button type="button" class="mb" aria-label="Zoom in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><span class="hr"></span>
+<button type="button" class="mb" aria-label="Zoom out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button><span class="hr"></span>
+<button type="button" class="mb" aria-label="Fit all suppliers"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg></button>
+</div>
+
+<div class="lg glass" style="position:absolute;right:20px;bottom:20px;z-index:3;padding-right:8px">
+<span>Every risk that touches your suppliers</span><span class="vr"></span>
+<span style="display:inline-flex;align-items:center;gap:6px;color:#141518"><span class="dot"></span>Excel stopped syncing</span>
+<a class="b" href="#sources" style="height:44px;padding:0 12px;background:transparent;color:#1766F0;font-size:13px">Fix</a>
+</div>
+</div>
+<span class="t12" style="margin-top:4px">Top row 48 high, 16 from the top · the sheet starts at 84 · 20 from every edge · the map runs under everything</span>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Top row</h2><p>Four capsules, the same on every screen. Nothing spans the full width, so the map shows between them.</p></div>
+<div style="display:flex;flex-direction:column;gap:28px">
+
+<div class="item"><span class="cap">Left to right</span>
+<div class="frame flat" style="height:112px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="object-position:50% 30%">
+<div class="top" style="top:32px">
+<span class="caps glass" style="gap:10px;padding:0 14px 0 8px"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><span style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></span>
+<div style="flex:1;display:flex;justify-content:center">
+<span class="caps glass" style="gap:2px;padding:0 2px"><span class="navl on">Overview</span><span class="navl">Register<small>7</small></span><span class="navl">Scenarios</span><span class="navl">Sources<span class="dot"></span></span></span>
+</div>
+<span class="caps glass" style="gap:10px;padding:0 8px 0 16px;color:#5F646C"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg><span>Jump to</span><span class="kbd">⌘K</span></span>
+<span class="caps glass" style="justify-content:center;width:48px;font-size:12px;line-height:16px;font-weight:600">RL</span>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:8px">
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">Workspace</span><span class="t13">Switch company, settings and members. The name hides on phones.</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">Sections</span><span class="t13">Overview, Register, Scenarios, Sources. Always in this order.</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">Jump to</span><span class="t13">Risks, suppliers and actions in one search. ⌘K from anywhere.</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">Account</span><span class="t13">Your initials. Profile, alerts and sign out.</span></div>
+</div>
+</div>
+
+<div class="item"><span class="cap">Section link, every state</span>
+<div class="frame flat" style="height:148px;display:flex;align-items:center;justify-content:center;gap:40px">
+<div style="display:flex;flex-direction:column;align-items:center;gap:12px"><span class="caps glass" style="padding:0 2px"><span class="navl">Scenarios</span></span><span class="t12">Rest</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:12px"><span class="caps glass" style="padding:0 2px"><span class="navl hov">Scenarios</span></span><span class="t12">Hover</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:12px"><span class="caps glass" style="padding:0 2px"><span class="navl on">Overview</span></span><span class="t12">You are here</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:12px"><span class="caps glass" style="padding:0 2px"><span class="navl">Register<small>7</small></span></span><span class="t12">With a count</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:12px"><span class="caps glass" style="padding:0 2px"><span class="navl">Sources<span class="dot"></span></span></span><span class="t12">Something is broken</span></div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:12px"><span class="caps glass" style="padding:0 2px"><span class="navl off">Register</span></span><span class="t12">Nothing to show yet</span></div>
+</div>
+<span class="t12" style="margin-top:4px">Links 44 high, 2 in from the edge of a 48 capsule · counts in grey · a red dot only when a source fails · greyed out until a source is connected</span>
+</div>
+
+<div class="grid">
+<div class="item" style="grid-column:span 5"><span class="cap">Workspace menu</span>
+<div class="frame flat" style="height:460px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="object-position:30% 20%">
+<span class="caps glass" style="position:absolute;left:20px;top:16px;gap:10px;padding:0 14px 0 8px"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><span style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 14.5 5.5-5.5 5.5 5.5"/></svg></span>
+<div role="menu" aria-label="Workspace" style="position:absolute;left:20px;top:72px;width:308px;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16)">
+<div class="pg" style="padding:10px 18px 6px">Workspaces</div>
+<div class="mi on" style="height:56px"><span class="logo" style="flex-basis:28px;width:28px;height:28px;border-radius:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><span style="flex:1;display:flex;flex-direction:column"><span>Atlas Electronics</span><span style="font-size:12px;line-height:16px;font-weight:400;color:#5F646C">38 suppliers · 11 tools</span></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
+<div class="mi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New workspace</div>
+<div class="mdiv"></div>
+<div class="mi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Workspace settings</div>
+<div class="mi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="16.5" cy="9.5" r="2.25"/><path d="M15.5 14.2a4.5 4.5 0 0 1 5 4.3"/></svg>Members and access</div>
+</div>
+</div>
+<span class="t12" style="margin-top:4px">Opens under its capsule · 44 rows · closes on a click outside or esc</span>
+</div>
+
+<div class="item" style="grid-column:span 7"><span class="cap">Jump to · ⌘K from any screen</span>
+<div class="frame flat" style="height:460px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="object-position:60% 35%">
+<div style="position:absolute;inset:0;background:rgba(20,21,24,0.24)"></div>
+<div role="dialog" aria-label="Jump to" style="position:absolute;left:24px;right:24px;top:28px;border-radius:24px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);overflow:hidden">
+<div style="display:flex;align-items:center;gap:12px;height:60px;padding:0 16px 0 20px;border-bottom:1px solid var(--line)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg>
+<input type="text" aria-label="Jump to" value="red sea" style="flex:1;min-width:0;height:44px;border:0;background:transparent;font:400 17px/24px Inter,-apple-system,system-ui,sans-serif;color:#141518;outline:none">
+<span class="kbd">esc</span>
+</div>
+<div style="padding-bottom:8px">
+<div class="pg">Risks</div>
+<div class="pr" style="background:#E8F0FE"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F55CF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 4.5 7.5v9l7.5 4 7.5-4v-9z"/><path d="M4.5 7.5 12 11.5l7.5-4M12 11.5v9"/></svg><span style="flex:1;color:#0F55CF"><span style="font-weight:600">Red Sea</span> transit</span><span class="pill p-h">74</span><span class="kbd" style="background:#FFFFFF">↵</span></div>
+<div class="pg">Suppliers</div>
+<div class="pr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/></svg><span style="flex:1">Shenzhen Bright Parts</span><span class="t13">ships via the <span style="font-weight:600;color:#141518">Red Sea</span></span></div>
+<div class="pr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/></svg><span style="flex:1">Penang Circuit Works</span><span class="t13">ships via the <span style="font-weight:600;color:#141518">Red Sea</span></span></div>
+<div class="pg">Actions</div>
+<div class="pr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.25"/><circle cx="6" cy="18" r="2.25"/><circle cx="18" cy="9" r="2.25"/><path d="M6 8.25v7.5M18 11.25V13a5 5 0 0 1-5 5H8.25"/></svg><span style="flex:1">What if the <span style="font-weight:600">Red Sea</span> route closes</span><span class="kbd">⌘↵</span></div>
+</div>
+</div>
+</div>
+<span class="t12" style="margin-top:4px">Dims the map, never replaces it · ↑↓ to move, ↵ to open, ⌘↵ to run the action</span>
+</div>
+</div>
+
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Sheets and corners</h2><p>One sheet at a time. Everything else is small and sits in a corner, so most of the map stays in view.</p></div>
+<div class="grid">
+
+<div class="item" style="grid-column:span 8"><span class="cap">Where things sit</span>
+<div class="frame flat" style="height:545px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="">
+<div style="position:absolute;inset:0;background:rgba(244,245,247,0.45)"></div>
+<div class="zone c" style="left:12px;top:10px;width:104px;height:29px;border-radius:15px"><b>Workspace</b></div>
+<div class="zone c" style="left:303px;top:10px;width:218px;height:29px;border-radius:15px"><b>Sections</b></div>
+<div class="zone c" style="right:48px;top:10px;width:80px;height:29px;border-radius:15px"><b>Jump to</b></div>
+<div class="zone c" style="right:12px;top:10px;width:29px;height:29px;border-radius:15px"><b>RL</b></div>
+<div class="zone" style="left:12px;top:51px;bottom:12px;width:267px;justify-content:flex-start;padding-top:16px;gap:4px"><b>Sheet</b><span>344 for lists, 400 to 460 for detail</span><span>Left for reading. Right for what-ifs.</span><span>Scrolls inside itself, never the page.</span></div>
+<div class="zone c" style="right:12px;top:232px;width:27px;height:80px;border-radius:14px"></div>
+<span class="t12" style="position:absolute;right:48px;top:263px;color:#141518;font-weight:500">Map controls</span>
+<div class="zone" style="right:12px;bottom:46px;width:206px;height:150px;justify-content:flex-start;padding-top:14px;gap:4px"><b>Corner card</b><span>340 wide. What happens next, one button.</span></div>
+<div class="zone" style="right:12px;bottom:12px;width:236px;height:27px;border-radius:14px"><b>Legend · 44 high</b></div>
+<span style="position:absolute;left:330px;top:120px;font-size:13px;line-height:18px;font-weight:500;color:#5F646C">The map, full bleed, under everything</span>
+</div>
+<span class="t12" style="margin-top:4px">Drawn at 60% of a 1360 × 900 screen · 20 from every edge · the corner card sits 12 above the legend · the legend takes the corner away from the sheet</span>
+</div>
+
+<div style="grid-column:span 4;display:flex;flex-direction:column;gap:28px">
+<div class="item"><span class="cap">Map controls</span>
+<div class="frame flat" style="height:232px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="object-position:80% 40%">
+<div class="ctrl glass" style="position:absolute;right:40px;top:49px">
+<span class="mb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span class="hr"></span>
+<span class="mb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></span><span class="hr"></span>
+<span class="mb" style="background:rgba(20,21,24,0.05)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg></span>
+</div>
+<span class="tip" role="tooltip" style="right:92px;top:147px">Fit all suppliers</span>
+</div>
+<span class="t12" style="margin-top:4px">44 per button · a tooltip names each one · hidden on phones, where you pinch</span>
+</div>
+<div class="item"><span class="cap">Legend</span>
+<div class="frame flat" style="height:232px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px">
+<span class="lg glass" style="padding-right:8px"><span>All risks</span><span class="vr"></span><span style="display:inline-flex;align-items:center;gap:6px;color:#141518"><span class="dot"></span>Excel stopped syncing</span><span style="display:inline-flex;align-items:center;height:44px;padding:0 12px;color:#1766F0;font-size:13px;font-weight:500">Fix</span></span>
+<span class="lg glass"><span style="display:inline-flex;align-items:center;gap:6px;color:#141518"><span style="width:6px;height:6px;border-radius:3px;background:#1A9E5A"></span>9 of 9 feeds live</span><span class="vr"></span><span>GDELT, NVD and 7 more</span></span>
+<span class="lg glass"><span>Low</span><span style="display:inline-flex;gap:2px" aria-hidden="true"><i style="width:22px;height:8px;border-radius:2px;background:#F1D3CC"></i><i style="width:22px;height:8px;border-radius:2px;background:#E9A190"></i><i style="width:22px;height:8px;border-radius:2px;background:#DD6248"></i><i style="width:22px;height:8px;border-radius:2px;background:#B3200F"></i></span><span>Critical</span></span>
+</div>
+<span class="t12" style="margin-top:4px">Says what the colours mean, or what is broken · one link at most</span>
+</div>
+</div>
+
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Smaller screens</h2><p>The map stays full screen. Below 1100 the corner card folds into the sheet, below 900 the sections become one menu, and on phones the sheet comes up from the bottom.</p></div>
+<div class="grid">
+
+<div class="item" style="grid-column:span 6"><span class="cap">Tablet · 900 and narrower</span>
+<div class="frame" style="height:600px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="object-position:70% 40%">
+<div class="top">
+<span class="caps glass" style="gap:10px;padding:0 14px 0 8px"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><span style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span></span>
+<div style="flex:1;display:flex;justify-content:center"><span class="caps glass" style="gap:8px;padding:0 14px 0 18px;font-size:14px;line-height:20px;font-weight:500">Overview<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></span></div>
+<span class="caps glass" aria-label="Jump to" style="justify-content:center;width:48px;color:#5F646C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg></span>
+<span class="caps glass" style="justify-content:center;width:48px;font-size:12px;line-height:16px;font-weight:600">RL</span>
+</div>
+<div class="glass" style="position:absolute;left:20px;top:84px;bottom:20px;width:344px;border-radius:20px;overflow:hidden;z-index:3">
+<div class="sec" style="border-top:0;padding-top:18px"><span class="lbl">Risk index · Sun 23 Nov</span><div style="display:flex;align-items:baseline;gap:8px;margin-top:6px"><span style="font-size:40px;line-height:44px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">62</span><span style="font-size:13px;line-height:18px;font-weight:600;color:#A42D16">+4 from 58</span></div></div>
+<div class="sec" style="display:flex;flex-direction:column">
+<div class="rr"><span class="pill p-c">81</span><span class="nm"><b>Sanctions match, Gulf Components</b><span>R-014 · Sanctions</span></span></div>
+<div class="rr on"><span class="pill p-h">74</span><span class="nm"><b style="color:#0F55CF">Red Sea transit</b><span>R-011 · Shipping</span></span></div>
+<div class="rr"><span class="pill p-h">68</span><span class="nm"><b>Taiwan Strait</b><span>R-009 · Geopolitical</span></span></div>
+<div class="rr"><span class="pill p-h">61</span><span class="nm"><b>VPN gateway, exploited flaw</b><span>R-016 · Cyber</span></span></div>
+</div>
+</div>
+<div class="ctrl glass" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);z-index:3"><span class="mb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span class="hr"></span><span class="mb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></span></div>
+</div>
+<span class="t12" style="margin-top:4px">Sections fold into one menu · Jump to keeps only its icon · the corner card folds into the sheet</span>
+</div>
+
+<div class="item" style="grid-column:span 3"><span class="cap">Phone</span>
+<div class="frame" style="height:600px;border-radius:32px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="object-position:62% 42%">
+<div style="position:absolute;left:12px;right:12px;top:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;z-index:4">
+<span class="caps glass" style="gap:8px;padding:0 10px 0 8px"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></span>
+<span class="caps glass" style="gap:6px;padding:0 12px 0 16px;font-size:14px;line-height:20px;font-weight:500">Register<span style="font-size:12px;line-height:16px;color:#5F646C">7</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></span>
+<span class="caps glass" style="justify-content:center;width:48px;font-size:12px;line-height:16px;font-weight:600">RL</span>
+</div>
+<div class="glass" style="position:absolute;left:8px;right:8px;bottom:8px;height:330px;box-sizing:border-box;padding:8px 18px 16px;border-radius:26px;z-index:3;display:flex;flex-direction:column">
+<span class="grab" aria-hidden="true"></span>
+<span style="margin-top:14px;font-size:17px;line-height:22px;font-weight:600;letter-spacing:-0.01em">7 open risks</span>
+<span class="t12" style="margin-bottom:8px">Highest first</span>
+<div class="rr"><span class="pill p-c">81</span><span class="nm"><b>Sanctions match</b><span>R-014 · Dubai</span></span></div>
+<div class="rr"><span class="pill p-h">74</span><span class="nm"><b>Red Sea transit</b><span>R-011 · Shipping</span></span></div>
+<div class="rr"><span class="pill p-h">68</span><span class="nm"><b>Taiwan Strait</b><span>R-009 · Geopolitical</span></span></div>
+<div class="rr"><span class="pill p-h">61</span><span class="nm"><b>VPN gateway flaw</b><span>R-016 · Cyber</span></span></div>
+</div>
+</div>
+<span class="t12" style="margin-top:4px">The sheet comes up from the bottom · drag it to see more map</span>
+</div>
+
+<div class="item" style="grid-column:span 3"><span class="cap">Phone · sections open</span>
+<div class="frame" style="height:600px;border-radius:32px">
+<img class="map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="" style="object-position:62% 42%">
+<div style="position:absolute;left:12px;right:12px;top:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;z-index:4">
+<span class="caps glass" style="gap:8px;padding:0 10px 0 8px"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></span>
+<span class="caps glass" style="gap:6px;padding:0 12px 0 16px;font-size:14px;line-height:20px;font-weight:500">Register<span style="font-size:12px;line-height:16px;color:#5F646C">7</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 14.5 5.5-5.5 5.5 5.5"/></svg></span>
+<span class="caps glass" style="justify-content:center;width:48px;font-size:12px;line-height:16px;font-weight:600">RL</span>
+</div>
+<nav aria-label="Sections" style="position:absolute;left:50%;top:70px;transform:translateX(-50%);width:228px;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);z-index:5">
+<a class="mi" href="#overview">Overview</a>
+<a class="mi on" href="#register" aria-current="page"><span style="flex:1">Register</span><span style="font-size:12px;line-height:16px">7</span></a>
+<a class="mi" href="#scenarios">Scenarios</a>
+<a class="mi" href="#sources"><span style="flex:1">Sources</span><span class="dot" role="img" aria-label="needs attention"></span></a>
+<div class="mdiv"></div>
+<a class="mi" href="#jump"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg>Jump to</a>
+</nav>
+<div class="glass" style="position:absolute;left:8px;right:8px;bottom:8px;height:84px;box-sizing:border-box;padding:8px 18px 0;border-radius:26px;z-index:3;display:flex;flex-direction:column">
+<span class="grab" aria-hidden="true"></span>
+<span style="margin-top:12px;font-size:17px;line-height:22px;font-weight:600;letter-spacing:-0.01em">7 open risks</span>
+<span class="t12">Highest is 81</span>
+</div>
+</div>
+<span class="t12" style="margin-top:4px">Same four sections, same order · Jump to moves into this menu</span>
+</div>
+
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3960}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

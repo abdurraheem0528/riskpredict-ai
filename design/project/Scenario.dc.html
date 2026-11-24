@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What if</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#E7ECF1}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.app{--tx:#141518;--tx2:#5F646C;position:relative;height:100vh;min-height:640px;overflow:hidden;background:#E7ECF1;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;font-size:14px;line-height:20px;-webkit-font-smoothing:antialiased}
+.map,.ov{position:absolute;inset:0;width:100%;height:100%}
+.map{object-fit:cover;object-position:center}
+.glass{background:rgba(255,255,255,0.84);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 1px rgba(20,21,24,0.06),0 4px 16px rgba(20,21,24,0.08)}
+.top{position:absolute;left:20px;right:20px;top:16px;display:flex;align-items:center;gap:12px;z-index:4}
+.cap{display:inline-flex;align-items:center;height:48px;border-radius:24px;box-sizing:border-box}
+.navl{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;color:#141518;text-decoration:none;font-size:14px;line-height:20px;font-weight:500}
+.navl:hover{background:rgba(20,21,24,0.05);color:#141518}
+.navl.on{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.navl small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.kbd{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:6px;background:rgba(20,21,24,0.06);font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.sheet{position:absolute;right:20px;top:84px;bottom:20px;width:400px;border-radius:20px;overflow:auto;z-index:3;box-sizing:border-box;padding:16px 22px 18px;display:flex;flex-direction:column;gap:14px}
+.lbl{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.op{display:flex;flex-direction:column;justify-content:center;gap:2px;min-height:56px;padding:8px 12px;box-sizing:border-box;border:0;border-radius:12px;background:rgba(20,21,24,0.04);color:#141518;font:inherit;text-align:left;cursor:pointer;transition:background-color .15s ease}
+.op:hover{background:rgba(20,21,24,0.07)}
+.op.on{background:#E8F0FE;box-shadow:inset 0 0 0 1.5px #1766F0}
+.op b{font-size:13px;line-height:18px;font-weight:600}
+.op span{font-size:12px;line-height:16px;color:#5F646C}
+.rng{-webkit-appearance:none;appearance:none;width:100%;height:44px;margin:-8px 0;background:transparent;cursor:pointer}
+.rng:focus{outline:none}
+.rng::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,#1766F0 0,#1766F0 var(--p),rgba(20,21,24,0.12) var(--p),rgba(20,21,24,0.12) 100%)}
+.rng::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;margin-top:-10px;border-radius:12px;background:#FFFFFF;box-shadow:0 0 0 0.5px rgba(20,21,24,0.12),0 2px 6px rgba(20,21,24,0.18)}
+.rng:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px rgba(23,102,240,0.35),0 2px 6px rgba(20,21,24,0.18)}
+.rng::-moz-range-track{height:4px;border-radius:2px;background:rgba(20,21,24,0.12)}
+.rng::-moz-range-progress{height:4px;border-radius:2px;background:#1766F0}
+.rng::-moz-range-thumb{width:24px;height:24px;border:0;border-radius:12px;background:#FFFFFF;box-shadow:0 0 0 0.5px rgba(20,21,24,0.12),0 2px 6px rgba(20,21,24,0.18)}
+.tile{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:12px;background:rgba(20,21,24,0.04)}
+.fig{font-size:24px;line-height:28px;font-weight:600;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.rw{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;border-top:1px solid rgba(20,21,24,0.07)}
+.rw:first-of-type{border-top:0}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border:0;border-radius:22px;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;letter-spacing:-0.006em;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background-color .15s ease,transform .1s ease}
+.b:active{transform:scale(0.97)}
+.pri{background:#1766F0;color:#FFFFFF}.pri:hover{background:#0F55CF;color:#FFFFFF}
+.sec2{background:rgba(20,21,24,0.06);color:#141518}.sec2:hover{background:rgba(20,21,24,0.09);color:#141518}
+.lab{font-family:Inter,system-ui,sans-serif;font-size:11px;fill:#5F646C;paint-order:stroke;stroke:#FFFFFF;stroke-width:3;stroke-linejoin:round}
+.hid{display:none}
+.pulse{transform-box:fill-box;transform-origin:center;animation:pulse 2.6s ease-out infinite}
+@keyframes pulse{0%{transform:scale(0.5);opacity:0.55}100%{transform:scale(1.8);opacity:0}}
+.navs{flex:1;display:none;justify-content:center}
+.navm{position:relative}
+.navsum{gap:8px;padding:0 14px 0 18px;font-size:14px;line-height:20px;font-weight:500;color:#141518;cursor:pointer;list-style:none;user-select:none}
+.navsum::-webkit-details-marker{display:none}
+.navsum small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.navm[open] .navsum svg{transform:rotate(180deg)}
+.navmenu{position:absolute;left:50%;top:56px;transform:translateX(-50%);width:228px;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);display:flex;flex-direction:column}
+.mi{display:flex;align-items:center;justify-content:space-between;gap:12px;height:44px;margin:0 6px;padding:0 12px;border:0;border-radius:10px;background:transparent;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;color:#141518;text-decoration:none;cursor:pointer}
+.mi:hover{background:rgba(20,21,24,0.04);color:#141518}
+.mi.on{background:#E8F0FE;color:#0F55CF}
+.mi.off{color:#A3A7AE}
+.mi small{font-size:12px;line-height:16px;color:#5F646C}
+.mi.on small{color:#0F55CF}
+.mdiv{height:1px;margin:6px 18px;background:rgba(20,21,24,0.08)}
+.mjump{display:none}
+.grab{display:none;position:absolute;top:6px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:rgba(20,21,24,0.18)}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none;opacity:0.25}}
+@media (max-width:900px){.navc{display:none !important}.navs{display:flex !important}.jtl{display:none !important}.jump{width:48px;padding:0 !important;justify-content:center}}
+@media (max-width:760px){.jump{display:none !important}.mjump{display:flex !important}.grab{display:block}.sheet{left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:60vh}.top{left:12px;right:12px}.wsn{display:none}.legend{display:none !important}}
+</style>
+</helmet>
+<div class="app">
+
+<img class="map" src="/_blob/3f9dc36c9b8a442137096dbe7329dcde" alt="">
+
+<svg class="ov" viewBox="0 0 1360 900" preserveAspectRatio="xMidYMid slice" role="img" aria-label="{{ s.mapLabel }}">
+<defs><filter id="sh" x="-20%" y="-40%" width="140%" height="180%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#141518" flood-opacity="0.14"/></filter></defs>
+
+<polyline points="876.3,299.2 872.5,327.6 850.5,378.0 822.1,422.1 811.4,432.8 790.6,418.9 771.8,403.2 711.9,403.2 665.3,407.0" fill="none" stroke="#141518" stroke-opacity="0.8" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="95.8,170.1 122.8,137.3 148.0,125.4 173.2,117.2 198.4,102.1 212.9,100.8 220.4,103.6" fill="none" stroke="#141518" stroke-opacity="0.8" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="915.4,298.6 897.8,305.6 872.5,327.6" fill="none" stroke="#141518" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round"/>
+<polyline points="789.4,407.0 790.6,418.9" fill="none" stroke="#141518" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round"/>
+<polyline points="663.4,358.5 671.0,384.3 665.3,407.0" fill="none" stroke="#141518" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round"/>
+<polyline points="829.7,373.0 834.8,390.6 850.5,378.0" fill="none" stroke="#141518" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round"/>
+
+<g class="{{ v.suezOpen }}"><polyline points="665.3,407.0 598.5,384.3 522.9,362.2 459.9,363.5 430.3,361.6 409.5,337.1 394.4,308.7 375.5,270.9 362.2,252.0 346.5,236.2 315.0,226.8 252.0,211.0 195.3,204.1 151.2,211.0 122.2,214.2 95.8,204.8 95.8,170.1" fill="none" stroke="#141518" stroke-opacity="0.8" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/></g>
+
+<g class="{{ v.red }}">
+<polyline points="665.3,407.0 598.5,384.3 522.9,362.2 459.9,363.5 430.3,361.6 409.5,337.1 394.4,308.7 375.5,270.9 362.2,252.0 346.5,236.2 315.0,226.8 252.0,211.0 195.3,204.1 151.2,211.0 122.2,214.2 95.8,204.8 95.8,170.1" fill="none" stroke="#A3A7AE" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>
+<polyline points="665.3,407.0 611.1,472.5 522.9,567.0 422.1,630.0 346.5,670.9 274.1,664.6 233.1,617.4 195.3,535.5 144.9,453.6 81.9,403.2 37.8,340.2 31.5,270.9 69.3,207.9 95.8,170.1" fill="none" stroke="#141518" stroke-opacity="0.85" stroke-width="2.75" stroke-linejoin="round" stroke-linecap="round"/>
+<circle class="pulse" cx="430.3" cy="361.6" r="34" fill="#B3200F" fill-opacity="0.22"/>
+<circle cx="430.3" cy="361.6" r="13" fill="#FFFFFF" stroke="#B3200F" stroke-width="2.5"/>
+<path d="M425.3 356.6l10 10M435.3 356.6l-10 10" stroke="#B3200F" stroke-width="2.25" stroke-linecap="round"/>
+<g filter="url(#sh)"><rect x="452" y="372" width="164" height="52" rx="14" fill="#FFFFFF"/></g>
+<text x="466" y="394" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#8F1A0B">Red Sea closed</text>
+<text x="466" y="412" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#5F646C">for {{ wk }} weeks</text>
+<g filter="url(#sh)"><rect x="296" y="690" width="206" height="52" rx="14" fill="#FFFFFF"/></g>
+<text x="310" y="712" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Around Africa instead</text>
+<text x="310" y="730" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#5F646C">+12 days on every shipment</text>
+</g>
+
+<g class="{{ v.tw }}">
+<circle class="pulse" cx="919.8" cy="291.7" r="70" fill="#B3200F" fill-opacity="0.18"/>
+<circle cx="919.8" cy="291.7" r="44" fill="#B3200F" fill-opacity="0.12" stroke="#B3200F" stroke-width="1.5" stroke-dasharray="4 4"/>
+<g filter="url(#sh)"><rect x="740" y="210" width="166" height="52" rx="14" fill="#FFFFFF"/></g>
+<text x="754" y="232" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#8F1A0B">Strait blockaded</text>
+<text x="754" y="250" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#5F646C">for {{ wk }} weeks</text>
+</g>
+
+<g class="{{ v.fx }}">
+<line x1="220.4" y1="103.6" x2="915.4" y2="298.6" stroke="#141518" stroke-opacity="0.22" stroke-width="5" stroke-linecap="round"/>
+<circle class="pulse" cx="915.4" cy="298.6" r="40" fill="#DD6248" fill-opacity="0.24"/>
+<circle cx="915.4" cy="298.6" r="34" fill="#DD6248" fill-opacity="0.22" stroke="#DD6248" stroke-width="1.5"/>
+<text x="915.4" y="295" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518">TWD</text>
+<text x="915.4" y="311" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#A42D16">+10%</text>
+<text class="lab" x="560" y="186">Every invoice paid in Taiwan dollars costs 10% more</text>
+</g>
+
+<g class="{{ v.sanc }}">
+<circle class="pulse" cx="505.9" cy="282.2" r="34" fill="#B3200F" fill-opacity="0.22"/>
+<circle cx="505.9" cy="282.2" r="13" fill="#FFFFFF" stroke="#B3200F" stroke-width="2.5"/>
+<path d="M500.9 277.2l10 10M510.9 277.2l-10 10" stroke="#B3200F" stroke-width="2.25" stroke-linecap="round"/>
+<g filter="url(#sh)"><rect x="528" y="222" width="196" height="52" rx="14" fill="#FFFFFF"/></g>
+<text x="542" y="244" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#8F1A0B">Gulf Components</text>
+<text x="542" y="262" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#5F646C">Sanctioned · must stop buying</text>
+<line x1="505.9" y1="282.2" x2="789.4" y2="407.0" stroke="#141518" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="3 4"/>
+<text class="lab" x="640" y="330">Move parts to Penang</text>
+</g>
+
+<circle cx="876.3" cy="299.2" r="4.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<circle cx="915.4" cy="298.6" r="4.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<circle cx="789.4" cy="407.0" r="4.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<circle cx="829.7" cy="373.0" r="4.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<circle cx="663.4" cy="358.5" r="4.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<circle cx="505.9" cy="282.2" r="4.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<rect x="215.4" y="98.6" width="10" height="10" rx="2.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<text class="lab" x="868" y="318" text-anchor="end">Shenzhen</text>
+<text class="lab" x="908" y="322" text-anchor="end">Kaohsiung</text>
+<text class="lab" x="781" y="404" text-anchor="end">Penang</text>
+<text class="lab" x="837" y="368">Ho Chi Minh City</text>
+<text class="lab" x="655" y="355" text-anchor="end">Chennai</text>
+<text class="lab" x="498" y="300" text-anchor="end">Dubai</text>
+<text x="234" y="98" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518" paint-order="stroke" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round">Hamburg</text>
+</svg>
+
+<div class="top">
+<button type="button" class="cap glass" style="gap:10px;padding:0 14px 0 8px;border:0;color:#141518;font:inherit;cursor:pointer">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:16px;background:#141518;color:#FFFFFF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span>
+<span class="wsn" style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg>
+</button>
+<div class="navc" style="flex:1;display:flex;justify-content:center">
+<nav aria-label="Main" class="cap glass" style="gap:2px;padding:0 2px">
+<a class="navl" href="Main.dc.html">Overview</a>
+<a class="navl" href="Risk.dc.html">Register<small>7</small></a>
+<a class="navl on" href="Scenario.dc.html" aria-current="page">Scenarios</a>
+<a class="navl" href="Connect.dc.html">Sources<span style="width:6px;height:6px;border-radius:3px;background:#B3200F" role="img" aria-label="needs attention"></span></a>
+</nav>
+</div>
+<div class="navs">
+<details class="navm">
+<summary class="cap glass navsum">Scenarios<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></summary>
+<nav aria-label="Sections" class="navmenu">
+<a class="mi" href="Main.dc.html">Overview</a>
+<a class="mi" href="Risk.dc.html">Register<small>7</small></a>
+<a class="mi on" href="Scenario.dc.html" aria-current="page">Scenarios</a>
+<a class="mi" href="Connect.dc.html">Sources<span style="width:6px;height:6px;border-radius:3px;background:#B3200F" role="img" aria-label="needs attention"></span></a>
+<span class="mdiv mjump"></span>
+<button type="button" class="mi mjump" style="justify-content:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg>Jump to</button>
+</nav>
+</details>
+</div>
+<button type="button" class="cap glass jump" aria-label="Jump to" style="gap:10px;padding:0 8px 0 16px;border:0;color:#5F646C;font:inherit;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg><span class="jtl">Jump to</span><span class="kbd jtl">⌘K</span></button>
+<button type="button" class="cap glass" aria-label="Account" style="justify-content:center;width:48px;padding:0;border:0;font:600 12px/16px Inter,system-ui,sans-serif;color:#141518;cursor:pointer">RL</button>
+</div>
+
+<aside class="sheet glass" aria-label="What if">
+<span class="grab" aria-hidden="true"></span>
+<div style="display:flex;flex-direction:column;gap:6px">
+<span class="lbl">What if</span>
+<h1 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-0.015em">{{ s.title }}</h1>
+<span style="font-size:14px;line-height:20px;color:#5F646C">{{ s.sub }}</span>
+</div>
+
+<div class="opts" role="radiogroup" aria-label="Event">
+<sc-for list="{{ opts }}" as="o" hint-placeholder-count="4">
+<button type="button" role="radio" aria-checked="{{ o.on }}" class="{{ o.cls }}" onClick="{{ o.pick }}"><b>{{ o.name }}</b><span>{{ o.hint }}</span></button>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><label for="wk" class="lbl">How long it lasts</label><span style="font-size:15px;line-height:20px;font-weight:600;font-variant-numeric:tabular-nums">{{ wk }} weeks</span></div>
+<input id="wk" class="rng" type="range" min="1" max="12" step="1" value="{{ wk }}" onChange="{{ setWk }}" style="--p: {{ wkPct }}">
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:1px solid rgba(20,21,24,0.07)">
+<span class="lbl">Risk index</span>
+<div style="display:flex;align-items:baseline;gap:12px">
+<span style="font-size:28px;line-height:32px;font-weight:600;letter-spacing:-0.02em;color:#A3A7AE;font-variant-numeric:tabular-nums">62</span>
+<svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h15M12 2l5 5-5 5"/></svg>
+<span style="font-size:40px;line-height:44px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">{{ r.after }}</span>
+<span style="display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:12px;background:{{ r.tint }};color:{{ r.text }};font-size:13px;line-height:18px;font-weight:600;font-variant-numeric:tabular-nums">+{{ r.delta }} · {{ r.level }}</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div class="tile"><span class="fig">{{ r.cost }}</span><span class="t12">extra cost over {{ wk }} weeks</span></div>
+<div class="tile"><span class="fig">{{ s.delay }}</span><span class="t12">{{ s.delayLabel }}</span></div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column">
+<span class="lbl" style="margin-bottom:4px">Who feels it first</span>
+<sc-for list="{{ s.rows }}" as="w" hint-placeholder-count="3">
+<div class="rw"><span style="font-size:14px;line-height:20px;font-weight:500">{{ w.n }}</span><span style="font-size:13px;line-height:18px;color:{{ w.c }};font-weight:500;text-align:right;font-variant-numeric:tabular-nums">{{ w.v }}</span></div>
+</sc-for>
+</div>
+
+<div style="display:flex;gap:8px;margin-top:auto"><button type="button" class="b sec2">Save</button><a class="b pri" href="Risk.dc.html" style="flex:1">Add to risk plan</a></div>
+<span class="t12" style="margin-top:-6px">An estimate from your current suppliers and spend, not a forecast.</span>
+</aside>
+
+<div class="legend glass" style="position:absolute;left:20px;bottom:20px;display:flex;align-items:center;gap:16px;height:44px;padding:0 18px;border-radius:22px;z-index:3;font-size:12px;line-height:16px;color:#5F646C">
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:2px;border-radius:1px;background:#141518"></span>Route in this scenario</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;border-top:2px dotted #A3A7AE"></span>Not used</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:4px;background:#141518"></span>Supplier</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#141518"></span>Your warehouse</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { sc: 'red', wk: 6 };
+}
+renderVals() {
+const S = {
+red: { name: 'Red Sea closes', hint: 'Shipping', base: 42, jump: 9,
+title: 'The Red Sea route closes', sub: 'Ships go around Africa instead, so every Asian shipment takes about 12 days longer.',
+delay: '+12 days', delayLabel: 'on every shipment from Asia',
+mapLabel: 'The Red Sea route is closed and ships go around Africa to Hamburg',
+rows: [{ n: 'Shenzhen Bright Parts', v: '38 → 50 days', c: '#A42D16' }, { n: 'Penang Circuit Works', v: '31 → 43 days', c: '#A42D16' }, { n: 'Chennai Cable Co.', v: '21 → 33 days', c: '#A42D16' }] },
+tw: { name: 'Taiwan blockade', hint: 'Geopolitical', base: 65, jump: 14,
+title: 'The Taiwan Strait is blockaded', sub: 'Shipments from Taiwan stop. Memory chips run out after three weeks of stock.',
+delay: 'No supply', delayLabel: 'from Taiwan while it lasts',
+mapLabel: 'A blockade zone around Taiwan stops shipments from Kaohsiung',
+rows: [{ n: 'Formosa Memory', v: 'Stops shipping', c: '#8F1A0B' }, { n: 'Hsinchu Micro', v: 'Stops shipping', c: '#8F1A0B' }, { n: 'Shenzhen Bright Parts', v: '+4 days', c: '#9C3522' }] },
+fx: { name: 'Taiwan dollar +10%', hint: 'Currency', base: 18, jump: 4,
+title: 'The Taiwan dollar rises 10%', sub: 'Invoices in Taiwan dollars cost more. Lead times do not change.',
+delay: 'None', delayLabel: 'shipments keep their dates',
+mapLabel: 'The Taiwan dollar rises 10% against the euro, raising the cost of invoices from Taiwan',
+rows: [{ n: 'Formosa Memory', v: '+€9.6k a week', c: '#9C3522' }, { n: 'Hsinchu Micro', v: '+€6.4k a week', c: '#9C3522' }, { n: 'Taipei Passive Parts', v: '+€2.0k a week', c: '#9C3522' }] },
+sanc: { name: 'Supplier sanctioned', hint: 'Sanctions', base: 30, jump: 10,
+title: 'Gulf Components is sanctioned', sub: 'You must stop buying from them and move their parts to another supplier.',
+delay: '3 weeks', delayLabel: 'to qualify a replacement',
+mapLabel: 'Gulf Components in Dubai is sanctioned and its parts move to Penang',
+rows: [{ n: 'Gulf Components', v: 'Must stop · 2 orders', c: '#8F1A0B' }, { n: 'Penang Circuit Works', v: 'Can take 60%', c: '#141518' }, { n: 'Legal review', v: 'About 3 weeks', c: '#5F646C' }] }
+};
+const keys = ['red', 'tw', 'fx', 'sanc'];
+const sc = this.state.sc;
+const wk = this.state.wk;
+const s = S[sc];
+const after = Math.min(100, 62 + s.jump + Math.round(wk / 4));
+const level = after >= 80 ? 'Critical' : 'High';
+const cost = s.base * wk >= 1000 ? '€' + (s.base * wk / 1000).toFixed(1) + 'm' : '€' + (s.base * wk) + 'k';
+const show = (ok) => (ok ? '' : 'hid');
+return {
+opts: keys.map((k) => ({ name: S[k].name, hint: S[k].hint, on: k === sc, cls: k === sc ? 'op on' : 'op', pick: () => this.setState({ sc: k }) })),
+s: s,
+wk: wk,
+wkPct: ((wk - 1) / 11 * 100) + '%',
+setWk: (e) => this.setState({ wk: Number(e.target.value) }),
+r: { after: after, delta: after - 62, level: level, cost: cost,
+tint: after >= 80 ? '#FADBD5' : '#FCE5E0', text: after >= 80 ? '#8F1A0B' : '#A42D16' },
+v: { suezOpen: show(sc !== 'red'), red: show(sc === 'red'), tw: show(sc === 'tw'), fx: show(sc === 'fx'), sanc: show(sc === 'sanc') }
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Red Sea transit</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#E7ECF1}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.app{--tx:#141518;--tx2:#5F646C;position:relative;height:100vh;min-height:640px;overflow:hidden;background:#E7ECF1;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;font-size:14px;line-height:20px;-webkit-font-smoothing:antialiased}
+.map,.ov{position:absolute;inset:0;width:100%;height:100%}
+.map{object-fit:cover;object-position:center}
+.glass{background:rgba(255,255,255,0.84);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 1px rgba(20,21,24,0.06),0 4px 16px rgba(20,21,24,0.08)}
+.top{position:absolute;left:20px;right:20px;top:16px;display:flex;align-items:center;gap:12px;z-index:4}
+.cap{display:inline-flex;align-items:center;height:48px;border-radius:24px;box-sizing:border-box}
+.navl{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;color:#141518;text-decoration:none;font-size:14px;line-height:20px;font-weight:500}
+.navl:hover{background:rgba(20,21,24,0.05);color:#141518}
+.navl.on{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.navl small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.kbd{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:6px;background:rgba(20,21,24,0.06);font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.sheet{position:absolute;left:20px;top:84px;bottom:20px;width:440px;border-radius:20px;overflow:auto;z-index:3;box-sizing:border-box;padding:16px 24px 20px;display:flex;flex-direction:column;gap:18px}
+.lbl{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.rule{height:1px;background:rgba(20,21,24,0.07);margin:0 -24px}
+.tile{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:12px;background:rgba(20,21,24,0.04)}
+.fig{font-size:24px;line-height:28px;font-weight:600;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.act{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:12px;align-items:center;width:calc(100% + 20px);min-height:56px;margin:0 -10px;padding:0 10px;box-sizing:border-box;border:0;border-radius:12px;background:transparent;color:#141518;font:inherit;text-align:left;cursor:pointer}
+.act:hover{background:rgba(20,21,24,0.04)}
+.ck{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:11px;box-shadow:inset 0 0 0 1.5px rgba(20,21,24,0.25);color:#FFFFFF;transition:background-color .15s ease}
+.ck svg{opacity:0}
+.act.on .ck{background:#1766F0;box-shadow:none}
+.act.on .ck svg{opacity:1}
+.act .st{font-size:12px;line-height:16px;font-weight:500;color:#5F646C;white-space:nowrap}
+.act.on .st{color:#0F55CF}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border:0;border-radius:22px;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;letter-spacing:-0.006em;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background-color .15s ease,transform .1s ease}
+.b:active{transform:scale(0.97)}
+.pri{background:#1766F0;color:#FFFFFF}.pri:hover{background:#0F55CF;color:#FFFFFF}
+.sec2{background:rgba(20,21,24,0.06);color:#141518}.sec2:hover{background:rgba(20,21,24,0.09);color:#141518}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:22px;background:transparent;color:#141518;cursor:pointer;text-decoration:none}
+.ib:hover{background:rgba(20,21,24,0.05);color:#141518}
+.mb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:transparent;color:#141518;cursor:pointer}
+.mb:hover{background:rgba(20,21,24,0.05)}
+.lab{font-family:Inter,system-ui,sans-serif;font-size:11px;fill:#5F646C;paint-order:stroke;stroke:#FFFFFF;stroke-width:3;stroke-linejoin:round}
+.pulse{transform-box:fill-box;transform-origin:center;animation:pulse 2.6s ease-out infinite}
+.pulse.d2{animation-delay:1.3s}
+@keyframes pulse{0%{transform:scale(0.5);opacity:0.55}100%{transform:scale(1.8);opacity:0}}
+.navs{flex:1;display:none;justify-content:center}
+.navm{position:relative}
+.navsum{gap:8px;padding:0 14px 0 18px;font-size:14px;line-height:20px;font-weight:500;color:#141518;cursor:pointer;list-style:none;user-select:none}
+.navsum::-webkit-details-marker{display:none}
+.navsum small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.navm[open] .navsum svg{transform:rotate(180deg)}
+.navmenu{position:absolute;left:50%;top:56px;transform:translateX(-50%);width:228px;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);display:flex;flex-direction:column}
+.mi{display:flex;align-items:center;justify-content:space-between;gap:12px;height:44px;margin:0 6px;padding:0 12px;border:0;border-radius:10px;background:transparent;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;color:#141518;text-decoration:none;cursor:pointer}
+.mi:hover{background:rgba(20,21,24,0.04);color:#141518}
+.mi.on{background:#E8F0FE;color:#0F55CF}
+.mi.off{color:#A3A7AE}
+.mi small{font-size:12px;line-height:16px;color:#5F646C}
+.mi.on small{color:#0F55CF}
+.mdiv{height:1px;margin:6px 18px;background:rgba(20,21,24,0.08)}
+.mjump{display:none}
+.grab{display:none;position:absolute;top:6px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:rgba(20,21,24,0.18)}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none;opacity:0.25}}
+@media (max-width:900px){.navc{display:none !important}.navs{display:flex !important}.jtl{display:none !important}.jump{width:48px;padding:0 !important;justify-content:center}}
+@media (max-width:760px){.jump{display:none !important}.mjump{display:flex !important}.grab{display:block}.sheet{left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:60vh}.top{left:12px;right:12px}.wsn{display:none}.legend{display:none !important}.ctrl{display:none !important}}
+</style>
+</helmet>
+<div class="app">
+
+<img class="map" src="/_blob/3cda918b8ffe0d546c691b344a05ac80" alt="">
+
+<svg class="ov" viewBox="0 0 1360 900" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Zoomed map from Suez to Taiwan. The route through Bab el-Mandeb is marked as at risk. Three suppliers in Shenzhen, Penang and Chennai ship along it. The detour around Africa adds about 12 days.">
+<defs><filter id="sh" x="-20%" y="-40%" width="140%" height="180%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#141518" flood-opacity="0.14"/></filter></defs>
+
+<polyline points="960.3,556.2 882.9,649.8 756.9,784.8 612.9,874.8 504.9,933.3" fill="none" stroke="#7D838B" stroke-width="1.75" stroke-dasharray="2 7" stroke-linecap="round"/>
+
+<polyline points="1261.8,402.3 1256.4,442.8 1224.9,514.8 1184.4,577.8 1169.1,593.1 1139.4,573.3 1112.4,550.8 1026.9,550.8 960.3,556.2 864.9,523.8 756.9,492.3" fill="none" stroke="#141518" stroke-opacity="0.8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="527.4,334.8 504.9,312.3 459.9,298.8 369.9,276.3 288.9,266.4" fill="none" stroke="#141518" stroke-opacity="0.8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="756.9,492.3 666.9,494.1 624.6,491.4 594.9,456.3 573.3,415.8 546.3,361.8 527.4,334.8" fill="none" stroke="#DD6248" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="1137.6,556.2 1139.4,573.3" fill="none" stroke="#141518" stroke-opacity="0.8" stroke-width="2" stroke-linecap="round"/>
+<polyline points="957.6,486.9 968.4,523.8 960.3,556.2" fill="none" stroke="#141518" stroke-opacity="0.8" stroke-width="2" stroke-linecap="round"/>
+<polyline points="1317.6,401.4 1292.4,411.3 1256.4,442.8" fill="none" stroke="#141518" stroke-opacity="0.22" stroke-width="1.5" stroke-linecap="round"/>
+<polyline points="1195.2,507.6 1202.4,532.8 1224.9,514.8" fill="none" stroke="#141518" stroke-opacity="0.22" stroke-width="1.5" stroke-linecap="round"/>
+
+<circle class="pulse" cx="624.6" cy="491.4" r="44" fill="#DD6248" fill-opacity="0.24"/>
+<circle class="pulse d2" cx="624.6" cy="491.4" r="44" fill="#DD6248" fill-opacity="0.24"/>
+<circle cx="624.6" cy="491.4" r="18" fill="#DD6248" fill-opacity="0.22"/>
+<circle cx="624.6" cy="491.4" r="6" fill="#DD6248" stroke="#FFFFFF" stroke-width="2.5"/>
+
+<circle cx="1317.6" cy="401.4" r="3.5" fill="#A3A7AE" stroke="#FFFFFF" stroke-width="1.5"/>
+<circle cx="1195.2" cy="507.6" r="3.5" fill="#A3A7AE" stroke="#FFFFFF" stroke-width="1.5"/>
+<circle cx="1261.8" cy="402.3" r="5.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<circle cx="1137.6" cy="556.2" r="5.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<circle cx="957.6" cy="486.9" r="5.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<circle cx="527.4" cy="334.8" r="3.5" fill="#141518" stroke="#FFFFFF" stroke-width="1.5"/>
+
+<text class="lab" x="538" y="330">Suez Canal, then on to Hamburg</text>
+<text class="lab" x="792" y="768">Around Africa · about 12 days longer</text>
+
+<line x1="624.6" y1="491.4" x2="652" y2="522" stroke="#141518" stroke-opacity="0.35"/>
+<g filter="url(#sh)"><rect x="642" y="520" width="214" height="52" rx="14" fill="#FFFFFF"/></g>
+<text x="658" y="542" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Bab el-Mandeb</text>
+<text x="658" y="560" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="500" fill="#A42D16">Transit calls −18% this week</text>
+
+<line x1="1261.8" y1="402.3" x2="1246" y2="384" stroke="#141518" stroke-opacity="0.35"/>
+<g filter="url(#sh)"><rect x="1070" y="330" width="206" height="52" rx="14" fill="#FFFFFF"/></g>
+<text x="1086" y="352" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Shenzhen Bright Parts</text>
+<text x="1086" y="370" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#5F646C">9% of spend · ships 28 Nov</text>
+
+<line x1="1137.6" y1="556.2" x2="1150" y2="612" stroke="#141518" stroke-opacity="0.35"/>
+<g filter="url(#sh)"><rect x="1098" y="612" width="206" height="52" rx="14" fill="#FFFFFF"/></g>
+<text x="1114" y="634" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Penang Circuit Works</text>
+<text x="1114" y="652" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#5F646C">8% of spend · ships 2 Dec</text>
+
+<line x1="957.6" y1="486.9" x2="944" y2="462" stroke="#141518" stroke-opacity="0.35"/>
+<g filter="url(#sh)"><rect x="796" y="410" width="190" height="52" rx="14" fill="#FFFFFF"/></g>
+<text x="812" y="432" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Chennai Cable Co.</text>
+<text x="812" y="450" font-family="Inter, system-ui, sans-serif" font-size="12" fill="#5F646C">5% of spend · ships 5 Dec</text>
+</svg>
+
+<div class="top">
+<button type="button" class="cap glass" style="gap:10px;padding:0 14px 0 8px;border:0;color:#141518;font:inherit;cursor:pointer">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:16px;background:#141518;color:#FFFFFF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span>
+<span class="wsn" style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg>
+</button>
+<div class="navc" style="flex:1;display:flex;justify-content:center">
+<nav aria-label="Main" class="cap glass" style="gap:2px;padding:0 2px">
+<a class="navl" href="Main.dc.html">Overview</a>
+<a class="navl on" href="Risk.dc.html" aria-current="page">Register<small>7</small></a>
+<a class="navl" href="Scenario.dc.html">Scenarios</a>
+<a class="navl" href="Connect.dc.html">Sources<span style="width:6px;height:6px;border-radius:3px;background:#B3200F" role="img" aria-label="needs attention"></span></a>
+</nav>
+</div>
+<div class="navs">
+<details class="navm">
+<summary class="cap glass navsum">Register<small>7</small><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></summary>
+<nav aria-label="Sections" class="navmenu">
+<a class="mi" href="Main.dc.html">Overview</a>
+<a class="mi on" href="Risk.dc.html" aria-current="page">Register<small>7</small></a>
+<a class="mi" href="Scenario.dc.html">Scenarios</a>
+<a class="mi" href="Connect.dc.html">Sources<span style="width:6px;height:6px;border-radius:3px;background:#B3200F" role="img" aria-label="needs attention"></span></a>
+<span class="mdiv mjump"></span>
+<button type="button" class="mi mjump" style="justify-content:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg>Jump to</button>
+</nav>
+</details>
+</div>
+<button type="button" class="cap glass jump" aria-label="Jump to" style="gap:10px;padding:0 8px 0 16px;border:0;color:#5F646C;font:inherit;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg><span class="jtl">Jump to</span><span class="kbd jtl">⌘K</span></button>
+<button type="button" class="cap glass" aria-label="Account" style="justify-content:center;width:48px;padding:0;border:0;font:600 12px/16px Inter,system-ui,sans-serif;color:#141518;cursor:pointer">RL</button>
+</div>
+
+<aside class="sheet glass" aria-label="Risk R-011">
+<span class="grab" aria-hidden="true"></span>
+<div style="display:flex;align-items:center;justify-content:space-between;margin:-6px -12px -2px -14px">
+<a class="b" href="Main.dc.html" style="height:44px;padding:0 12px 0 8px;background:transparent;color:#1766F0;font-size:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"/></svg>Overview</a>
+<div style="display:flex;align-items:center;gap:4px"><span class="t12" style="font-variant-numeric:tabular-nums">R-011</span><button type="button" class="ib" aria-label="More actions"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></button></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:6px;margin-top:-6px">
+<span class="lbl">Shipping · owned by Procurement · opened 9 Nov</span>
+<h1 style="margin:0;font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.02em">Red Sea transit</h1>
+<span style="font-size:15px;line-height:22px;color:#5F646C;letter-spacing:-0.006em">Fewer ships are using Bab el-Mandeb, and three of your suppliers ship through it.</span>
+</div>
+
+<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:center">
+<div style="display:flex;flex-direction:column;gap:4px">
+<div style="display:flex;align-items:baseline;gap:10px"><span style="font-size:48px;line-height:52px;font-weight:600;letter-spacing:-0.035em;font-variant-numeric:tabular-nums">74</span><span style="display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:12px;background:#FCE5E0;color:#A42D16;font-size:13px;line-height:18px;font-weight:600">High</span></div>
+<span class="t12">72% likely · impact 4 of 5</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+<svg viewBox="0 0 200 56" width="100%" height="56" preserveAspectRatio="none" role="img" aria-label="Score rose from 58 to 74 over 14 days"><line x1="0" y1="30" x2="200" y2="30" stroke="#C9CCD1" stroke-dasharray="2 3" vector-effect="non-scaling-stroke"/><polygon points="0,46 15,46 31,44 46,42 62,42 77,40 92,36 108,34 123,34 138,30 154,26 169,22 185,18 200,14 200,56 0,56" fill="#DD6248" fill-opacity="0.1"/><polyline points="0,46 15,46 31,44 46,42 62,42 77,40 92,36 108,34 123,34 138,30 154,26 169,22 185,18 200,14" fill="none" stroke="#DD6248" stroke-width="1.75" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>
+<div style="display:flex;justify-content:space-between" class="t12"><span>58 on 9 Nov</span><span>74 today</span></div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+<div class="tile"><span class="fig">22%</span><span class="t12">of spend ships this way</span></div>
+<div class="tile"><span class="fig">+12 d</span><span class="t12">if ships go around Africa</span></div>
+<div class="tile"><span class="fig">52 d</span><span class="t12">Shenzhen lead time, was 38</span></div>
+</div>
+
+<div class="rule"></div>
+
+<div style="display:flex;flex-direction:column;gap:2px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><span class="lbl">What to do</span><span class="t12">{{ planned }} of 3 in your plan</span></div>
+<sc-for list="{{ acts }}" as="a" hint-placeholder-count="3">
+<button type="button" class="{{ a.cls }}" aria-pressed="{{ a.on }}" onClick="{{ a.toggle }}"><span class="ck"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span><span style="display:flex;flex-direction:column"><span style="font-size:14px;line-height:20px;font-weight:500">{{ a.t }}</span><span class="t12">{{ a.n }}</span></span><span class="st">{{ a.st }}</span></button>
+</sc-for>
+</div>
+
+<div style="display:flex;gap:8px;margin-top:auto"><a class="b pri" href="Scenario.dc.html" style="flex:1">Run what-if</a><button type="button" class="b sec2">Assign</button><button type="button" class="b sec2">Acknowledge</button></div>
+<span class="t12" style="margin-top:-6px">Sources: IMF PortWatch (weekly), GDELT and your Suppliers sheet · updated 1 h ago</span>
+</aside>
+
+<div class="ctrl glass" style="position:absolute;right:20px;bottom:76px;display:flex;flex-direction:column;border-radius:22px;overflow:hidden;z-index:3">
+<button type="button" class="mb" aria-label="Zoom in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+<span style="height:1px;margin:0 10px;background:rgba(20,21,24,0.08)"></span>
+<button type="button" class="mb" aria-label="Zoom out to all suppliers"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+</div>
+
+<div class="legend glass" style="position:absolute;right:20px;bottom:20px;display:flex;align-items:center;gap:16px;height:44px;padding:0 18px;border-radius:22px;z-index:3;font-size:12px;line-height:16px;color:#5F646C">
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:4px;border-radius:2px;background:#DD6248"></span>At risk</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:2px;border-radius:1px;background:#141518"></span>Your route</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;border-top:2px dotted #7D838B"></span>Detour</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:4px;background:#141518"></span>Affected supplier</span>
+<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:4px;background:#A3A7AE"></span>Not affected</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { plan: { quote: true, stock: false, terms: false } };
+}
+renderVals() {
+const A = [
+{ id: 'quote', t: 'Ask the three suppliers to quote another route', n: 'You will know the extra cost within a week' },
+{ id: 'stock', t: 'Order six weeks of memory chips early', n: 'Protects the part that runs out first' },
+{ id: 'terms', t: 'Check who pays for late delivery', n: 'Your contracts decide who carries the cost' }
+];
+const plan = this.state.plan;
+return {
+planned: A.filter((a) => plan[a.id]).length,
+acts: A.map((a) => ({
+t: a.t, n: a.n,
+on: !!plan[a.id],
+cls: plan[a.id] ? 'act on' : 'act',
+st: plan[a.id] ? 'In plan' : 'Add',
+toggle: () => this.setState({ plan: Object.assign({}, plan, { [a.id]: !plan[a.id] }) })
+}))
+};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Typography</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.sheet{--tx:#141518;--tx2:#5F646C;--line:#E6E7EA;width:1440px;min-height:2760px;box-sizing:border-box;padding:96px;background:#F4F5F7;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:96px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:28px}
+.sh h2{margin:0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em}
+.sh p{margin:0;font-size:14px;line-height:20px;color:var(--tx2);max-width:560px;text-align:right}
+.item{display:flex;flex-direction:column;gap:10px;min-width:0}
+.cap{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.card{background:#FFFFFF;border-radius:16px;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 1px 2px rgba(20,21,24,0.05);box-sizing:border-box}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.wt{display:flex;justify-content:space-between;align-items:baseline;gap:24px;padding:22px 0;border-top:1px solid var(--line)}
+.wt:first-child{border-top:0}
+.lad{display:grid;grid-template-columns:160px minmax(0,1fr);gap:32px;align-items:baseline;padding:18px 0;border-top:1px solid var(--line)}
+.lad:first-child{border-top:0;padding-top:4px}
+.ln2{font-size:13px;line-height:18px;font-weight:500}
+.sp{font-size:12px;line-height:16px;color:#5F646C;font-variant-numeric:tabular-nums}
+.nr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;min-height:60px;border-top:1px solid var(--line)}
+.nr:first-child{border-top:0}
+.nx{font-size:20px;line-height:26px;font-weight:600;letter-spacing:-0.012em;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div class="sheet">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:24px">
+<h1 style="margin:0;font-size:40px;line-height:46px;font-weight:600;letter-spacing:-0.022em">Typography</h1>
+<span style="font-size:13px;line-height:18px;font-weight:500;color:var(--tx2)">Step 1 of 8</span>
+</div>
+<p style="margin:0;max-width:720px;font-size:15px;line-height:22px;color:var(--tx2)">One family in three weights. Size and weight carry the hierarchy, so colour can stay quiet.</p>
+</header>
+
+<section>
+<div class="sh"><h2>Family</h2><p>Inter has built-in optical sizes, so the same face stays crisp at 11 px and refined at 56 px.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 5"><span class="cap">Typeface</span>
+<div class="card" style="padding:32px;display:flex;flex-direction:column;gap:24px">
+<span style="font-size:180px;line-height:160px;font-weight:600;letter-spacing:-0.045em">Aa</span>
+<div style="display:flex;flex-direction:column;gap:4px">
+<span style="font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em">Inter</span>
+<span class="t13">Free, open licence (SIL OFL) · optical sizes 14 to 32</span>
+</div>
+</div>
+</div>
+<div class="item" style="grid-column:span 7"><span class="cap">Three weights, nothing heavier</span>
+<div class="card" style="padding:8px 28px">
+<div class="wt"><span style="font-size:30px;line-height:36px;font-weight:400;letter-spacing:-0.019em">Risk you can read at a glance</span><span class="t13" style="white-space:nowrap">400 · reading</span></div>
+<div class="wt"><span style="font-size:30px;line-height:36px;font-weight:500;letter-spacing:-0.019em">Risk you can read at a glance</span><span class="t13" style="white-space:nowrap">500 · labels</span></div>
+<div class="wt"><span style="font-size:30px;line-height:36px;font-weight:600;letter-spacing:-0.019em">Risk you can read at a glance</span><span class="t13" style="white-space:nowrap">600 · titles</span></div>
+</div>
+</div>
+<div class="item" style="grid-column:span 6"><span class="cap">Optical size</span>
+<div class="card" style="padding:28px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px"><span style="font-size:28px;line-height:34px;font-weight:600;font-variation-settings:'opsz' 14">Red Sea transit</span><span class="t12">Text cut, below 20 px</span></div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px"><span style="font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.015em;font-variation-settings:'opsz' 32">Red Sea transit</span><span class="t12">Display cut, from 20 px</span></div>
+<span class="t13">Small text stays open and easy to read. Large text gets finer detail and tighter spacing. Inter switches on its own.</span>
+</div>
+</div>
+<div class="item" style="grid-column:span 6"><span class="cap">Figures</span>
+<div class="card" style="padding:28px;display:grid;grid-template-columns:1fr 1fr;gap:28px">
+<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;font-size:24px;line-height:32px;font-weight:600;letter-spacing:-0.017em;font-variant-numeric:proportional-nums"><span>1,111.11</span><span>8,048.90</span><span>714.07</span><span class="t12" style="font-weight:400;letter-spacing:0;margin-top:4px">Proportional, avoided</span></div>
+<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;font-size:24px;line-height:32px;font-weight:600;letter-spacing:-0.017em;font-variant-numeric:tabular-nums"><span>1,111.11</span><span>8,048.90</span><span>714.07</span><span class="t12" style="font-weight:400;letter-spacing:0;margin-top:4px">Tabular, used everywhere</span></div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Scale</h2><p>Twelve styles, each named for its job. Letter spacing tightens as the size grows, and nothing goes below 11 px.</p></div>
+<div class="item"><span class="cap">Every style, with real product copy</span>
+<div class="card" style="padding:28px 40px">
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Display</span><span class="sp">56 / 60 · 600 · −2.5%</span></div><span style="font-size:56px;line-height:60px;font-weight:600;letter-spacing:-0.025em">Nothing to score yet.</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Title 1</span><span class="sp">32 / 38 · 600 · −2.1%</span></div><span style="font-size:32px;line-height:38px;font-weight:600;letter-spacing:-0.021em">Red Sea transit disruption</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Title 2</span><span class="sp">24 / 30 · 600 · −1.7%</span></div><span style="font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em">Review how we read your sheet</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Title 3</span><span class="sp">20 / 26 · 600 · −1.2%</span></div><span style="font-size:20px;line-height:26px;font-weight:600;letter-spacing:-0.012em">Why this reaches you</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Headline</span><span class="sp">15 / 20 · 600 · −0.6%</span></div><span style="font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em">Shenzhen Bright Parts</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Body</span><span class="sp">15 / 22 · 400 · −0.6%</span></div><span style="font-size:15px;line-height:22px;letter-spacing:-0.006em">Fewer ships are using the Red Sea route, and three of your suppliers depend on it.</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Callout</span><span class="sp">14 / 20 · 400 · −0.4%</span></div><span style="font-size:14px;line-height:20px;letter-spacing:-0.004em">Changes in your sheet are picked up on their own.</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Subhead</span><span class="sp">13 / 18 · 500 · −0.2%</span></div><span style="font-size:13px;line-height:18px;font-weight:500;letter-spacing:-0.002em">Supply chain · Opened 9 Nov</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Footnote</span><span class="sp">12 / 16 · 400 · 0%</span></div><span style="font-size:12px;line-height:16px;color:#5F646C">Sources: IMF PortWatch, GDELT, your Google Sheet</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Caption</span><span class="sp">11 / 14 · 500 · +0.6%</span></div><span style="font-size:11px;line-height:14px;font-weight:500;letter-spacing:0.006em;color:#5F646C">Updated 2 min ago</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Figure large</span><span class="sp">48 / 52 · 600 · −3.0%</span></div><span style="font-size:48px;line-height:52px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">38%</span></div>
+<div class="lad"><div style="display:flex;flex-direction:column;gap:2px"><span class="ln2">Figure</span><span class="sp">15 / 20 · 500 · −0.6%</span></div><span style="font-size:15px;line-height:20px;font-weight:500;letter-spacing:-0.006em;font-variant-numeric:tabular-nums">72% · 4/5 · 81</span></div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>In use</h2><p>The scale alone, before any colour or boxes. If the hierarchy reads here, it reads everywhere.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 7"><span class="cap">Risk header</span>
+<div class="card" style="padding:40px;display:flex;flex-direction:column;gap:24px">
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-size:13px;line-height:18px;font-weight:500;color:#5F646C">R-011 · Supply chain · Opened 9 Nov</span>
+<span style="font-size:32px;line-height:38px;font-weight:600;letter-spacing:-0.021em">Red Sea transit disruption</span>
+<span style="font-size:15px;line-height:22px;color:#5F646C;letter-spacing:-0.006em;max-width:560px">Fewer ships are using the Red Sea route, and three of your suppliers depend on it. Expect longer lead times, starting with memory chips.</span>
+</div>
+<div style="display:flex;gap:48px;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:48px;line-height:52px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">74</span><span class="t12">Score</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:48px;line-height:52px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">72%</span><span class="t12">Likelihood</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:48px;line-height:52px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">4/5</span><span class="t12">Impact</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:2px;padding-top:20px;border-top:1px solid var(--line)">
+<span style="font-size:20px;line-height:26px;font-weight:600;letter-spacing:-0.012em;margin-bottom:8px">Why this reaches you</span>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;align-items:baseline">
+<span style="font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em">Shenzhen Bright Parts</span><span style="font-size:15px;line-height:20px;font-weight:500;font-variant-numeric:tabular-nums">52 days</span>
+<span style="font-size:14px;line-height:20px;color:#5F646C">China · ships from Yantian via Suez</span><span class="t13" style="text-align:right">lead time</span>
+</div>
+</div>
+<span style="font-size:11px;line-height:14px;font-weight:500;letter-spacing:0.006em;color:#5F646C">Updated 2 min ago</span>
+</div>
+</div>
+<div class="item" style="grid-column:span 5"><span class="cap">Writing numbers and labels</span>
+<div class="card" style="padding:8px 28px">
+<div class="nr"><div style="display:flex;flex-direction:column"><span style="font-size:15px;line-height:20px;font-weight:600">Tables</span><span class="t13">Numbers align on the right</span></div><span class="nx">9%</span></div>
+<div class="nr"><div style="display:flex;flex-direction:column"><span style="font-size:15px;line-height:20px;font-weight:600">Units</span><span class="t13">After the value, spelled out</span></div><span class="nx">52 days</span></div>
+<div class="nr"><div style="display:flex;flex-direction:column"><span style="font-size:15px;line-height:20px;font-weight:600">Percent</span><span class="t13">No space before the sign</span></div><span class="nx">72%</span></div>
+<div class="nr"><div style="display:flex;flex-direction:column"><span style="font-size:15px;line-height:20px;font-weight:600">Change</span><span class="t13">Always signed</span></div><span class="nx">+4</span></div>
+<div class="nr"><div style="display:flex;flex-direction:column"><span style="font-size:15px;line-height:20px;font-weight:600">Time</span><span class="t13">24-hour clock</span></div><span class="nx">13:12</span></div>
+<div class="nr"><div style="display:flex;flex-direction:column"><span style="font-size:15px;line-height:20px;font-weight:600">Labels</span><span class="t13">Sentence case, never capitals</span></div><span class="nx" style="font-size:15px;line-height:20px">Risk register</span></div>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2760}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

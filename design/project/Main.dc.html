@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#E7ECF1}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.app{--tx:#141518;--tx2:#5F646C;position:relative;height:100vh;min-height:640px;overflow:hidden;background:#E7ECF1;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;font-size:14px;line-height:20px;-webkit-font-smoothing:antialiased}
+.map,.ov{position:absolute;inset:0;width:100%;height:100%}
+.map{object-fit:cover;object-position:center;transition:opacity .3s ease}
+.glass{background:rgba(255,255,255,0.84);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 1px rgba(20,21,24,0.06),0 4px 16px rgba(20,21,24,0.08)}
+.top{position:absolute;left:20px;right:20px;top:16px;display:flex;align-items:center;gap:12px;z-index:4}
+.cap{display:inline-flex;align-items:center;height:48px;border-radius:24px;box-sizing:border-box}
+.navl{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;color:#141518;text-decoration:none;font-size:14px;line-height:20px;font-weight:500}
+.navl:hover{background:rgba(20,21,24,0.05);color:#141518}
+.navl.on{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.navl small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.kbd{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:6px;background:rgba(20,21,24,0.06);font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.panel{position:absolute;left:20px;top:84px;bottom:20px;width:344px;border-radius:20px;overflow:auto;z-index:3;display:flex;flex-direction:column}
+.sec{padding:14px 20px;border-top:1px solid rgba(20,21,24,0.07)}
+.sec:first-child{border-top:0}
+.lbl{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.chips{display:flex;flex-wrap:wrap;gap:12px 6px}
+.chip{position:relative;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:0;border-radius:16px;background:rgba(20,21,24,0.05);color:#141518;font:500 12px/16px Inter,-apple-system,system-ui,sans-serif;cursor:pointer;transition:background-color .15s ease}
+.chip:hover{background:rgba(20,21,24,0.08)}
+.chip.on{background:#141518;color:#FFFFFF}
+.chip::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.chip small{font-size:12px;line-height:16px;opacity:.6}
+.pill{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:26px;padding:0 8px;box-sizing:border-box;border-radius:13px;font-size:13px;line-height:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.it{display:grid;grid-template-columns:38px minmax(0,1fr) 14px;gap:12px;align-items:center;width:calc(100% + 20px);min-height:48px;padding:0 10px;margin:0 -10px;box-sizing:border-box;border:0;border-radius:12px;background:transparent;color:#141518;font:inherit;text-align:left;cursor:pointer}
+.it:hover{background:rgba(20,21,24,0.04)}
+.it.on{background:#E8F0FE}
+.it b{display:block;font-size:14px;line-height:20px;font-weight:500}
+.it span.pl{display:block;font-size:12px;line-height:16px;color:#5F646C}
+.it .chev{opacity:0;color:#0F55CF}
+.it.on .chev{opacity:1}
+.fig{font-size:28px;line-height:32px;font-weight:600;letter-spacing:-0.025em;font-variant-numeric:tabular-nums}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border:0;border-radius:22px;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;letter-spacing:-0.006em;cursor:pointer;white-space:nowrap;text-decoration:none;transition:background-color .15s ease,transform .1s ease}
+.b:active{transform:scale(0.97)}
+.pri{background:#1766F0;color:#FFFFFF}.pri:hover{background:#0F55CF;color:#FFFFFF}
+.sec2{background:rgba(20,21,24,0.06);color:#141518}.sec2:hover{background:rgba(20,21,24,0.09);color:#141518}
+.mb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;background:transparent;color:#141518;cursor:pointer}
+.mb:hover{background:rgba(20,21,24,0.05)}
+.co .bg{fill:#FFFFFF}
+.co.on .bg{stroke:#1766F0;stroke-width:2}
+.hid{display:none}
+.lab{font-family:Inter,system-ui,sans-serif;font-size:11px;fill:#5F646C;paint-order:stroke;stroke:#FFFFFF;stroke-width:3;stroke-linejoin:round}
+.pulse{transform-box:fill-box;transform-origin:center;animation:pulse 2.6s ease-out infinite}
+.pulse.d2{animation-delay:1.3s}
+@keyframes pulse{0%{transform:scale(0.5);opacity:0.55}100%{transform:scale(1.7);opacity:0}}
+.navs{flex:1;display:none;justify-content:center}
+.navm{position:relative}
+.navsum{gap:8px;padding:0 14px 0 18px;font-size:14px;line-height:20px;font-weight:500;color:#141518;cursor:pointer;list-style:none;user-select:none}
+.navsum::-webkit-details-marker{display:none}
+.navsum small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.navm[open] .navsum svg{transform:rotate(180deg)}
+.navmenu{position:absolute;left:50%;top:56px;transform:translateX(-50%);width:228px;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);display:flex;flex-direction:column}
+.mi{display:flex;align-items:center;justify-content:space-between;gap:12px;height:44px;margin:0 6px;padding:0 12px;border:0;border-radius:10px;background:transparent;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;color:#141518;text-decoration:none;cursor:pointer}
+.mi:hover{background:rgba(20,21,24,0.04);color:#141518}
+.mi.on{background:#E8F0FE;color:#0F55CF}
+.mi.off{color:#A3A7AE}
+.mi small{font-size:12px;line-height:16px;color:#5F646C}
+.mi.on small{color:#0F55CF}
+.mdiv{height:1px;margin:6px 18px;background:rgba(20,21,24,0.08)}
+.mjump{display:none}
+.grab{display:none;position:absolute;top:6px;left:50%;width:36px;height:5px;margin-left:-18px;border-radius:3px;background:rgba(20,21,24,0.18)}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none;opacity:0.25}}
+@media (max-width:900px){.navc{display:none !important}.navs{display:flex !important}.jtl{display:none !important}.jump{width:48px;padding:0 !important;justify-content:center}}
+@media (max-width:760px){.jump{display:none !important}.mjump{display:flex !important}.grab{display:block}.panel{left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:56vh}.top{left:12px;right:12px}.wsn{display:none}.legend{display:none !important}.ctrl{display:none !important}}
+</style>
+</helmet>
+<div class="app">
+
+<img class="map {{ v.base }}" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="">
+
+<svg class="ov" viewBox="0 0 1360 900" preserveAspectRatio="xMidYMid slice" role="img" aria-label="{{ mapLabel }}">
+<defs><filter id="sh" x="-30%" y="-50%" width="160%" height="200%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#141518" flood-opacity="0.14"/></filter></defs>
+
+<g class="{{ v.cape }}">
+<polyline points="946.1,400.5 892.8,465.0 806.0,558.0 706.8,620.0 632.4,660.3 561.1,654.1 520.8,607.6 483.6,527.0 434.0,446.4 372.0,396.8 328.6,334.8 322.4,266.6 359.6,204.6 385.6,167.4" fill="none" stroke="#7D838B" stroke-width="1.5" stroke-dasharray="2 6" stroke-linecap="round"/>
+<text class="lab" x="640" y="682">Around Africa, 10 to 14 days longer</text>
+</g>
+
+<g class="{{ v.routes }}">
+<polyline points="1153.8,294.5 1150.1,322.4 1128.4,372.0 1100.5,415.4 1090.0,425.9 1069.5,412.3 1050.9,396.8 992.0,396.8 946.1,400.5 880.4,378.2 806.0,356.5 744.0,357.7 714.9,355.9 694.4,331.7 679.5,303.8 660.9,266.6 647.9,248.0 632.4,232.5 601.4,223.2 539.4,207.7 483.6,200.9 440.2,207.7 411.7,210.8 385.6,201.5 385.6,167.4 412.3,135.2 437.1,123.4 461.9,115.3 486.7,100.4 501.0,99.2 508.3,102.0" fill="none" stroke="#141518" stroke-opacity="0.78" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="1192.3,293.9 1174.9,300.7 1150.1,322.4" fill="none" stroke="#141518" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round"/>
+<polyline points="1068.3,400.5 1069.5,412.3" fill="none" stroke="#141518" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round"/>
+<polyline points="944.3,352.8 951.7,378.2 946.1,400.5" fill="none" stroke="#141518" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round"/>
+<polyline points="1107.9,367.0 1112.9,384.4 1128.4,372.0" fill="none" stroke="#141518" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round"/>
+</g>
+<g class="{{ v.seg }}"><polyline points="806.0,356.5 744.0,357.7 714.9,355.9 694.4,331.7 679.5,303.8 660.9,266.6 647.9,248.0" fill="none" stroke="#DD6248" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/></g>
+
+<g class="{{ v.fx }}">
+<line x1="508.3" y1="102" x2="1199.7" y2="279" stroke="#141518" stroke-opacity="0.22" stroke-width="5" stroke-linecap="round"/>
+<line x1="508.3" y1="102" x2="1091" y2="217" stroke="#141518" stroke-opacity="0.22" stroke-width="4" stroke-linecap="round"/>
+<line x1="508.3" y1="102" x2="1076" y2="415" stroke="#141518" stroke-opacity="0.22" stroke-width="3" stroke-linecap="round"/>
+<line x1="508.3" y1="102" x2="930" y2="304" stroke="#141518" stroke-opacity="0.22" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="508.3" y1="102" x2="1103" y2="335" stroke="#141518" stroke-opacity="0.22" stroke-width="2" stroke-linecap="round"/>
+<circle class="pulse" cx="1199.7" cy="279" r="36" fill="#DD6248" fill-opacity="0.25"/>
+<circle cx="1199.7" cy="279" r="30" fill="#DD6248" fill-opacity="0.22" stroke="#DD6248" stroke-width="1.5"/>
+<circle cx="1091" cy="217" r="26" fill="#E9A190" fill-opacity="0.22" stroke="#E9A190" stroke-width="1.5"/>
+<circle cx="1076" cy="415" r="21" fill="#141518" fill-opacity="0.06" stroke="#A3A7AE" stroke-width="1.5"/>
+<circle cx="930" cy="304" r="18" fill="#141518" fill-opacity="0.06" stroke="#A3A7AE" stroke-width="1.5"/>
+<circle cx="1103" cy="335" r="15" fill="#141518" fill-opacity="0.06" stroke="#A3A7AE" stroke-width="1.5"/>
+<text x="1199.7" y="276" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518">TWD</text><text x="1199.7" y="291" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" fill="#A42D16">+1.8%</text>
+<text x="1091" y="214" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518">CNY</text><text x="1091" y="229" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" fill="#9C3522">+0.4%</text>
+<text x="1076" y="412" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" fill="#141518">MYR</text><text x="1076" y="425" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="500" fill="#5F646C">−0.2%</text>
+<text x="930" y="301" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="600" fill="#141518">INR</text><text x="930" y="314" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="500" fill="#5F646C">−0.6%</text>
+<text class="lab" x="1124" y="339">VND +0.1%</text>
+<text x="522" y="96" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518" paint-order="stroke" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round">Hamburg · you pay in euros</text>
+<rect x="503.3" y="97" width="10" height="10" rx="2.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<text class="lab" x="760" y="470">Bubble size: what you owe · colour: this week's move against the euro</text>
+</g>
+
+<g class="{{ v.h_sanc }}"><circle class="pulse" cx="789.3" cy="277.8" r="30" fill="#B3200F" fill-opacity="0.22"/><circle cx="789.3" cy="277.8" r="14" fill="#B3200F" fill-opacity="0.18"/><circle cx="789.3" cy="277.8" r="4.5" fill="#B3200F" stroke="#FFFFFF" stroke-width="2"/>
+<line x1="789.3" y1="277.8" x2="812" y2="252" stroke="#141518" stroke-opacity="0.35"/>
+<g class="{{ co.sanc }}" filter="url(#sh)"><rect class="bg" x="804" y="222" width="168" height="34" rx="17"/><rect x="809" y="226" width="36" height="26" rx="13" fill="#FADBD5"/><text x="827" y="243.5" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#8F1A0B">81</text><text x="853" y="243.5" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Sanctions match</text></g></g>
+
+<g class="{{ v.h_red }}"><circle class="pulse" cx="714.9" cy="355.9" r="34" fill="#DD6248" fill-opacity="0.22"/><circle cx="714.9" cy="355.9" r="16" fill="#DD6248" fill-opacity="0.2"/><circle cx="714.9" cy="355.9" r="4.5" fill="#DD6248" stroke="#FFFFFF" stroke-width="2"/>
+<line x1="714.9" y1="355.9" x2="694" y2="384" stroke="#141518" stroke-opacity="0.35"/>
+<g class="{{ co.red }}" filter="url(#sh)"><rect class="bg" x="548" y="378" width="152" height="34" rx="17"/><rect x="553" y="382" width="36" height="26" rx="13" fill="#FCE5E0"/><text x="571" y="399.5" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#A42D16">74</text><text x="597" y="399.5" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Red Sea transit</text></g></g>
+
+<g class="{{ v.h_tw }}"><circle class="pulse d2" cx="1187.9" cy="284" r="30" fill="#DD6248" fill-opacity="0.22"/><circle cx="1187.9" cy="284" r="14" fill="#DD6248" fill-opacity="0.2"/><circle cx="1187.9" cy="284" r="4.5" fill="#DD6248" stroke="#FFFFFF" stroke-width="2"/>
+<line x1="1187.9" y1="284" x2="1204" y2="262" stroke="#141518" stroke-opacity="0.35"/>
+<g class="{{ co.tw }}" filter="url(#sh)"><rect class="bg" x="1190" y="228" width="146" height="34" rx="17"/><rect x="1195" y="232" width="36" height="26" rx="13" fill="#FCE5E0"/><text x="1213" y="249.5" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#A42D16">68</text><text x="1239" y="249.5" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Taiwan Strait</text></g></g>
+
+<g class="{{ v.h_yan }}"><circle cx="1153.8" cy="294.5" r="18" fill="#E9A190" fill-opacity="0.24"/>
+<line x1="1153.8" y1="294.5" x2="1176" y2="330" stroke="#141518" stroke-opacity="0.35"/>
+<g class="{{ co.yan }}" filter="url(#sh)"><rect class="bg" x="1166" y="330" width="170" height="34" rx="17"/><rect x="1171" y="334" width="36" height="26" rx="13" fill="#FBEAE6"/><text x="1189" y="351.5" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#9C3522">44</text><text x="1215" y="351.5" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Port congestion</text></g></g>
+
+<g class="{{ v.h_rain }}"><circle class="pulse d2" cx="944.3" cy="352.8" r="24" fill="#E9A190" fill-opacity="0.28"/><circle cx="944.3" cy="352.8" r="12" fill="#E9A190" fill-opacity="0.22"/>
+<line x1="944.3" y1="352.8" x2="905" y2="322" stroke="#141518" stroke-opacity="0.35"/>
+<g class="{{ co.rain }}" filter="url(#sh)"><rect class="bg" x="790" y="298" width="124" height="34" rx="17"/><rect x="795" y="302" width="36" height="26" rx="13" fill="#FBF1EF"/><text x="813" y="319.5" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#8A3B2E">24</text><text x="839" y="319.5" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">Heavy rain</text></g></g>
+
+<g class="{{ v.sup }}">
+<circle cx="1153.8" cy="294.5" r="3.5" fill="#141518" stroke="#FFFFFF" stroke-width="1.5"/>
+<circle cx="1192.3" cy="293.9" r="3.5" fill="#141518" stroke="#FFFFFF" stroke-width="1.5"/>
+<circle cx="1068.3" cy="400.5" r="3.5" fill="#141518" stroke="#FFFFFF" stroke-width="1.5"/>
+<circle cx="1107.9" cy="367.0" r="3.5" fill="#141518" stroke="#FFFFFF" stroke-width="1.5"/>
+<circle cx="944.3" cy="352.8" r="3.5" fill="#141518" stroke="#FFFFFF" stroke-width="1.5"/>
+<rect x="503.3" y="97" width="10" height="10" rx="2.5" fill="#141518" stroke="#FFFFFF" stroke-width="2"/>
+<text class="lab" x="1146" y="313" text-anchor="end">Shenzhen</text>
+<text class="lab" x="1201" y="311">Kaohsiung</text>
+<text class="lab" x="1060" y="398" text-anchor="end">Penang</text>
+<text class="lab" x="1116" y="364">Ho Chi Minh City</text>
+<text class="lab" x="936" y="370" text-anchor="end">Chennai</text>
+<text class="lab" x="650" y="240" text-anchor="end">Suez</text>
+<text x="522" y="96" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518" paint-order="stroke" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round">Hamburg · your warehouse</text>
+</g>
+
+<g class="{{ v.cy }}">
+<rect width="1360" height="900" fill="#F2F4F7"/>
+<circle cx="860" cy="470" r="250" fill="none" stroke="#141518" stroke-opacity="0.06" stroke-dasharray="2 6"/>
+<circle cx="860" cy="470" r="150" fill="none" stroke="#141518" stroke-opacity="0.04"/>
+<line x1="860" y1="470" x2="860" y2="220" stroke="#141518" stroke-opacity="0.12"/>
+<line x1="860" y1="470" x2="1037" y2="293" stroke="#141518" stroke-opacity="0.12"/>
+<line x1="860" y1="470" x2="1110" y2="470" stroke="#141518" stroke-opacity="0.12"/>
+<line x1="860" y1="470" x2="1037" y2="647" stroke="#141518" stroke-opacity="0.12"/>
+<line x1="860" y1="470" x2="860" y2="720" stroke="#141518" stroke-opacity="0.12"/>
+<line x1="860" y1="470" x2="683" y2="647" stroke="#141518" stroke-opacity="0.12"/>
+<line x1="860" y1="470" x2="610" y2="470" stroke="#DD6248" stroke-width="2"/>
+<line x1="860" y1="470" x2="683" y2="293" stroke="#141518" stroke-opacity="0.12"/>
+<circle cx="860" cy="470" r="44" fill="#141518"/>
+<text x="860" y="475" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="15" font-weight="600" fill="#FFFFFF">AE</text>
+<text x="860" y="536" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518" paint-order="stroke" stroke="#F2F4F7" stroke-width="4">Atlas Electronics</text>
+
+<g filter="url(#sh)">
+<circle cx="860" cy="220" r="30" fill="#FFFFFF"/><circle cx="1037" cy="293" r="30" fill="#FFFFFF"/><circle cx="1110" cy="470" r="30" fill="#FFFFFF"/><circle cx="1037" cy="647" r="30" fill="#FFFFFF"/><circle cx="860" cy="720" r="30" fill="#FFFFFF"/><circle cx="683" cy="647" r="30" fill="#FFFFFF"/><circle cx="683" cy="293" r="30" fill="#FFFFFF"/>
+</g>
+<circle class="pulse" cx="610" cy="470" r="44" fill="#DD6248" fill-opacity="0.3"/>
+<circle class="pulse d2" cx="610" cy="470" r="44" fill="#DD6248" fill-opacity="0.3"/>
+<circle cx="610" cy="470" r="32" fill="#FFFFFF" stroke="#DD6248" stroke-width="2.5" filter="url(#sh)"/>
+
+<text x="860" y="225" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">GW</text>
+<text x="1037" y="298" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">SL</text>
+<text x="1110" y="475" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">SF</text>
+<text x="1037" y="652" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">QB</text>
+<text x="860" y="725" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">XL</text>
+<text x="683" y="652" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">WEB</text>
+<text x="683" y="298" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#141518">42</text>
+<text x="610" y="475" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="600" fill="#A42D16">VPN</text>
+
+<text class="lab" x="860" y="268" text-anchor="middle" style="fill:#141518;font-weight:500">Google Workspace</text>
+<text class="lab" x="1037" y="341" text-anchor="middle" style="fill:#141518;font-weight:500">Slack</text>
+<text class="lab" x="1110" y="518" text-anchor="middle" style="fill:#141518;font-weight:500">Salesforce</text>
+<text class="lab" x="1037" y="695" text-anchor="middle" style="fill:#141518;font-weight:500">QuickBooks</text>
+<text class="lab" x="860" y="768" text-anchor="middle" style="fill:#141518;font-weight:500">Excel · OneDrive</text>
+<text class="lab" x="683" y="695" text-anchor="middle" style="fill:#141518;font-weight:500">Website</text>
+<text class="lab" x="683" y="341" text-anchor="middle" style="fill:#141518;font-weight:500">Laptops</text>
+<text x="610" y="522" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#141518">VPN gateway</text>
+<text x="610" y="538" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="500" fill="#A42D16">Exploited flaw · patch by 14 Dec</text>
+<text class="lab" x="1110" y="730">+3 more tools, all clear</text>
+</g>
+</svg>
+
+<div class="top">
+<button type="button" class="cap glass" style="gap:10px;padding:0 14px 0 8px;border:0;color:#141518;font:inherit;cursor:pointer">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:16px;background:#141518;color:#FFFFFF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span>
+<span class="wsn" style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg>
+</button>
+<div class="navc" style="flex:1;display:flex;justify-content:center">
+<nav aria-label="Main" class="cap glass" style="gap:2px;padding:0 2px">
+<a class="navl on" href="Main.dc.html" aria-current="page">Overview</a>
+<a class="navl" href="Risk.dc.html">Register<small>7</small></a>
+<a class="navl" href="Scenario.dc.html">Scenarios</a>
+<a class="navl" href="Connect.dc.html">Sources<span style="width:6px;height:6px;border-radius:3px;background:#B3200F" role="img" aria-label="needs attention"></span></a>
+</nav>
+</div>
+<div class="navs">
+<details class="navm">
+<summary class="cap glass navsum">Overview<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></summary>
+<nav aria-label="Sections" class="navmenu">
+<a class="mi on" href="Main.dc.html" aria-current="page">Overview</a>
+<a class="mi" href="Risk.dc.html">Register<small>7</small></a>
+<a class="mi" href="Scenario.dc.html">Scenarios</a>
+<a class="mi" href="Connect.dc.html">Sources<span style="width:6px;height:6px;border-radius:3px;background:#B3200F" role="img" aria-label="needs attention"></span></a>
+<span class="mdiv mjump"></span>
+<button type="button" class="mi mjump" style="justify-content:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg>Jump to</button>
+</nav>
+</details>
+</div>
+<button type="button" class="cap glass jump" aria-label="Jump to" style="gap:10px;padding:0 8px 0 16px;border:0;color:#5F646C;font:inherit;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg><span class="jtl">Jump to</span><span class="kbd jtl">⌘K</span></button>
+<button type="button" class="cap glass" aria-label="Account" style="justify-content:center;width:48px;padding:0;border:0;font:600 12px/16px Inter,system-ui,sans-serif;color:#141518;cursor:pointer">RL</button>
+</div>
+
+<aside class="panel glass" aria-label="Risks">
+<span class="grab" aria-hidden="true"></span>
+<div class="sec" style="padding-top:18px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="lbl">Risk index · Sun 23 Nov</span><span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:6px;height:6px;border-radius:3px;background:#1A9E5A"></span>Live</span></div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:6px">
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:48px;line-height:52px;font-weight:600;letter-spacing:-0.035em;font-variant-numeric:tabular-nums">62</span><span style="display:inline-flex;align-items:center;gap:3px;font-size:13px;line-height:18px;font-weight:600;color:#A42D16"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>4 from 58</span></div>
+<svg viewBox="0 0 120 40" width="120" height="40" role="img" aria-label="Rising from 50 to 62 over 30 days, above the elevated line at 60"><line x1="0" y1="16" x2="120" y2="16" stroke="#C9CCD1" stroke-dasharray="2 3"/><polyline points="0,34 8,32 16,35 24,33 32,30 40,29 48,30 56,27 64,26 72,24 80,23 88,19 96,18 104,16 112,19 120,13" fill="none" stroke="#141518" stroke-width="1.5" stroke-linejoin="round"/><circle cx="120" cy="13" r="2.5" fill="#DD6248"/></svg>
+</div>
+</div>
+
+<div class="sec" style="padding-top:8px;padding-bottom:8px">
+<div class="chips" role="group" aria-label="Map layer">
+<sc-for list="{{ layers }}" as="l" hint-placeholder-count="7">
+<button type="button" class="{{ l.cls }}" aria-pressed="{{ l.on }}" onClick="{{ l.pick }}">{{ l.name }}<small>{{ l.n }}</small></button>
+</sc-for>
+</div>
+</div>
+
+<div class="sec" style="padding-top:10px;padding-bottom:10px">
+<div role="group" aria-label="Risks in this layer">
+<sc-for list="{{ items }}" as="i" hint-placeholder-count="4">
+<button type="button" class="{{ i.cls }}" aria-pressed="{{ i.on }}" onClick="{{ i.pick }}"><span class="pill" style="background: {{ i.tint }}; color: {{ i.text }}">{{ i.score }}</span><span><b>{{ i.name }}</b><span class="pl">{{ i.place }}</span></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"/></svg></button>
+</sc-for>
+</div>
+</div>
+
+<div class="sec" style="flex:1;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-direction:column;gap:4px">
+<span class="lbl">{{ d.kind }}</span>
+<span style="font-size:17px;line-height:22px;font-weight:600;letter-spacing:-0.01em">{{ d.title }}</span>
+<span style="font-size:13px;line-height:18px;color:#5F646C">{{ d.a }}</span>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+<div style="display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:12px;background:rgba(20,21,24,0.04)"><span class="fig">{{ d.f1v }}</span><span class="t12">{{ d.f1l }}</span></div>
+<div style="display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:12px;background:rgba(20,21,24,0.04)"><span class="fig">{{ d.f2v }}</span><span class="t12">{{ d.f2l }}</span></div>
+</div>
+<div style="display:flex;gap:8px;margin-top:2px"><a class="b pri" href="Risk.dc.html" style="flex:1">{{ d.cta }}</a><a class="b sec2" href="Scenario.dc.html">What if</a></div>
+</div>
+</aside>
+
+<div class="ctrl glass {{ v.ctrl }}" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;border-radius:22px;overflow:hidden;z-index:3">
+<button type="button" class="mb" aria-label="Zoom in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+<span style="height:1px;margin:0 10px;background:rgba(20,21,24,0.08)"></span>
+<button type="button" class="mb" aria-label="Zoom out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+<span style="height:1px;margin:0 10px;background:rgba(20,21,24,0.08)"></span>
+<button type="button" class="mb" aria-label="Fit all suppliers"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg></button>
+</div>
+
+<div class="legend glass" style="position:absolute;right:20px;bottom:20px;display:flex;align-items:center;gap:14px;height:44px;padding:0 8px 0 18px;border-radius:22px;z-index:3;font-size:12px;line-height:16px;color:#5F646C">
+<span>{{ legend }}</span>
+<span style="width:1px;height:20px;background:rgba(20,21,24,0.1)"></span>
+<span style="display:inline-flex;align-items:center;gap:6px;color:#141518"><span style="width:6px;height:6px;border-radius:3px;background:#B3200F"></span>Excel stopped syncing</span>
+<a class="b" href="Connect.dc.html" style="height:44px;padding:0 12px;background:transparent;color:#1766F0;font-size:13px">Fix</a>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1360,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { layer: 'all', sel: 'red' };
+}
+renderVals() {
+const D = {
+sanc: { score: 81, tint: '#FADBD5', text: '#8F1A0B', name: 'Sanctions match', place: 'Gulf Components, Dubai', kind: 'Sanctions · Legal',
+title: 'Sanctions match in Dubai', a: 'A new OFAC entry matches Gulf Components, row 38 of your Suppliers sheet.', f1v: '6%', f1l: 'of supplier spend', f2v: '2', f2l: 'open orders to pause', cta: 'Review match' },
+red: { score: 74, tint: '#FCE5E0', text: '#A42D16', name: 'Red Sea transit', place: 'Bab el-Mandeb to Suez', kind: 'Shipping · Procurement',
+title: 'Red Sea transit', a: 'Transit calls through Bab el-Mandeb are down 18% this week.', f1v: '22%', f1l: 'of spend ships this way', f2v: '+12 days', f2l: 'if ships go around Africa', cta: 'Open risk' },
+tw: { score: 68, tint: '#FCE5E0', text: '#A42D16', name: 'Taiwan Strait', place: 'Kaohsiung and Hsinchu', kind: 'Geopolitical · Procurement',
+title: 'Taiwan Strait', a: 'Naval exercises reported near Kaohsiung since Friday.', f1v: '14%', f1l: 'of supplier spend', f2v: '0', f2l: 'second sources for memory chips', cta: 'Open risk' },
+cyber: { score: 61, tint: '#FCE5E0', text: '#A42D16', name: 'VPN gateway flaw', place: '1 of 11 connected tools', kind: 'Cyber · IT security',
+title: 'Exploited flaw in your VPN gateway', a: 'CISA lists this flaw as actively exploited. A fixed version is available.', f1v: '1 of 11', f1l: 'tools affected', f2v: '21 days', f2l: 'to patch, by 14 Dec', cta: 'See the fix' },
+fx: { score: 52, tint: '#FBEAE6', text: '#9C3522', name: 'Taiwan dollar', place: '31% of what you owe', kind: 'Currency · Finance',
+title: 'Taiwan dollar is up 1.8%', a: 'Against the euro this week, so invoices from Taiwan cost more.', f1v: '31%', f1l: 'of payables in TWD', f2v: '+€41k', f2l: 'on open invoices', cta: 'Open risk' },
+yan: { score: 44, tint: '#FBEAE6', text: '#9C3522', name: 'Port congestion', place: 'Yantian, Shenzhen', kind: 'Shipping · Procurement',
+title: 'Port congestion at Yantian', a: 'Ships are waiting about two days to berth.', f1v: '11%', f1l: 'of supplier spend', f2v: '+2 days', f2l: 'added lead time', cta: 'Open risk' },
+rain: { score: 24, tint: '#FBF1EF', text: '#8A3B2E', name: 'Heavy rain', place: 'Chennai', kind: 'Natural hazard · Procurement',
+title: 'Heavy rain in Chennai', a: 'A rain alert covers Chennai until Tuesday.', f1v: '5%', f1l: 'of supplier spend', f2v: '1', f2l: 'supplier nearby', cta: 'Open risk' }
+};
+const L = {
+all: { name: 'All', ids: ['sanc', 'red', 'tw', 'cyber', 'fx', 'yan', 'rain'], legend: 'Every risk that touches your suppliers' },
+geo: { name: 'Geopolitical', ids: ['tw', 'red'], legend: 'Conflict and tension near your suppliers and routes' },
+ship: { name: 'Shipping', ids: ['red', 'yan'], legend: 'Choke points and ports on your routes' },
+haz: { name: 'Hazards', ids: ['rain'], legend: 'Storms, floods and quakes near your suppliers' },
+sanc: { name: 'Sanctions', ids: ['sanc'], legend: 'Suppliers that match a sanctions list' },
+fx: { name: 'Currency', ids: ['fx'], legend: 'Bubble size: what you owe · colour: move against the euro' },
+cyber: { name: 'Cyber', ids: ['cyber'], legend: 'Your connected tools, checked against CISA, NVD and OTX' }
+};
+const keys = ['all', 'geo', 'ship', 'haz', 'sanc', 'fx', 'cyber'];
+const layer = this.state.layer;
+const ids = L[layer].ids;
+const sel = ids.indexOf(this.state.sel) >= 0 ? this.state.sel : ids[0];
+const show = (ok) => (ok ? '' : 'hid');
+const onMap = (k) => (layer === 'all' || ids.indexOf(k) >= 0);
+const geoLayer = layer !== 'cyber' && layer !== 'fx';
+const co = {};
+['sanc', 'red', 'tw', 'yan', 'rain'].forEach((k) => { co[k] = k === sel ? 'co on' : 'co'; });
+return {
+layers: keys.map((k) => ({
+name: L[k].name,
+n: '',
+on: k === layer,
+cls: k === layer ? 'chip on' : 'chip',
+pick: () => this.setState({ layer: k, sel: L[k].ids.indexOf(this.state.sel) >= 0 ? this.state.sel : L[k].ids[0] })
+})),
+items: ids.map((k) => ({
+score: D[k].score, tint: D[k].tint, text: D[k].text, name: D[k].name, place: D[k].place,
+on: k === sel,
+cls: k === sel ? 'it on' : 'it',
+pick: () => this.setState({ sel: k })
+})),
+d: D[sel],
+co: co,
+legend: L[layer].legend,
+mapLabel: layer === 'cyber' ? 'Map of Atlas Electronics connected tools. The VPN gateway has an exploited flaw.' : 'Map of Atlas Electronics suppliers, shipping routes and risk hotspots',
+v: {
+base: show(layer !== 'cyber'),
+routes: show(geoLayer && layer !== 'sanc'),
+cape: show(layer === 'all' || layer === 'ship'),
+seg: show(sel === 'red' && (layer === 'all' || layer === 'ship' || layer === 'geo')),
+sup: show(geoLayer),
+fx: show(layer === 'fx'),
+cy: show(layer === 'cyber'),
+ctrl: layer === 'cyber' ? 'hid' : '',
+h_sanc: show(geoLayer && onMap('sanc')),
+h_red: show(geoLayer && onMap('red')),
+h_tw: show(geoLayer && onMap('tw')),
+h_yan: show(geoLayer && onMap('yan')),
+h_rain: show(geoLayer && onMap('rain'))
+}
+};
+}
+}
+</script>
+</body>
+</html>

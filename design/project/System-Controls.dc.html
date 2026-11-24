@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Buttons and inputs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.sheet{--tx:#141518;--tx2:#5F646C;--line:#E6E7EA;width:1440px;min-height:2520px;box-sizing:border-box;padding:96px;background:#F4F5F7;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:96px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:28px}
+.sh h2{margin:0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em}
+.sh p{margin:0;font-size:14px;line-height:20px;color:var(--tx2);max-width:560px;text-align:right}
+.item{display:flex;flex-direction:column;gap:10px;min-width:0}
+.cap{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.card{background:#FFFFFF;border-radius:16px;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 1px 2px rgba(20,21,24,0.05);box-sizing:border-box}
+.t15{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.b{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 22px;border:0;border-radius:22px;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;letter-spacing:-0.006em;cursor:pointer;white-space:nowrap;transition:background-color .15s ease,transform .1s ease}
+.pri{background:#1766F0;color:#FFFFFF}.pri:hover{background:#0F55CF}
+.sec2{background:rgba(20,21,24,0.06);color:#141518}.sec2:hover{background:rgba(20,21,24,0.09)}
+.pl{background:transparent;color:#1766F0}.pl:hover{background:rgba(23,102,240,0.08)}
+.de{background:#B3200F;color:#FFFFFF}.de:hover{background:#9A1B0C}
+.b:active{transform:scale(0.97)}
+.b:focus-visible,.ib:focus-visible{outline:none;box-shadow:0 0 0 2px #FFFFFF,0 0 0 5px rgba(23,102,240,0.35)}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:22px;background:rgba(20,21,24,0.06);color:#141518;cursor:pointer}
+.mtx{display:grid;grid-template-columns:120px repeat(5,minmax(0,1fr));gap:18px 12px;align-items:center;justify-items:center}
+.mh{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.rh{justify-self:start;font-size:14px;line-height:20px;font-weight:500}
+.vr{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;height:150px}
+.fld{display:flex;flex-direction:column;gap:8px}
+.lb{font-size:13px;line-height:18px;font-weight:500}
+.in{box-sizing:border-box;width:100%;height:44px;padding:0 14px;border:0;border-radius:10px;background:rgba(20,21,24,0.05);font:400 15px/20px Inter,-apple-system,system-ui,sans-serif;color:#141518;outline:none;transition:box-shadow .15s ease,background-color .15s ease}
+.in::placeholder{color:#5F646C}
+.in:focus,.in.fo{background:#FFFFFF;box-shadow:0 0 0 1px #1766F0,0 0 0 4px rgba(23,102,240,0.2)}
+.in.er{background:#FFFFFF;box-shadow:0 0 0 1px #B3200F,0 0 0 4px rgba(179,32,15,0.14)}
+.help{font-size:12px;line-height:16px;color:#5F646C}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;min-height:60px;padding:0;border:0;border-top:1px solid var(--line);background:transparent;color:#141518;font:inherit;text-align:left;cursor:pointer}
+.sw{position:relative;flex:0 0 40px;width:40px;height:24px;border-radius:12px;background:rgba(20,21,24,0.16);transition:background-color .2s ease}
+.sw .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:10px;background:#FFFFFF;box-shadow:0 0 0 0.5px rgba(20,21,24,0.08),0 2px 4px rgba(20,21,24,0.16);transition:transform .2s ease}
+.sw.on{background:#1766F0}
+.sw.on .knob{transform:translateX(16px)}
+.crow{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0;border:0;background:transparent;color:#141518;font:400 15px/20px Inter,-apple-system,system-ui,sans-serif;text-align:left;cursor:pointer}
+.cb{display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;width:20px;height:20px;border-radius:6px;box-shadow:inset 0 0 0 1.5px rgba(20,21,24,0.25);color:#FFFFFF}
+.cb svg{opacity:0}
+.cb.on{background:#1766F0;box-shadow:none}
+.cb.on svg{opacity:1}
+.rd{flex:0 0 20px;width:20px;height:20px;border-radius:10px;box-shadow:inset 0 0 0 1.5px rgba(20,21,24,0.25);transition:box-shadow .15s ease}
+.rd.on{box-shadow:inset 0 0 0 6px #1766F0}
+.segw{display:flex;gap:2px;padding:3px;border-radius:12px;background:rgba(20,21,24,0.06)}
+.sg{position:relative;flex:1;height:38px;border:0;border-radius:9px;background:transparent;color:#5F646C;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer}
+.sg.on{background:#FFFFFF;color:#141518;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.sg::after{content:"";position:absolute;left:-1px;right:-1px;top:-3px;bottom:-3px}
+.rng{-webkit-appearance:none;appearance:none;width:100%;height:44px;margin:-8px 0;background:transparent;cursor:pointer}
+.rng:focus{outline:none}
+.rng::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,#1766F0 0,#1766F0 var(--p),rgba(20,21,24,0.12) var(--p),rgba(20,21,24,0.12) 100%)}
+.rng::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;margin-top:-10px;border-radius:12px;background:#FFFFFF;box-shadow:0 0 0 0.5px rgba(20,21,24,0.12),0 2px 6px rgba(20,21,24,0.18)}
+.rng:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px rgba(23,102,240,0.35),0 2px 6px rgba(20,21,24,0.18)}
+.rng::-moz-range-track{height:4px;border-radius:2px;background:rgba(20,21,24,0.12)}
+.rng::-moz-range-progress{height:4px;border-radius:2px;background:#1766F0}
+.rng::-moz-range-thumb{width:24px;height:24px;border:0;border-radius:12px;background:#FFFFFF;box-shadow:0 0 0 0.5px rgba(20,21,24,0.12),0 2px 6px rgba(20,21,24,0.18)}
+.mi{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:10px;font-size:14px;line-height:20px;color:#141518}
+.mi svg{color:#5F646C}
+.kb{margin-left:auto;font-size:13px;line-height:18px;color:#5F646C}
+.v{font-size:15px;line-height:20px;font-weight:600;font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div class="sheet">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:24px">
+<h1 style="margin:0;font-size:40px;line-height:46px;font-weight:600;letter-spacing:-0.022em">Buttons and inputs</h1>
+<span style="font-size:13px;line-height:18px;font-weight:500;color:var(--tx2)">Step 5 of 8</span>
+</div>
+<p style="margin:0;max-width:720px;font-size:15px;line-height:22px;color:var(--tx2)">The parts people touch. Every control is 44 tall, says what it does, and responds the moment you press it.</p>
+</header>
+
+<section>
+<div class="sh"><h2>Buttons</h2><p>Four kinds in one capsule shape. A view has one primary button at most, so the next step is always obvious.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 12"><span class="cap">Four kinds, five states</span>
+<div class="card" style="padding:28px 32px">
+<div class="mtx">
+<span></span><span class="mh">Default</span><span class="mh">Hover</span><span class="mh">Pressed</span><span class="mh">Focus</span><span class="mh">Disabled</span>
+<span class="rh">Primary</span>
+<button type="button" class="b pri">Run what-if</button>
+<button type="button" class="b pri" style="background:#0F55CF">Run what-if</button>
+<button type="button" class="b pri" style="background:#0F55CF;transform:scale(0.97)">Run what-if</button>
+<button type="button" class="b pri" style="box-shadow:0 0 0 2px #FFFFFF,0 0 0 5px rgba(23,102,240,0.35)">Run what-if</button>
+<button type="button" class="b" disabled style="background:rgba(20,21,24,0.04);color:#A3A7AE;cursor:default">Run what-if</button>
+<span class="rh">Secondary</span>
+<button type="button" class="b sec2">Acknowledge</button>
+<button type="button" class="b sec2" style="background:rgba(20,21,24,0.09)">Acknowledge</button>
+<button type="button" class="b sec2" style="background:rgba(20,21,24,0.12);transform:scale(0.97)">Acknowledge</button>
+<button type="button" class="b sec2" style="box-shadow:0 0 0 2px #FFFFFF,0 0 0 5px rgba(23,102,240,0.35)">Acknowledge</button>
+<button type="button" class="b" disabled style="background:rgba(20,21,24,0.04);color:#A3A7AE;cursor:default">Acknowledge</button>
+<span class="rh">Plain</span>
+<button type="button" class="b pl">View sources</button>
+<button type="button" class="b pl" style="background:rgba(23,102,240,0.08)">View sources</button>
+<button type="button" class="b pl" style="background:rgba(23,102,240,0.14);transform:scale(0.97)">View sources</button>
+<button type="button" class="b pl" style="box-shadow:0 0 0 2px #FFFFFF,0 0 0 5px rgba(23,102,240,0.35)">View sources</button>
+<button type="button" class="b" disabled style="background:transparent;color:#A3A7AE;cursor:default">View sources</button>
+<span class="rh">Destructive</span>
+<button type="button" class="b de">Disconnect</button>
+<button type="button" class="b de" style="background:#9A1B0C">Disconnect</button>
+<button type="button" class="b de" style="background:#9A1B0C;transform:scale(0.97)">Disconnect</button>
+<button type="button" class="b de" style="box-shadow:0 0 0 2px #FFFFFF,0 0 0 5px rgba(23,102,240,0.35)">Disconnect</button>
+<button type="button" class="b" disabled style="background:rgba(20,21,24,0.04);color:#A3A7AE;cursor:default">Disconnect</button>
+</div>
+<span class="t12" style="display:block;margin-top:22px">Pressed buttons darken and shrink to 97%. Focus is a 3 px blue ring, 2 px away, for keyboard users. Destructive buttons only appear inside a confirmation.</span>
+</div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">With an icon</span>
+<div class="card vr"><button type="button" class="b pri"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.25"/><circle cx="6" cy="18" r="2.25"/><circle cx="18" cy="9" r="2.25"/><path d="M6 8.25v7.5M18 11.25V13a5 5 0 0 1-5 5H8.25"/></svg>Run what-if</button><span class="t12">Icon 16, gap 8</span></div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">Secondary with an icon</span>
+<div class="card vr"><button type="button" class="b sec2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.5h5.5V10M19.5 4.5 11 13M18.5 14v4.5a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2H10"/></svg>Export</button><span class="t12">Same spacing, quieter fill</span></div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">Icon only</span>
+<div class="card vr"><button type="button" class="ib" aria-label="More"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></button><span class="t12">44 across, always has a spoken name</span></div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">Loading</span>
+<div class="card vr"><button type="button" class="b pri" aria-busy="true" style="cursor:progress"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8" opacity="0.3"/><path d="M20 12a8 8 0 0 0-8-8"/></svg>Saving</button><span class="t12">Keeps its width, spinner leads</span></div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Inputs</h2><p>Soft grey wells with no border. They turn white with a blue ring while you type, and red with a fix-it message when something is wrong.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 6"><span class="cap">Form fields</span>
+<div class="card" style="padding:28px;display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">Add a webhook</span><span class="t13">Send changes from any system you use.</span></div>
+<div class="fld"><label for="wn" class="lb">Name</label><input id="wn" class="in" type="text" value="Warehouse system"></div>
+<div class="fld"><label for="wu" class="lb">Endpoint address</label><input id="wu" class="in fo" type="text" value="https://erp.example.com/events"><span class="help">We send a test event when you save.</span></div>
+<div class="fld"><label for="ws" class="lb">Signing secret</label><input id="ws" class="in er" type="text" value="abc123" aria-invalid="true" aria-describedby="wse"><span id="wse" class="help" style="color:#8F1A0B">Use at least 16 characters so others cannot guess it.</span></div>
+<div class="fld"><label for="wf" class="lb">Format</label><button id="wf" type="button" class="in" style="display:flex;align-items:center;justify-content:space-between;text-align:left;cursor:pointer">JSON<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></button></div>
+<div class="fld"><label for="wr" class="lb" style="color:#A3A7AE">Data region</label><input id="wr" class="in" type="text" value="Europe, set by your workspace" disabled style="color:#A3A7AE;background:rgba(20,21,24,0.03)"></div>
+<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px"><button type="button" class="b sec2">Cancel</button><button type="button" class="b pri">Add webhook</button></div>
+</div>
+<span class="t12" style="margin-top:4px">Endpoint shows typing, Signing secret shows an error, Data region is disabled.</span>
+</div>
+<div class="item" style="grid-column:span 6"><span class="cap">Settings controls · they work, try them</span>
+<div class="card" style="padding:28px;display:flex;flex-direction:column">
+<div style="display:flex;flex-direction:column;gap:4px;padding-bottom:16px"><span class="t15">Alerts</span><span class="t13">How and when RiskPredict tells you.</span></div>
+<button type="button" role="switch" aria-checked="{{ s1.on }}" class="srow" onClick="{{ s1.toggle }}"><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;line-height:20px;font-weight:500">Critical risks</span><span class="t13">Email me straight away</span></span><span class="{{ s1.cls }}"><span class="knob"></span></span></button>
+<button type="button" role="switch" aria-checked="{{ s2.on }}" class="srow" onClick="{{ s2.toggle }}"><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;line-height:20px;font-weight:500">Daily summary</span><span class="t13">Every morning at 8:00</span></span><span class="{{ s2.cls }}"><span class="knob"></span></span></button>
+<div class="fld" style="padding:16px 0;border-top:1px solid var(--line)">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><label for="th" class="lb">Alert when a score reaches</label><span class="v">{{ th }}</span></div>
+<input id="th" class="rng" type="range" min="0" max="100" step="1" value="{{ th }}" onChange="{{ setTh }}" style="--p: {{ thPct }}">
+<span class="help">60 is where risk becomes elevated.</span>
+</div>
+<div style="padding:8px 0;border-top:1px solid var(--line)">
+<button type="button" role="checkbox" aria-checked="{{ low.on }}" class="crow" onClick="{{ low.toggle }}"><span class="{{ low.cls }}"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span>Include low risks in the summary</button>
+</div>
+<div style="padding:12px 0 8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px">
+<span class="lb" id="frq" style="padding-bottom:4px">Check sources</span>
+<div role="radiogroup" aria-labelledby="frq">
+<sc-for list="{{ freqs }}" as="f" hint-placeholder-count="3">
+<button type="button" role="radio" aria-checked="{{ f.on }}" class="crow" onClick="{{ f.pick }}"><span class="{{ f.cls }}"></span><span>{{ f.label }}</span><span class="t13" style="margin-left:auto">{{ f.note }}</span></button>
+</sc-for>
+</div>
+</div>
+<div style="padding-top:16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px">
+<span class="lb">Summary covers</span>
+<div class="segw" role="group" aria-label="Summary covers">
+<sc-for list="{{ segs }}" as="g" hint-placeholder-count="3">
+<button type="button" class="{{ g.cls }}" aria-pressed="{{ g.on }}" onClick="{{ g.pick }}">{{ g.label }}</button>
+</sc-for>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Menus and feedback</h2><p>Small layers that appear when you ask and leave on their own. Common actions come first, and deleting is always last, in red.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 6"><span class="cap">Menu</span>
+<div class="card" style="padding:28px;background:#F9FAFB;min-height:420px;box-sizing:border-box">
+<div style="position:relative">
+<div class="card" style="overflow:hidden">
+<div style="display:flex;align-items:center;justify-content:space-between;height:60px;box-sizing:border-box;padding:0 24px"><span class="t15">Saved scenarios</span><span class="t13">2</span></div>
+<div style="display:flex;align-items:center;gap:12px;height:64px;box-sizing:border-box;padding:0 12px 0 24px;border-top:1px solid var(--line)"><span style="flex:1;display:flex;flex-direction:column"><span style="font-size:15px;line-height:20px;font-weight:500">Red Sea route closes, 6 weeks</span><span class="t13">Risk index 62 → 73</span></span><button type="button" class="ib" aria-label="More" aria-expanded="true" style="background:rgba(20,21,24,0.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></button></div>
+<div style="display:flex;align-items:center;gap:12px;height:64px;box-sizing:border-box;padding:0 12px 0 24px;border-top:1px solid var(--line)"><span style="flex:1;display:flex;flex-direction:column"><span style="font-size:15px;line-height:20px;font-weight:500">Taiwan dollar rises 10%, 12 weeks</span><span class="t13">Risk index 62 → 69</span></span><button type="button" class="ib" aria-label="More" style="background:transparent"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></button></div>
+</div>
+<div style="position:absolute;right:12px;top:118px;width:240px;box-sizing:border-box;padding:6px;border-radius:12px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 4px 16px rgba(20,21,24,0.08);z-index:3">
+<div class="mi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"/><path d="M14 3.5V8h4.5M9 12.5h6M9 16h4"/></svg>Open report</div>
+<div class="mi" style="background:rgba(20,21,24,0.05)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.3 4.8M4.5 12a7.5 7.5 0 0 1 13.3-4.8M18 3.5v3.7h-3.7M6 20.5v-3.7h3.7"/></svg>Run again</div>
+<div class="mi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.5h5.5V10M19.5 4.5 11 13M18.5 14v4.5a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2H10"/></svg>Export as PDF<span class="kb">⌘E</span></div>
+<div style="height:1px;margin:6px;background:var(--line)"></div>
+<div class="mi" style="color:#B3200F"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B3200F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>Delete scenario</div>
+</div>
+</div>
+</div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">Tooltip</span>
+<div class="card" style="min-height:420px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px">
+<span role="tooltip" id="tt" style="display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;background:rgba(20,21,24,0.92);color:#FFFFFF;font-size:12px;line-height:16px;white-space:nowrap">Refresh all sources</span>
+<button type="button" class="ib" aria-label="Refresh" aria-describedby="tt"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.3 4.8M4.5 12a7.5 7.5 0 0 1 13.3-4.8M18 3.5v3.7h-3.7M6 20.5v-3.7h3.7"/></svg></button>
+<span class="t12" style="margin-top:20px;text-align:center;max-width:180px">Names an icon button after half a second</span>
+</div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">Toast</span>
+<div class="card" style="min-height:420px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px">
+<div role="status" style="display:inline-flex;align-items:center;gap:12px;height:48px;padding:0 2px 0 16px;border-radius:24px;background:rgba(20,21,24,0.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#FFFFFF;font-size:14px;line-height:20px;box-shadow:0 8px 24px rgba(20,21,24,0.18)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+<span>Scenario saved</span>
+<button type="button" style="height:44px;padding:0 16px;border:0;border-radius:22px;background:rgba(255,255,255,0.12);color:#8DB3FF;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer">Undo</button>
+</div>
+<span class="t12" style="text-align:center;max-width:180px">Bottom centre, 4 seconds, one action at most</span>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2520}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { s1: true, s2: false, th: 60, low: true, freq: 'edit', seg: '7d' };
+}
+renderVals() {
+const st = this.state;
+const freqs = [
+{ id: 'edit', label: 'On every edit', note: 'Live' },
+{ id: 'hour', label: 'Every hour', note: '' },
+{ id: 'day', label: 'Once a day', note: '' }
+];
+const segs = ['24h', '7d', '30d'];
+return {
+s1: { on: st.s1, cls: st.s1 ? 'sw on' : 'sw', toggle: () => this.setState({ s1: !st.s1 }) },
+s2: { on: st.s2, cls: st.s2 ? 'sw on' : 'sw', toggle: () => this.setState({ s2: !st.s2 }) },
+th: st.th,
+thPct: st.th + '%',
+setTh: (e) => this.setState({ th: Number(e.target.value) }),
+low: { on: st.low, cls: st.low ? 'cb on' : 'cb', toggle: () => this.setState({ low: !st.low }) },
+freqs: freqs.map((f) => ({
+label: f.label, note: f.note,
+on: f.id === st.freq,
+cls: f.id === st.freq ? 'rd on' : 'rd',
+pick: () => this.setState({ freq: f.id })
+})),
+segs: segs.map((s) => ({
+label: s,
+on: s === st.seg,
+cls: s === st.seg ? 'sg on' : 'sg',
+pick: () => this.setState({ seg: s })
+}))
+};
+}
+}
+</script>
+</body>
+</html>

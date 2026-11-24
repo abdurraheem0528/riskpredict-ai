@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cards, tables and charts</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.sheet{--tx:#141518;--tx2:#5F646C;--line:#E6E7EA;width:1440px;min-height:3400px;box-sizing:border-box;padding:96px;background:#F4F5F7;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:96px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:28px}
+.sh h2{margin:0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em}
+.sh p{margin:0;font-size:14px;line-height:20px;color:var(--tx2);max-width:560px;text-align:right}
+.item{display:flex;flex-direction:column;gap:10px;min-width:0}
+.cap{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.card{background:#FFFFFF;border-radius:16px;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 1px 2px rgba(20,21,24,0.05);box-sizing:border-box}
+.t15{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.fig{font-size:40px;line-height:44px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:11px;font-size:12px;line-height:16px;font-weight:500;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 10px;border-radius:13px;font-size:13px;line-height:18px;font-weight:500;font-variant-numeric:tabular-nums}
+.meter{display:inline-flex;gap:2px;align-items:center}
+.meter i{width:3px;height:12px;border-radius:2px;background:#E6E7EA}
+.bl{position:relative;display:flex;align-items:center;justify-content:space-between;height:36px;padding:0 10px;margin-top:4px}
+.bl i{position:absolute;left:0;top:0;bottom:0;border-radius:8px;background:rgba(20,21,24,0.06)}
+.bl span{position:relative;font-size:14px;line-height:20px}
+.trk{display:grid;grid-template-columns:repeat(30,minmax(0,1fr));gap:2px}
+.trk i{display:block;height:28px;border-radius:2px;background:#1A9E5A}
+.trk i.p{background:#C9CCD1}
+.trk i.f{background:#B3200F}
+.tr-row{display:grid;grid-template-columns:120px minmax(0,1fr) 52px;gap:16px;align-items:center;height:44px}
+.q{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-top:1px solid var(--line)}
+.q:first-of-type{border-top:0;padding-top:4px}
+.qbar{height:6px;border-radius:3px;background:rgba(20,21,24,0.08);overflow:hidden}
+.qbar i{display:block;height:6px;border-radius:3px;background:#141518}
+.cb{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;box-shadow:inset 0 0 0 1.5px rgba(20,21,24,0.25);color:#FFFFFF;flex:0 0 20px}
+.cb.on{background:#1766F0;box-shadow:none}
+.tg{display:grid;grid-template-columns:20px minmax(0,2.4fr) minmax(0,1fr) 84px 60px 124px 64px 84px;gap:16px;align-items:center;padding:0 20px}
+.thd{height:40px;font-size:12px;line-height:16px;font-weight:500;color:#5F646C;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#FAFAFB}
+.trw{height:60px;border-bottom:1px solid var(--line)}
+.nm{display:flex;flex-direction:column;min-width:0}
+.nm b{font-size:15px;line-height:20px;font-weight:500;letter-spacing:-0.006em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm span{font-size:13px;line-height:18px;color:#5F646C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r{text-align:right;font-size:15px;line-height:20px;font-weight:500;font-variant-numeric:tabular-nums}
+.own{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px;min-width:0}
+.av{display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px;height:24px;border-radius:12px;background:#E6E7EA;font-size:10px;line-height:12px;font-weight:600;color:#141518}
+.fpill{position:relative;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:0;border-radius:18px;background:rgba(20,21,24,0.05);color:#141518;font:500 13px/18px Inter,-apple-system,system-ui,sans-serif;cursor:pointer}
+.fpill.on{background:#E8F0FE;color:#0F55CF}
+.fpill::after{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border:0;border-radius:22px;background:rgba(20,21,24,0.06);color:#141518;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:22px;background:transparent;color:#141518;cursor:pointer}
+.segw{display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:rgba(20,21,24,0.06)}
+.sg{position:relative;height:38px;padding:0 14px;border:0;border-radius:9px;background:transparent;color:#5F646C;font:500 13px/18px Inter,-apple-system,system-ui,sans-serif;cursor:pointer}
+.sg.on{background:#FFFFFF;color:#141518;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.sg::after{content:"";position:absolute;left:-1px;right:-1px;top:-3px;bottom:-3px}
+.mx{display:grid;grid-template-columns:20px repeat(5,minmax(0,1fr));grid-template-rows:repeat(5,48px) 20px;gap:3px}
+.q5{border-radius:6px;display:flex;align-items:center;justify-content:center;gap:4px}
+.ax{display:flex;align-items:center;justify-content:center;font-size:11px;line-height:14px;color:#5F646C;font-variant-numeric:tabular-nums}
+.pin{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 5px;box-sizing:border-box;border-radius:11px;font-size:11px;line-height:14px;font-weight:600;font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px #FFFFFF}
+.br{display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;align-items:center;height:40px}
+.bt{display:flex;align-items:center;gap:10px}
+.bt i{display:block;height:14px;border-radius:4px}
+.bt span{font-size:13px;line-height:18px;font-weight:500;font-variant-numeric:tabular-nums}
+.sk{border-radius:6px;background:rgba(20,21,24,0.06)}
+</style>
+</helmet>
+<div class="sheet">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:24px">
+<h1 style="margin:0;font-size:40px;line-height:46px;font-weight:600;letter-spacing:-0.022em">Cards, tables and charts</h1>
+<span style="font-size:13px;line-height:18px;font-weight:500;color:var(--tx2)">Step 7 of 8</span>
+</div>
+<p style="margin:0;max-width:760px;font-size:15px;line-height:22px;color:var(--tx2)">Proven dashboard patterns from the free libraries Tremor (Apache 2.0) and shadcn/ui (MIT), redrawn in RiskPredict type, colour and spacing. Chart rules follow Apple's guidance: a headline that states the finding, no grid on small charts, about four lines on detailed ones.</p>
+</header>
+
+<section>
+<div class="sh"><h2>Cards</h2><p>The number comes first. Each card compares with the last period and says when its data last changed.</p></div>
+<div class="grid">
+
+<div class="item" style="grid-column:span 5"><span class="cap">Metric with comparison</span>
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="t15">Risk index</span><span class="t12">Updated 2 min ago</span></div>
+<div style="display:flex;align-items:center;gap:12px"><span class="fig">62</span><span class="chip" style="background:#FCE5E0;color:#A42D16"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>4</span><span class="t13">from 58 yesterday</span></div>
+<svg viewBox="0 0 480 120" width="100%" height="120" preserveAspectRatio="none" role="img" aria-label="Risk index this month rose from 50 to 62, compared with a flatter line around 48 last month">
+<polyline points="0,100 16,98 32,95 48,97 64,93 80,95 96,90 112,92 128,94 144,90 160,88 176,91 192,89 208,92 224,90 240,87 256,89 272,86 288,88 304,85 320,87 336,84 352,86 368,88 384,85 400,87 416,85 432,84 448,86 464,85 480,85" fill="none" stroke="#A3A7AE" stroke-width="1.5" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/>
+<polygon points="0,85 16,80 32,90 48,85 64,75 80,70 96,75 112,80 128,70 144,65 160,60 176,65 192,55 208,60 224,50 240,55 256,45 272,50 288,45 304,40 320,45 336,35 352,40 368,30 384,35 400,30 416,35 432,25 448,30 464,45 480,25 480,120 0,120" fill="#141518" fill-opacity="0.05"/>
+<polyline points="0,85 16,80 32,90 48,85 64,75 80,70 96,75 112,80 128,70 144,65 160,60 176,65 192,55 208,60 224,50 240,55 256,45 272,50 288,45 304,40 320,45 336,35 352,40 368,30 384,35 400,30 416,35 432,25 448,30 464,45 480,25" fill="none" stroke="#141518" stroke-width="1.75" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+</svg>
+<div style="display:flex;justify-content:space-between;align-items:center">
+<div style="display:flex;gap:16px">
+<span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:14px;height:2px;border-radius:1px;background:#141518"></span>Last 30 days</span>
+<span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:14px;height:0;border-top:2px dashed #A3A7AE"></span>30 days before</span>
+</div>
+<span class="t12 num">24 Oct – 23 Nov</span>
+</div>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 7"><span class="cap">Metric group with level breakdown</span>
+<div class="card" style="overflow:hidden">
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr))">
+<div style="padding:24px;display:flex;flex-direction:column;gap:8px"><span class="t13" style="font-weight:500;color:#141518">Open risks</span><span class="fig">7</span><span class="t12"><span style="color:#A42D16;font-weight:500">+2</span> this week</span></div>
+<div style="padding:24px;display:flex;flex-direction:column;gap:8px;border-left:1px solid var(--line)"><span class="t13" style="font-weight:500;color:#141518">Critical</span><span class="fig">1</span><span class="t12">No change this week</span></div>
+<div style="padding:24px;display:flex;flex-direction:column;gap:8px;border-left:1px solid var(--line)"><span class="t13" style="font-weight:500;color:#141518">Spend exposed</span><span class="fig">38%</span><span class="t12"><span style="color:#A42D16;font-weight:500">+6 pts</span> this week</span></div>
+</div>
+<div style="padding:20px 24px 24px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between"><span class="t13" style="font-weight:500;color:#141518">Open risks by level</span><span class="t12">7 in total</span></div>
+<div style="display:flex;gap:3px;height:10px" role="img" aria-label="1 critical, 3 high, 2 medium, 1 low">
+<div style="flex:1;border-radius:3px;background:#B3200F"></div><div style="flex:3;border-radius:3px;background:#DD6248"></div><div style="flex:2;border-radius:3px;background:#E9A190"></div><div style="flex:1;border-radius:3px;background:#F1D3CC"></div>
+</div>
+<div style="display:flex;gap:3px">
+<span style="flex:1" class="t12"><b style="color:#141518;font-weight:600">1</b> Critical</span><span style="flex:3" class="t12"><b style="color:#141518;font-weight:600">3</b> High</span><span style="flex:2" class="t12"><b style="color:#141518;font-weight:600">2</b> Medium</span><span style="flex:1" class="t12"><b style="color:#141518;font-weight:600">1</b> Low</span>
+</div>
+</div>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 6"><span class="cap">Ranked list</span>
+<div class="card" style="padding:24px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div style="display:flex;flex-direction:column;gap:2px"><span class="t15">Taiwan holds the most spend at risk</span><span class="t13">Supplier spend by country</span></div><span class="t12">Share</span></div>
+<div class="bl"><i style="width:100%"></i><span>Taiwan</span><span class="num" style="font-weight:500">31%</span></div>
+<div class="bl"><i style="width:77%"></i><span>China</span><span class="num" style="font-weight:500">24%</span></div>
+<div class="bl"><i style="width:52%"></i><span>Malaysia</span><span class="num" style="font-weight:500">16%</span></div>
+<div class="bl"><i style="width:35%"></i><span>India</span><span class="num" style="font-weight:500">11%</span></div>
+<div class="bl"><i style="width:26%"></i><span>Vietnam</span><span class="num" style="font-weight:500">8%</span></div>
+<div class="bl"><i style="width:32%"></i><span style="color:#5F646C">9 other countries</span><span class="num" style="font-weight:500;color:#5F646C">10%</span></div>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 6"><span class="cap">Day-by-day status</span>
+<div class="card" style="padding:24px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><div style="display:flex;flex-direction:column;gap:2px"><span class="t15">Sources were live 96% of the month</span><span class="t13">Each bar is one day, oldest on the left</span></div><span class="t12">Live</span></div>
+<div class="tr-row"><span style="font-size:14px;line-height:20px">GDELT</span><div class="trk" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="r" style="font-size:13px">100%</span></div>
+<div class="tr-row"><span style="font-size:14px;line-height:20px">CISA KEV</span><div class="trk" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="r" style="font-size:13px">100%</span></div>
+<div class="tr-row"><span style="font-size:14px;line-height:20px">IMF PortWatch</span><div class="trk" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="r" style="font-size:13px">100%</span></div>
+<div class="tr-row" style="position:relative"><span style="font-size:14px;line-height:20px">NewsData</span><div class="trk" aria-hidden="true"><i></i><i></i><i></i><i></i><i class="p"></i><i></i><i></i><i></i><i></i><i class="p"></i><i></i><i></i><i></i><i></i><i></i><i class="p"></i><i></i><i></i><i></i><i></i><i></i><i class="p"></i><i></i><i></i><i></i><i></i><i class="p"></i><i></i><i></i><i class="p"></i></div><span class="r" style="font-size:13px">80%</span>
+<span role="tooltip" style="position:absolute;right:56px;top:-30px;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:8px;background:rgba(20,21,24,0.92);color:#FFFFFF;font-size:12px;line-height:16px;white-space:nowrap">Today · paused, daily limit reached</span></div>
+<div class="tr-row"><span style="font-size:14px;line-height:20px">Google Sheets</span><div class="trk" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="r" style="font-size:13px">97%</span></div>
+<div style="display:flex;gap:16px;margin-top:12px">
+<span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:8px;height:8px;border-radius:2px;background:#1A9E5A"></span>Live</span>
+<span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:8px;height:8px;border-radius:2px;background:#C9CCD1"></span>Paused</span>
+<span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:8px;height:8px;border-radius:2px;background:#B3200F"></span>Failed</span>
+</div>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 4"><span class="cap">Free limits</span>
+<div class="card" style="padding:24px">
+<div style="display:flex;flex-direction:column;gap:2px;margin-bottom:12px"><span class="t15">Free limits today</span><span class="t13">Every allowance resets at 00:00 UTC</span></div>
+<div class="q"><div style="display:flex;justify-content:space-between"><span style="font-size:14px;line-height:20px;font-weight:500">AI requests</span><span class="t13 num">640 of 1,000</span></div><div class="qbar"><i style="width:64%"></i></div></div>
+<div class="q"><div style="display:flex;justify-content:space-between"><span style="font-size:14px;line-height:20px;font-weight:500">AI tokens</span><span class="t13 num">118K of 200K</span></div><div class="qbar"><i style="width:59%"></i></div></div>
+<div class="q"><div style="display:flex;justify-content:space-between"><span style="font-size:14px;line-height:20px;font-weight:500">News credits</span><span class="t13 num">200 of 200</span></div><div class="qbar"><i style="width:100%;background:#A3A7AE"></i></div><span class="t12">Paused until midnight. Other news sources carry on.</span></div>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 4"><span class="cap">Risk</span>
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="display:inline-flex;align-items:center;gap:8px;font-size:13px;line-height:18px;color:#5F646C"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 4.5 7.5v9l7.5 4 7.5-4v-9z"/><path d="M4.5 7.5 12 11.5l7.5-4M12 11.5v9"/></svg>Supply chain</span>
+<span class="pill" style="background:#FCE5E0;color:#A42D16">74</span>
+</div>
+<span style="font-size:20px;line-height:26px;font-weight:600;letter-spacing:-0.012em">Red Sea transit disruption</span>
+<span style="font-size:14px;line-height:20px;color:#5F646C">Fewer ships use the route, and three of your suppliers depend on it.</span>
+<div style="display:flex;justify-content:space-between;align-items:center;padding-top:14px;margin-top:4px;border-top:1px solid var(--line)"><span style="font-size:13px;line-height:18px;font-weight:500">3 suppliers · 22% of spend</span><span class="t12">1 h ago</span></div>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 4"><span class="cap">Empty and loading</span>
+<div class="card" style="padding:28px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
+<span style="display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:24px;background:rgba(20,21,24,0.05);color:#5F646C"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span>
+<span class="t15" style="margin-top:4px">No signals yet</span>
+<span style="font-size:14px;line-height:20px;color:#5F646C;max-width:240px">Signals appear when news, shipping or cyber feeds touch your suppliers.</span>
+<button type="button" style="height:44px;padding:0 18px;border:0;border-radius:22px;background:transparent;color:#1766F0;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer">Connect a source</button>
+<div style="align-self:stretch;display:flex;flex-direction:column;gap:10px;margin-top:8px;padding-top:18px;border-top:1px solid var(--line)" aria-busy="true" aria-label="Loading">
+<span class="sk" style="width:40%;height:12px"></span><span class="sk" style="width:70%;height:12px"></span><span class="sk" style="width:55%;height:12px"></span>
+</div>
+</div>
+</div>
+
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Tables</h2><p>Filters sit above the table as pills. Lines run between rows, never between columns, and numbers align on the right.</p></div>
+<div class="item"><span class="cap">Risk register</span>
+<div class="card" style="overflow:hidden">
+<div style="display:flex;align-items:center;gap:8px;padding:16px 16px 16px 20px">
+<label style="position:relative;display:flex;align-items:center;width:260px">
+<span style="position:absolute;left:14px;display:inline-flex;color:#5F646C"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg></span>
+<input type="text" aria-label="Search risks" placeholder="Search risks" style="box-sizing:border-box;width:100%;height:44px;padding:0 14px 0 38px;border:0;border-radius:10px;background:rgba(20,21,24,0.05);font:400 14px/20px Inter,-apple-system,system-ui,sans-serif;color:#141518">
+</label>
+<button type="button" class="fpill">Category<span style="color:#5F646C">All</span></button>
+<button type="button" class="fpill on">Level: High and above<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+<button type="button" class="fpill">Owner<span style="color:#5F646C">Anyone</span></button>
+<span style="flex:1"></span>
+<button type="button" class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.5h5.5V10M19.5 4.5 11 13M18.5 14v4.5a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2H10"/></svg>Export</button>
+</div>
+<div class="tg thd">
+<span class="cb" aria-hidden="true"></span>
+<span>Risk</span><span>Owner</span>
+<span style="text-align:right">Likelihood</span><span style="text-align:right">Impact</span>
+<span style="display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;color:#141518">Score<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span>
+<span style="text-align:right">14 days</span><span style="text-align:right">Updated</span>
+</div>
+<div class="tg trw"><span class="cb" aria-hidden="true"></span><span class="nm"><b>Supplier name matches a sanctions entry</b><span>R-014 · Sanctions</span></span><span class="own"><span class="av">LG</span>Legal</span><span class="r">78%</span><span class="r">5/5</span><span style="display:flex;align-items:center;justify-content:flex-end;gap:12px"><span class="meter" aria-hidden="true"><i style="background:#B3200F"></i><i style="background:#B3200F"></i><i style="background:#B3200F"></i><i style="background:#B3200F"></i></span><span class="pill" style="background:#FADBD5;color:#8F1A0B">81</span></span><svg width="64" height="20" viewBox="0 0 64 20" aria-hidden="true" style="justify-self:end"><polyline points="0,18 13,18 26,17 39,16 52,6 64,2" fill="none" stroke="#5F646C" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="t13" style="text-align:right">4 min ago</span></div>
+<div class="tg trw" style="background:#E8F0FE"><span class="cb on" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2 5 8.6 9.5 3.6"/></svg></span><span class="nm"><b>Red Sea transit disruption</b><span>R-011 · Supply chain</span></span><span class="own"><span class="av">PR</span>Procurement</span><span class="r">72%</span><span class="r">4/5</span><span style="display:flex;align-items:center;justify-content:flex-end;gap:12px"><span class="meter" aria-hidden="true"><i style="background:#DD6248"></i><i style="background:#DD6248"></i><i style="background:#DD6248"></i><i></i></span><span class="pill" style="background:#FCE5E0;color:#A42D16">74</span></span><svg width="64" height="20" viewBox="0 0 64 20" aria-hidden="true" style="justify-self:end"><polyline points="0,14 13,13 26,11 39,9 52,6 64,4" fill="none" stroke="#5F646C" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="t13" style="text-align:right">1 h ago</span></div>
+<div class="tg trw" style="background:rgba(20,21,24,0.025)"><span class="cb" aria-hidden="true"></span><span class="nm"><b>Taiwan Strait escalation</b><span>R-009 · Geopolitical</span></span><span class="own"><span class="av">PR</span>Procurement</span><span class="r">54%</span><span class="r">5/5</span><span style="display:flex;align-items:center;justify-content:flex-end;gap:12px"><span class="meter" aria-hidden="true"><i style="background:#DD6248"></i><i style="background:#DD6248"></i><i style="background:#DD6248"></i><i></i></span><span class="pill" style="background:#FCE5E0;color:#A42D16">68</span></span><svg width="64" height="20" viewBox="0 0 64 20" aria-hidden="true" style="justify-self:end"><polyline points="0,9 13,10 26,9 39,8 52,8 64,7" fill="none" stroke="#5F646C" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="t13" style="text-align:right">2 h ago</span></div>
+<div class="tg trw"><span class="cb" aria-hidden="true"></span><span class="nm"><b>Exploited flaw in a connected tool</b><span>R-016 · Cyber</span></span><span class="own"><span class="av">IT</span>IT security</span><span class="r">66%</span><span class="r">4/5</span><span style="display:flex;align-items:center;justify-content:flex-end;gap:12px"><span class="meter" aria-hidden="true"><i style="background:#DD6248"></i><i style="background:#DD6248"></i><i style="background:#DD6248"></i><i></i></span><span class="pill" style="background:#FCE5E0;color:#A42D16">61</span></span><svg width="64" height="20" viewBox="0 0 64 20" aria-hidden="true" style="justify-self:end"><polyline points="0,18 13,18 26,18 39,17 52,8 64,8" fill="none" stroke="#5F646C" stroke-width="1.5" stroke-linejoin="round"/></svg><span class="t13" style="text-align:right">2 h ago</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 12px 0 24px">
+<span class="t13">1 of 4 selected · 3 hidden by filters</span>
+<div style="display:flex;align-items:center;gap:4px"><span class="t13" style="margin-right:8px">Page 1 of 1</span>
+<button type="button" class="ib" aria-label="Previous page" disabled style="color:#A3A7AE;cursor:default"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 6.5-5.5 5.5 5.5 5.5"/></svg></button>
+<button type="button" class="ib" aria-label="Next page" disabled style="color:#A3A7AE;cursor:default"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"/></svg></button>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Charts</h2><p>Every chart is titled with what it shows. Lines are ink, red only marks risk levels, and blue never appears in data.</p></div>
+<div class="grid">
+
+<div class="item" style="grid-column:span 8"><span class="cap">Detailed trend</span>
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+<div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:20px;line-height:26px;font-weight:600;letter-spacing:-0.012em">Risk is up 12 points in 30 days</span><span class="t13">Risk index, 24 Oct to today</span></div>
+<div class="segw" role="group" aria-label="Range"><button type="button" class="sg">7D</button><button type="button" class="sg on" aria-pressed="true">30D</button><button type="button" class="sg">90D</button></div>
+</div>
+<svg viewBox="0 0 716 220" width="100%" role="img" aria-label="Risk index rose from 50 on 24 October to 62 today, crossing the elevated line at 60 on 13 November">
+<line x1="36" y1="188" x2="700" y2="188" stroke="#E6E7EA"/>
+<line x1="36" y1="130.7" x2="700" y2="130.7" stroke="#F0F1F3"/>
+<line x1="36" y1="16" x2="700" y2="16" stroke="#F0F1F3"/>
+<line x1="36" y1="73.3" x2="700" y2="73.3" stroke="#C9CCD1" stroke-dasharray="4 4"/>
+<text x="28" y="192" text-anchor="end" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">40</text>
+<text x="28" y="134.7" text-anchor="end" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">50</text>
+<text x="28" y="77.3" text-anchor="end" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">60</text>
+<text x="28" y="20" text-anchor="end" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">70</text>
+<text x="40" y="67" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">Elevated</text>
+<line x1="390.1" y1="16" x2="390.1" y2="188" stroke="#D7DADF"/>
+<text x="396" y="30" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">R-011 opened</text>
+<polygon points="36,130.7 58.1,124.9 80.3,136.4 102.4,130.7 124.5,119.2 146.7,113.5 168.8,119.2 190.9,124.9 213.1,113.5 235.2,107.7 257.3,102 279.5,107.7 301.6,96.3 323.7,102 345.9,90.5 368,96.3 390.1,84.8 412.3,90.5 434.4,84.8 456.5,79.1 478.7,84.8 500.8,73.3 522.9,79.1 545.1,67.6 567.2,73.3 589.3,67.6 611.5,73.3 633.6,61.9 655.7,67.6 677.9,84.8 700,61.9 700,188 36,188" fill="#141518" fill-opacity="0.04"/>
+<polyline points="36,130.7 58.1,124.9 80.3,136.4 102.4,130.7 124.5,119.2 146.7,113.5 168.8,119.2 190.9,124.9 213.1,113.5 235.2,107.7 257.3,102 279.5,107.7 301.6,96.3 323.7,102 345.9,90.5 368,96.3 390.1,84.8 412.3,90.5 434.4,84.8 456.5,79.1 478.7,84.8 500.8,73.3 522.9,79.1 545.1,67.6 567.2,73.3 589.3,67.6 611.5,73.3 633.6,61.9 655.7,67.6 677.9,84.8 700,61.9" fill="none" stroke="#141518" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"/>
+<line x1="545.1" y1="67.6" x2="545.1" y2="188" stroke="#141518" stroke-opacity="0.2"/>
+<rect x="503" y="30" width="84" height="24" rx="6" fill="#141518" fill-opacity="0.92"/>
+<text x="545" y="46" text-anchor="middle" font-size="11" fill="#FFFFFF" font-family="Inter, system-ui, sans-serif">16 Nov · 61</text>
+<circle cx="545.1" cy="67.6" r="4" fill="#FFFFFF" stroke="#141518" stroke-width="1.5"/>
+<circle cx="700" cy="61.9" r="5" fill="#DD6248" stroke="#FFFFFF" stroke-width="2"/>
+<text x="690" y="48" text-anchor="end" font-size="13" font-weight="600" fill="#141518" font-family="Inter, system-ui, sans-serif">62</text>
+<text x="36" y="210" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">24 Oct</text>
+<text x="257.3" y="210" text-anchor="middle" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">3 Nov</text>
+<text x="478.7" y="210" text-anchor="middle" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">13 Nov</text>
+<text x="700" y="210" text-anchor="end" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">Today</text>
+</svg>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 4"><span class="cap">Counts per day</span>
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">45 signals this week</span><span class="t13">9 more than the week before</span></div>
+<svg viewBox="0 0 320 180" width="100%" role="img" aria-label="Signals matched per day over 14 days. Last week totalled 36, this week 45, with a high of 9 on Saturday">
+<line x1="0" y1="150" x2="320" y2="150" stroke="#E6E7EA"/>
+<rect x="4" y="85" width="15" height="65" rx="3" fill="#D7DADF"/><rect x="27" y="72" width="15" height="78" rx="3" fill="#D7DADF"/><rect x="50" y="98" width="15" height="52" rx="3" fill="#D7DADF"/><rect x="73" y="85" width="15" height="65" rx="3" fill="#D7DADF"/><rect x="96" y="72" width="15" height="78" rx="3" fill="#D7DADF"/><rect x="119" y="85" width="15" height="65" rx="3" fill="#D7DADF"/><rect x="142" y="85" width="15" height="65" rx="3" fill="#D7DADF"/>
+<rect x="165" y="85" width="15" height="65" rx="3" fill="#141518"/><rect x="188" y="59" width="15" height="91" rx="3" fill="#141518"/><rect x="211" y="72" width="15" height="78" rx="3" fill="#141518"/><rect x="234" y="98" width="15" height="52" rx="3" fill="#141518"/><rect x="257" y="46" width="15" height="104" rx="3" fill="#141518"/><rect x="280" y="33" width="15" height="117" rx="3" fill="#141518"/><rect x="303" y="72" width="15" height="78" rx="3" fill="#141518"/>
+<text x="287.5" y="25" text-anchor="middle" font-size="11" font-weight="600" fill="#141518" font-family="Inter, system-ui, sans-serif">9</text>
+<text x="4" y="170" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">10 Nov</text>
+<text x="165" y="170" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">17 Nov</text>
+<text x="318" y="170" text-anchor="end" font-size="11" fill="#5F646C" font-family="Inter, system-ui, sans-serif">Today</text>
+</svg>
+<div style="display:flex;gap:16px">
+<span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:8px;height:8px;border-radius:2px;background:#141518"></span>This week</span>
+<span style="display:inline-flex;align-items:center;gap:6px" class="t12"><span style="width:8px;height:8px;border-radius:2px;background:#D7DADF"></span>Week before</span>
+</div>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 6"><span class="cap">Likelihood and impact</span>
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column;gap:4px"><span class="t15">One risk sits in the danger corner</span><span class="t13">Open risks by likelihood and impact</span></div>
+<div style="display:grid;grid-template-columns:16px minmax(0,1fr);gap:8px;align-items:center">
+<span style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;line-height:14px;color:#5F646C;text-align:center">Impact</span>
+<div class="mx" role="img" aria-label="Seven risks plotted. R-014 sits at likelihood 4 and impact 5, the highest-risk cell occupied">
+<span class="ax">5</span><div class="q5" style="background:#F2C7BD"></div><div class="q5" style="background:#F2C7BD"></div><div class="q5" style="background:#EAA392"><span class="pin" style="background:#DD6248;color:#141518">09</span></div><div class="q5" style="background:#EAA392"><span class="pin" style="background:#B3200F;color:#FFFFFF">14</span></div><div class="q5" style="background:#DE7A62"></div>
+<span class="ax">4</span><div class="q5" style="background:#F8E3DE"></div><div class="q5" style="background:#F2C7BD"></div><div class="q5" style="background:#F2C7BD"></div><div class="q5" style="background:#EAA392"><span class="pin" style="background:#DD6248;color:#141518">11</span><span class="pin" style="background:#DD6248;color:#141518">16</span></div><div class="q5" style="background:#EAA392"></div>
+<span class="ax">3</span><div class="q5" style="background:#F8E3DE"></div><div class="q5" style="background:#F8E3DE"><span class="pin" style="background:#E9A190;color:#141518">12</span></div><div class="q5" style="background:#F2C7BD"><span class="pin" style="background:#E9A190;color:#141518">07</span></div><div class="q5" style="background:#F2C7BD"></div><div class="q5" style="background:#EAA392"></div>
+<span class="ax">2</span><div class="q5" style="background:#F6F1F0"></div><div class="q5" style="background:#F8E3DE"><span class="pin" style="background:#F1D3CC;color:#141518">05</span></div><div class="q5" style="background:#F8E3DE"></div><div class="q5" style="background:#F2C7BD"></div><div class="q5" style="background:#F2C7BD"></div>
+<span class="ax">1</span><div class="q5" style="background:#F6F1F0"></div><div class="q5" style="background:#F6F1F0"></div><div class="q5" style="background:#F8E3DE"></div><div class="q5" style="background:#F8E3DE"></div><div class="q5" style="background:#F2C7BD"></div>
+<span></span><span class="ax">1</span><span class="ax">2</span><span class="ax">3</span><span class="ax">4</span><span class="ax">5</span>
+</div>
+</div>
+<span class="t12" style="text-align:center;padding-left:24px">Likelihood</span>
+</div>
+</div>
+
+<div class="item" style="grid-column:span 6"><span class="cap">Comparison by category</span>
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:4px"><span class="t15">Sanctions carries the most risk</span><span class="t13">Highest open score in each category</span></div>
+<div class="br"><span style="font-size:14px;line-height:20px">Sanctions</span><span class="bt"><i style="width:81%;background:#B3200F"></i><span>81</span></span></div>
+<div class="br"><span style="font-size:14px;line-height:20px">Supply chain</span><span class="bt"><i style="width:74%;background:#DD6248"></i><span>74</span></span></div>
+<div class="br"><span style="font-size:14px;line-height:20px">Geopolitical</span><span class="bt"><i style="width:68%;background:#DD6248"></i><span>68</span></span></div>
+<div class="br"><span style="font-size:14px;line-height:20px">Cyber</span><span class="bt"><i style="width:61%;background:#DD6248"></i><span>61</span></span></div>
+<div class="br"><span style="font-size:14px;line-height:20px">Financial</span><span class="bt"><i style="width:52%;background:#E9A190"></i><span>52</span></span></div>
+<div class="br"><span style="font-size:14px;line-height:20px">Natural hazard</span><span class="bt"><i style="width:24%;background:#F1D3CC"></i><span>24</span></span></div>
+<span class="t12" style="margin-top:8px">Bar colour is the risk level, so the order and the colour tell the same story.</span>
+</div>
+</div>
+
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3400}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

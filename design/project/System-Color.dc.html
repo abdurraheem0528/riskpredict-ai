@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Colour</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.sheet{--tx:#141518;--tx2:#5F646C;--line:#E6E7EA;width:1440px;min-height:2600px;box-sizing:border-box;padding:96px;background:#F4F5F7;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:96px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:28px}
+.sh h2{margin:0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em}
+.sh p{margin:0;font-size:14px;line-height:20px;color:var(--tx2);max-width:560px;text-align:right}
+.item{display:flex;flex-direction:column;gap:10px;min-width:0}
+.cap{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.card{background:#FFFFFF;border-radius:16px;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 1px 2px rgba(20,21,24,0.05);box-sizing:border-box}
+.t15{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.tk{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:14px;align-items:center;min-height:60px;border-top:1px solid var(--line)}
+.tk:first-child{border-top:0}
+.sw{width:28px;height:28px;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(20,21,24,0.1)}
+.tn{display:flex;flex-direction:column}
+.tn b{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em}
+.tv{font-size:13px;line-height:18px;color:#5F646C;font-variant-numeric:tabular-nums;text-align:right}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;height:56px;box-sizing:border-box;padding:0 24px;border-top:1px solid var(--line)}
+.rn{font-size:15px;line-height:20px;font-weight:500;letter-spacing:-0.006em}
+.pill{display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 10px;border-radius:13px;font-size:13px;line-height:18px;font-weight:500;font-variant-numeric:tabular-nums}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border:0;border-radius:22px;font:500 15px/20px Inter,-apple-system,system-ui,sans-serif;letter-spacing:-0.006em;cursor:pointer}
+.nv{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 12px;border-radius:10px;font-size:14px;line-height:20px}
+.meter{display:inline-flex;gap:2px;align-items:center}
+.meter i{width:3px;height:12px;border-radius:2px;background:#E6E7EA}
+.mx{display:grid;grid-template-columns:20px repeat(5,minmax(0,1fr));grid-template-rows:repeat(5,44px) 20px;gap:3px}
+.q{border-radius:6px;display:flex;align-items:center;justify-content:center;gap:4px}
+.ax{display:flex;align-items:center;justify-content:center;font-size:11px;line-height:14px;color:#5F646C;font-variant-numeric:tabular-nums}
+.pin{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 5px;box-sizing:border-box;border-radius:11px;font-size:11px;line-height:14px;font-weight:600;font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px #FFFFFF}
+.lv{padding:16px;display:flex;flex-direction:column;gap:14px}
+.lv .big{height:96px;border-radius:10px}
+.hx{display:flex;justify-content:space-between;font-size:12px;line-height:16px;color:#5F646C;font-variant-numeric:tabular-nums}
+.st{display:flex;align-items:center;gap:10px;height:52px;border-top:1px solid var(--line);font-size:14px;line-height:20px}
+.st:first-child{border-top:0}
+.m-glass{background:rgba(255,255,255,0.86);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 1px rgba(20,21,24,0.06),0 4px 16px rgba(20,21,24,0.08)}
+.m-map{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.m-ov{position:absolute;inset:0;width:100%;height:100%}
+.m-top{position:absolute;left:16px;right:16px;top:14px;display:flex;align-items:center;gap:12px;z-index:4}
+.m-caps{display:inline-flex;align-items:center;flex:0 0 auto;height:48px;border-radius:24px;box-sizing:border-box;color:#141518}
+.m-logo{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border-radius:16px;background:#141518;color:#FFFFFF}
+.m-navl{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;font-size:14px;line-height:20px;font-weight:500;white-space:nowrap;color:#141518}
+.m-navl.on{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.m-navl small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.m-dot{display:inline-block;width:6px;height:6px;border-radius:3px;background:#B3200F}
+.m-sheet{position:absolute;border-radius:20px;overflow:hidden;z-index:3;box-sizing:border-box}
+.m-sec{padding:14px 20px;border-top:1px solid rgba(20,21,24,0.07)}
+.m-sec:first-child{border-top:0}
+.m-lbl{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.m-rr{display:flex;align-items:center;gap:12px;min-height:48px;font-size:14px;line-height:20px;color:#141518}
+.m-rr svg{flex:0 0 auto;color:#5F646C}
+.m-rr b{flex:1;min-width:0;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-pill{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:34px;height:24px;padding:0 7px;box-sizing:border-box;border-radius:12px;font-size:12px;line-height:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.m-ctrl{position:absolute;display:flex;flex-direction:column;border-radius:22px;overflow:hidden;z-index:3}
+.m-mb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;color:#141518}
+.m-hr{height:1px;margin:0 10px;background:rgba(20,21,24,0.08)}
+.m-lg{position:absolute;display:inline-flex;align-items:center;gap:12px;height:44px;padding:0 18px;border-radius:22px;box-sizing:border-box;font-size:12px;line-height:16px;color:#5F646C;white-space:nowrap;z-index:3}
+.m-vr{width:1px;height:20px;background:rgba(20,21,24,0.1)}
+.m-band{position:absolute;display:flex;align-items:center;justify-content:center;background:rgba(23,102,240,0.14);color:#0F55CF;font-size:11px;line-height:14px;font-weight:600;font-variant-numeric:tabular-nums;z-index:6}
+.m-menu{position:absolute;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);z-index:5}
+.m-mi{display:flex;align-items:center;gap:12px;height:44px;margin:0 6px;padding:0 12px;border-radius:10px;font-size:14px;line-height:20px;color:#141518}
+.m-tip{position:absolute;display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;background:rgba(20,21,24,0.92);color:#FFFFFF;font-size:12px;line-height:16px;white-space:nowrap;z-index:6}
+</style>
+</helmet>
+<div class="sheet">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:24px">
+<h1 style="margin:0;font-size:40px;line-height:46px;font-weight:600;letter-spacing:-0.022em">Colour</h1>
+<span style="font-size:13px;line-height:18px;font-weight:500;color:var(--tx2)">Step 2 of 8</span>
+</div>
+<p style="margin:0;max-width:720px;font-size:15px;line-height:22px;color:var(--tx2)">Almost everything is grey. Blue means you can act. Red means risk, and it grows stronger as the risk does.</p>
+</header>
+
+<section>
+<div class="sh"><h2>Surfaces</h2><p>The map is the page. Glass floats over it, and solid white is kept for menus and dialogs.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 7"><span class="cap">Layers on a live screen</span>
+<div class="card" style="padding:24px">
+<div style="position:relative;height:480px;border-radius:12px;overflow:hidden;background:#E7ECF1;box-shadow:inset 0 0 0 1px rgba(20,21,24,0.05)">
+<img class="m-map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="">
+<svg class="m-ov" viewBox="0 0 1360 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><polyline points="1153.8,294.5 1150.1,322.4 1128.4,372.0 1100.5,415.4 1090.0,425.9 1069.5,412.3 1050.9,396.8 992.0,396.8 946.1,400.5 880.4,378.2 806.0,356.5 744.0,357.7 714.9,355.9 694.4,331.7 679.5,303.8 660.9,266.6 647.9,248.0 632.4,232.5 601.4,223.2 539.4,207.7 483.6,200.9 440.2,207.7 411.7,210.8 385.6,201.5 385.6,167.4 412.3,135.2 437.1,123.4 461.9,115.3 486.7,100.4 501.0,99.2 508.3,102.0" fill="none" stroke="#141518" stroke-opacity="0.5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><g stroke="#FFFFFF" stroke-width="2"><circle cx="789.3" cy="277.8" r="7" fill="#B3200F"/><circle cx="714.9" cy="355.9" r="8" fill="#DD6248"/><circle cx="1187.9" cy="284" r="7" fill="#DD6248"/><circle cx="1153.8" cy="294.5" r="6" fill="#E9A190"/><circle cx="944.3" cy="352.8" r="6" fill="#E9A190"/></g></svg>
+<div class="m-top"><span class="m-caps m-glass" style="gap:8px;padding:0 10px 0 8px"><span class="m-logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></span><div style="flex:1;display:flex;justify-content:center"><span class="m-caps m-glass" style="gap:2px;padding:0 2px"><span class="m-navl on">Overview</span><span class="m-navl">Register<small>7</small></span><span class="m-navl">Scenarios</span><span class="m-navl">Sources<span class="m-dot"></span></span></span></div><span class="m-caps m-glass" style="justify-content:center;width:48px;font-size:12px;line-height:16px;font-weight:600">RL</span></div>
+<div class="m-menu" style="right:16px;top:70px;width:184px" aria-hidden="true"><div class="m-mi">Profile</div><div class="m-mi">Alerts</div><div class="m-mi">Sign out</div></div>
+<div class="m-sheet m-glass" style="left:16px;top:76px;bottom:16px;width:250px">
+<div class="m-sec" style="padding-top:16px"><span class="m-lbl">Risk index · Sun 23 Nov</span><div style="display:flex;align-items:baseline;gap:8px;margin-top:4px"><span style="font-size:40px;line-height:44px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums">62</span><span style="font-size:13px;line-height:18px;font-weight:600;color:#A42D16">+4 from 58</span></div></div>
+<div class="m-sec">
+<div class="m-rr"><span class="m-pill" style="background:#FADBD5;color:#8F1A0B">81</span><b>Sanctions match</b></div>
+<div class="m-rr"><span class="m-pill" style="background:#FCE5E0;color:#A42D16">74</span><b>Red Sea transit</b></div>
+<div class="m-rr"><span class="m-pill" style="background:#FCE5E0;color:#A42D16">68</span><b>Taiwan Strait</b></div>
+<div class="m-rr"><span class="m-pill" style="background:#FBEAE6;color:#9C3522">52</span><b>Taiwan dollar +1.8%</b></div>
+</div>
+</div>
+</div>
+<span class="t12" style="display:block;margin-top:14px">The sheet and capsules are glass, so the shipping route blurs softly where it passes under the sheet. The account menu is solid white because it needs your full attention.</span>
+</div>
+</div>
+<div class="item" style="grid-column:span 5"><span class="cap">Surface tokens</span>
+<div class="card" style="padding:8px 24px">
+<div class="tk"><span class="sw" style="background:#E7ECF1"></span><span class="tn"><b>Sea</b><span class="t13">The map's water, behind everything</span></span><span class="tv">#E7ECF1</span></div>
+<div class="tk"><span class="sw" style="background:#FFFFFF;box-shadow:inset 0 0 0 1px #CFD5DC"></span><span class="tn"><b>Land</b><span class="t13">Countries, with a #CFD5DC coast</span></span><span class="tv">#FFFFFF</span></div>
+<div class="tk"><span class="sw" style="background:rgba(255,255,255,0.86)"></span><span class="tn"><b>Glass</b><span class="t13">Capsules, sheets, legend</span></span><span class="tv">white 86% · blur 24</span></div>
+<div class="tk"><span class="sw" style="background:#FFFFFF"></span><span class="tn"><b>Surface</b><span class="t13">Menus, dialogs, Jump to</span></span><span class="tv">#FFFFFF</span></div>
+<div class="tk"><span class="sw" style="background:#F4F5F7"></span><span class="tn"><b>Background</b><span class="t13">Pages without a map, like settings</span></span><span class="tv">#F4F5F7</span></div>
+<div class="tk"><span class="sw" style="background:rgba(20,21,24,0.04)"></span><span class="tn"><b>Hover</b><span class="t13">Rows and links under the pointer</span></span><span class="tv">ink 4%</span></div>
+<div class="tk"><span class="sw" style="background:#E6E7EA"></span><span class="tn"><b>Separator</b><span class="t13">Hairlines between rows</span></span><span class="tv">ink 8%</span></div>
+<div class="tk"><span class="sw" style="background:rgba(20,21,24,0.05)"></span><span class="tn"><b>Fill</b><span class="t13">Inputs and switches</span></span><span class="tv">ink 5%</span></div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Text and action</h2><p>Two greys for reading. One blue for anything you can press, follow, select or focus. Blue never appears in data or risk.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 5"><span class="cap">Text and accent tokens</span>
+<div class="card" style="padding:8px 24px">
+<div class="tk"><span class="sw" style="background:#141518"></span><span class="tn"><b>Primary text</b><span class="t13">Titles and values</span></span><span class="tv">#141518 · 18.3 : 1</span></div>
+<div class="tk"><span class="sw" style="background:#5F646C"></span><span class="tn"><b>Secondary text</b><span class="t13">Labels, sources, times</span></span><span class="tv">#5F646C · 6.0 : 1</span></div>
+<div class="tk"><span class="sw" style="background:#A3A7AE"></span><span class="tn"><b>Disabled</b><span class="t13">Controls you cannot use yet</span></span><span class="tv">#A3A7AE</span></div>
+<div class="tk"><span class="sw" style="background:#1766F0"></span><span class="tn"><b>Accent</b><span class="t13">Buttons, links, toggles</span></span><span class="tv">#1766F0 · 5.0 : 1</span></div>
+<div class="tk"><span class="sw" style="background:#0F55CF"></span><span class="tn"><b>Accent, pressed</b><span class="t13">Hover and press</span></span><span class="tv">#0F55CF</span></div>
+<div class="tk"><span class="sw" style="background:#E8F0FE"></span><span class="tn"><b>Accent tint</b><span class="t13">Selected rows, current item in a menu</span></span><span class="tv">#E8F0FE</span></div>
+<div class="tk"><span class="sw" style="background:rgba(23,102,240,0.35)"></span><span class="tn"><b>Focus ring</b><span class="t13">Keyboard focus, 3 px</span></span><span class="tv">accent 35%</span></div>
+</div>
+</div>
+<div class="item" style="grid-column:span 7"><span class="cap">In use</span>
+<div class="card" style="padding:24px;display:grid;grid-template-columns:200px minmax(0,1fr);gap:24px;align-items:start;background:#F9FAFB">
+<div style="display:flex;flex-direction:column;gap:10px">
+<div class="card" style="padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 4px 16px rgba(20,21,24,0.08)">
+<span class="nv" style="background:#E8F0FE;color:#0F55CF;font-weight:500">Overview</span>
+<span class="nv" style="color:#A3A7AE">Register</span>
+<span class="nv" style="color:#A3A7AE">Scenarios</span>
+<span class="nv">Sources</span>
+</div>
+<span class="t12">The sections menu on day one. Register and Scenarios wait for a source.</span>
+</div>
+<div class="card" style="padding:28px;display:flex;flex-direction:column;gap:12px">
+<span style="font-size:13px;line-height:18px;font-weight:500;color:#5F646C">R-011 · Supply chain</span>
+<span style="font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.02em">Red Sea transit disruption</span>
+<span style="font-size:15px;line-height:22px;color:#5F646C;letter-spacing:-0.006em">Fewer ships are using the route, and three of your suppliers depend on it.</span>
+<a href="#colour" style="font-size:15px;line-height:20px;font-weight:500;text-decoration:none">View 3 sources</a>
+<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px">
+<button type="button" class="btn" style="background:#1766F0;color:#FFFFFF">Run what-if</button>
+<button type="button" class="btn" style="background:rgba(20,21,24,0.06);color:#141518;box-shadow:0 0 0 2px #FFFFFF,0 0 0 5px rgba(23,102,240,0.35)">Acknowledge</button>
+<button type="button" class="btn" disabled style="background:rgba(20,21,24,0.04);color:#A3A7AE;cursor:default">Export</button>
+</div>
+<span class="t12">Acknowledge shows keyboard focus. Export is disabled until data finishes loading.</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Risk</h2><p>One red that grows stronger with the risk. Each level has a solid colour for charts, a pale tint behind numbers, and a text colour that stays readable on that tint.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 3"><span class="cap">Low</span>
+<div class="card lv"><div class="big" style="background:#F1D3CC"></div>
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="pill" style="background:#FBF1EF;color:#8A3B2E">24</span><span class="meter" aria-hidden="true"><i style="background:#E9A190"></i><i></i><i></i><i></i></span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span class="hx"><span>Fill</span><span>#F1D3CC</span></span><span class="hx"><span>Tint</span><span>#FBF1EF</span></span><span class="hx"><span>Text</span><span>#8A3B2E</span></span></div></div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">Medium</span>
+<div class="card lv"><div class="big" style="background:#E9A190"></div>
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="pill" style="background:#FBEAE6;color:#9C3522">52</span><span class="meter" aria-hidden="true"><i style="background:#E9A190"></i><i style="background:#E9A190"></i><i></i><i></i></span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span class="hx"><span>Fill</span><span>#E9A190</span></span><span class="hx"><span>Tint</span><span>#FBEAE6</span></span><span class="hx"><span>Text</span><span>#9C3522</span></span></div></div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">High</span>
+<div class="card lv"><div class="big" style="background:#DD6248"></div>
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="pill" style="background:#FCE5E0;color:#A42D16">74</span><span class="meter" aria-hidden="true"><i style="background:#DD6248"></i><i style="background:#DD6248"></i><i style="background:#DD6248"></i><i></i></span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span class="hx"><span>Fill</span><span>#DD6248</span></span><span class="hx"><span>Tint</span><span>#FCE5E0</span></span><span class="hx"><span>Text</span><span>#A42D16</span></span></div></div>
+</div>
+<div class="item" style="grid-column:span 3"><span class="cap">Critical</span>
+<div class="card lv"><div class="big" style="background:#B3200F"></div>
+<div style="display:flex;justify-content:space-between;align-items:center"><span class="pill" style="background:#FADBD5;color:#8F1A0B">81</span><span class="meter" aria-hidden="true"><i style="background:#B3200F"></i><i style="background:#B3200F"></i><i style="background:#B3200F"></i><i style="background:#B3200F"></i></span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><span class="hx"><span>Fill</span><span>#B3200F</span></span><span class="hx"><span>Tint</span><span>#FADBD5</span></span><span class="hx"><span>Text</span><span>#8F1A0B</span></span></div></div>
+</div>
+
+<div class="item" style="grid-column:span 7"><span class="cap">Heat, for the risk matrix</span>
+<div class="card" style="padding:24px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span class="t15">Seven open risks</span><span class="t13">Likelihood × impact</span></div>
+<div class="mx" role="img" aria-label="Seven risks plotted by likelihood and impact on a heat scale from pale to deep red">
+<span class="ax">5</span><div class="q" style="background:#F2C7BD"></div><div class="q" style="background:#F2C7BD"></div><div class="q" style="background:#EAA392"><span class="pin" style="background:#DD6248;color:#141518">09</span></div><div class="q" style="background:#EAA392"><span class="pin" style="background:#B3200F;color:#FFFFFF">14</span></div><div class="q" style="background:#DE7A62"></div>
+<span class="ax">4</span><div class="q" style="background:#F8E3DE"></div><div class="q" style="background:#F2C7BD"></div><div class="q" style="background:#F2C7BD"></div><div class="q" style="background:#EAA392"><span class="pin" style="background:#DD6248;color:#141518">11</span><span class="pin" style="background:#DD6248;color:#141518">16</span></div><div class="q" style="background:#EAA392"></div>
+<span class="ax">3</span><div class="q" style="background:#F8E3DE"></div><div class="q" style="background:#F8E3DE"><span class="pin" style="background:#E9A190;color:#141518">12</span></div><div class="q" style="background:#F2C7BD"><span class="pin" style="background:#E9A190;color:#141518">07</span></div><div class="q" style="background:#F2C7BD"></div><div class="q" style="background:#EAA392"></div>
+<span class="ax">2</span><div class="q" style="background:#F6F1F0"></div><div class="q" style="background:#F8E3DE"><span class="pin" style="background:#F1D3CC;color:#141518">05</span></div><div class="q" style="background:#F8E3DE"></div><div class="q" style="background:#F2C7BD"></div><div class="q" style="background:#F2C7BD"></div>
+<span class="ax">1</span><div class="q" style="background:#F6F1F0"></div><div class="q" style="background:#F6F1F0"></div><div class="q" style="background:#F8E3DE"></div><div class="q" style="background:#F8E3DE"></div><div class="q" style="background:#F2C7BD"></div>
+<span></span><span class="ax">1</span><span class="ax">2</span><span class="ax">3</span><span class="ax">4</span><span class="ax">5</span>
+</div>
+<div style="display:flex;align-items:center;gap:10px"><span class="t12">Unlikely, minor</span><div style="flex:1;display:flex;gap:3px;height:8px"><i style="flex:1;border-radius:2px;background:#F6F1F0"></i><i style="flex:1;border-radius:2px;background:#F8E3DE"></i><i style="flex:1;border-radius:2px;background:#F2C7BD"></i><i style="flex:1;border-radius:2px;background:#EAA392"></i><i style="flex:1;border-radius:2px;background:#DE7A62"></i></div><span class="t12">Likely, severe</span></div>
+</div>
+</div>
+<div class="item" style="grid-column:span 5"><span class="cap">Status</span>
+<div class="card" style="padding:8px 24px">
+<div class="st"><span style="width:8px;height:8px;border-radius:4px;background:#1A9E5A"></span>Google Sheets<span class="t13" style="margin-left:auto">Live · #1A9E5A</span></div>
+<div class="st"><span style="width:8px;height:8px;border-radius:4px;background:#A3A7AE"></span>NewsData<span class="t13" style="margin-left:auto">Paused, nothing is wrong</span></div>
+<div class="st"><span style="width:8px;height:8px;border-radius:4px;background:#B3200F"></span>Excel · OneDrive<span class="t13" style="margin-left:auto">Sync failed · uses Critical</span></div>
+</div>
+<span class="t12" style="margin-top:4px">Status uses the same red as Critical, because a broken source is a risk to your scores.</span>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2600}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

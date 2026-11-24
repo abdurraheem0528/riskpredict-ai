@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Icons</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&display=swap">
+<style>
+body{margin:0;background:#F4F5F7}
+a{color:#1766F0}a:hover{color:#0F55CF}
+.sheet{--tx:#141518;--tx2:#5F646C;--line:#E6E7EA;width:1440px;min-height:2360px;box-sizing:border-box;padding:96px;background:#F4F5F7;color:var(--tx);font-family:Inter,-apple-system,system-ui,sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:96px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:24px;align-items:start}
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:28px}
+.sh h2{margin:0;font-size:24px;line-height:30px;font-weight:600;letter-spacing:-0.017em}
+.sh p{margin:0;font-size:14px;line-height:20px;color:var(--tx2);max-width:560px;text-align:right}
+.item{display:flex;flex-direction:column;gap:10px;min-width:0}
+.cap{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.card{background:#FFFFFF;border-radius:16px;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 1px 2px rgba(20,21,24,0.05);box-sizing:border-box}
+.t15{font-size:15px;line-height:20px;font-weight:600;letter-spacing:-0.006em}
+.t13{font-size:13px;line-height:18px;color:#5F646C}
+.t12{font-size:12px;line-height:16px;color:#5F646C}
+.gt{margin:0 0 6px;font-size:13px;line-height:18px;font-weight:500;color:#5F646C}
+.set{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
+.ic{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;height:96px;border-radius:12px;color:#141518}
+.ic:hover{background:#F4F5F7}
+.ic span{font-size:12px;line-height:16px;color:#5F646C;text-align:center}
+.nv{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:10px;font-size:14px;line-height:20px;color:#141518}
+.nv svg{color:#5F646C;flex:0 0 auto}
+.nv.on{background:#E8F0FE;color:#0F55CF;font-weight:500}
+.nv.on svg{color:#0F55CF}
+.cbtn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border:0;border-radius:22px;background:rgba(20,21,24,0.06);color:#141518;font:500 14px/20px Inter,-apple-system,system-ui,sans-serif;cursor:pointer}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:22px;background:rgba(20,21,24,0.06);color:#141518;cursor:pointer}
+.row{display:flex;align-items:center;gap:12px;height:56px;box-sizing:border-box;padding:0 24px;border-top:1px solid var(--line)}
+.rn{flex:1;min-width:0;font-size:15px;line-height:20px;font-weight:500;letter-spacing:-0.006em}
+.pill{display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 10px;border-radius:13px;font-size:13px;line-height:18px;font-weight:500;font-variant-numeric:tabular-nums}
+.sz{display:grid;grid-template-columns:64px minmax(0,1fr);gap:16px;align-items:center;min-height:84px;border-top:1px solid var(--line)}
+.sz:first-child{border-top:0}
+.tile{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:14px;background:#F4F5F7;color:#141518}
+.tk{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:center;min-height:52px;border-top:1px solid var(--line)}
+.tk:first-child{border-top:0}
+.tk b{font-size:15px;line-height:20px;font-weight:600}
+.m-glass{background:rgba(255,255,255,0.86);backdrop-filter:saturate(180%) blur(24px);-webkit-backdrop-filter:saturate(180%) blur(24px);box-shadow:0 0 0 1px rgba(20,21,24,0.06),0 4px 16px rgba(20,21,24,0.08)}
+.m-map{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.m-ov{position:absolute;inset:0;width:100%;height:100%}
+.m-top{position:absolute;left:16px;right:16px;top:14px;display:flex;align-items:center;gap:12px;z-index:4}
+.m-caps{display:inline-flex;align-items:center;flex:0 0 auto;height:48px;border-radius:24px;box-sizing:border-box;color:#141518}
+.m-logo{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;border-radius:16px;background:#141518;color:#FFFFFF}
+.m-navl{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:22px;font-size:14px;line-height:20px;font-weight:500;white-space:nowrap;color:#141518}
+.m-navl.on{background:#FFFFFF;box-shadow:0 1px 2px rgba(20,21,24,0.1),0 0 0 0.5px rgba(20,21,24,0.06)}
+.m-navl small{font-size:12px;line-height:16px;color:#5F646C;font-weight:500}
+.m-dot{display:inline-block;width:6px;height:6px;border-radius:3px;background:#B3200F}
+.m-sheet{position:absolute;border-radius:20px;overflow:hidden;z-index:3;box-sizing:border-box}
+.m-sec{padding:14px 20px;border-top:1px solid rgba(20,21,24,0.07)}
+.m-sec:first-child{border-top:0}
+.m-lbl{font-size:12px;line-height:16px;font-weight:500;color:#5F646C}
+.m-rr{display:flex;align-items:center;gap:12px;min-height:48px;font-size:14px;line-height:20px;color:#141518}
+.m-rr svg{flex:0 0 auto;color:#5F646C}
+.m-rr b{flex:1;min-width:0;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-pill{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:34px;height:24px;padding:0 7px;box-sizing:border-box;border-radius:12px;font-size:12px;line-height:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.m-ctrl{position:absolute;display:flex;flex-direction:column;border-radius:22px;overflow:hidden;z-index:3}
+.m-mb{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;color:#141518}
+.m-hr{height:1px;margin:0 10px;background:rgba(20,21,24,0.08)}
+.m-lg{position:absolute;display:inline-flex;align-items:center;gap:12px;height:44px;padding:0 18px;border-radius:22px;box-sizing:border-box;font-size:12px;line-height:16px;color:#5F646C;white-space:nowrap;z-index:3}
+.m-vr{width:1px;height:20px;background:rgba(20,21,24,0.1)}
+.m-band{position:absolute;display:flex;align-items:center;justify-content:center;background:rgba(23,102,240,0.14);color:#0F55CF;font-size:11px;line-height:14px;font-weight:600;font-variant-numeric:tabular-nums;z-index:6}
+.m-menu{position:absolute;box-sizing:border-box;padding:6px 0;border-radius:16px;background:#FFFFFF;box-shadow:0 0 0 1px rgba(20,21,24,0.05),0 24px 48px rgba(20,21,24,0.16);z-index:5}
+.m-mi{display:flex;align-items:center;gap:12px;height:44px;margin:0 6px;padding:0 12px;border-radius:10px;font-size:14px;line-height:20px;color:#141518}
+.m-tip{position:absolute;display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;background:rgba(20,21,24,0.92);color:#FFFFFF;font-size:12px;line-height:16px;white-space:nowrap;z-index:6}
+</style>
+</helmet>
+<div class="sheet">
+
+<header style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:24px">
+<h1 style="margin:0;font-size:40px;line-height:46px;font-weight:600;letter-spacing:-0.022em">Icons</h1>
+<span style="font-size:13px;line-height:18px;font-weight:500;color:var(--tx2)">Step 4 of 8</span>
+</div>
+<p style="margin:0;max-width:720px;font-size:15px;line-height:22px;color:var(--tx2)">Thirty icons drawn for RiskPredict, one for each thing the product needs. Same grid, same pen, so they sit as calmly as the type.</p>
+</header>
+
+<section>
+<div class="sh"><h2>The set</h2><p>Outline only, with round ends. A new icon is drawn to the same rules before it ships.</p></div>
+<div class="item"><span class="cap">All thirty, at 24</span>
+<div class="card" style="padding:24px 28px;display:flex;flex-direction:column;gap:20px">
+<div><p class="gt">Navigation and status</p>
+<div class="set">
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg><span>Overview</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg><span>Signals</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 6.5h10M9.5 12h10M9.5 17.5h10"/><circle cx="5" cy="6.5" r="1.25" fill="currentColor" stroke="none"/><circle cx="5" cy="12" r="1.25" fill="currentColor" stroke="none"/><circle cx="5" cy="17.5" r="1.25" fill="currentColor" stroke="none"/></svg><span>Register</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.25"/><circle cx="6" cy="18" r="2.25"/><circle cx="18" cy="9" r="2.25"/><path d="M6 8.25v7.5M18 11.25V13a5 5 0 0 1-5 5H8.25"/></svg><span>Scenarios</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"/><path d="M14 3.5V8h4.5M9 12.5h6M9 16h4"/></svg><span>Reports</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3.5v4M15 3.5v4M6.5 7.5h11v3a5.5 5.5 0 0 1-11 0zM12 16v4.5"/></svg><span>Sources</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 15.5V11a5.5 5.5 0 0 1 11 0v4.5l1.5 2h-14zM10 20a2 2 0 0 0 4 0"/></svg><span>Alerts</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 4.7 3.4 16.8a2 2 0 0 0 1.7 3h13.8a2 2 0 0 0 1.7-3L13.7 4.7a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4"/><circle cx="12" cy="16.6" r="0.9" fill="currentColor" stroke="none"/></svg><span>Warning</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.75" r="0.9" fill="currentColor" stroke="none"/></svg><span>Info</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="7.5"/></svg><span>Live</span></div>
+</div></div>
+<div><p class="gt">Actions</p>
+<div class="set">
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg><span>Search</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5h16M7 12h10M10 17.5h4"/></svg><span>Filter</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 19.5v-15M4.5 8 8 4.5 11.5 8M16 4.5v15M12.5 16l3.5 3.5 3.5-3.5"/></svg><span>Sort</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.5h5.5V10M19.5 4.5 11 13M18.5 14v4.5a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2H10"/></svg><span>Export</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg><span>More</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg><span>Close</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><span>Done</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg><span>Expand</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.3 4.8M4.5 12a7.5 7.5 0 0 1 13.3-4.8M18 3.5v3.7h-3.7M6 20.5v-3.7h3.7"/></svg><span>Refresh</span></div>
+</div></div>
+<div><p class="gt">Risk categories and data sources</p>
+<div class="set">
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/></svg><span>Sanctions</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 4.5 7.5v9l7.5 4 7.5-4v-9z"/><path d="M4.5 7.5 12 11.5l7.5-4M12 11.5v9"/></svg><span>Supply chain</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></svg><span>Geopolitical</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="10.5" width="13" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2"/></svg><span>Cyber</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 19.5h17M5 15l4.5-4.5 3.5 3.5L19 7.5M15 7.5h4v4"/></svg><span>Financial</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9.5c1.4 0 1.4-1.5 2.8-1.5s1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5M3.5 15.5c1.4 0 1.4-1.5 2.8-1.5s1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5"/></svg><span>Natural hazard</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/></svg><span>Spreadsheet</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg><span>Database</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11.8 5.2"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg><span>Webhook</span></div>
+<div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5v-11M8 8.5l4-4 4 4M4.5 15.5v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3"/></svg><span>Upload</span></div>
+</div></div>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>In use</h2><p>Icons support a label and never replace one, except in a few universal buttons that always have a spoken name.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 8"><span class="cap">On the map</span>
+<div class="card" style="position:relative;height:520px;overflow:hidden;background:#E7ECF1">
+<img class="m-map" src="/_blob/4d062e716b2a171c1d0dfcb7c47e5ac5" alt="">
+<svg class="m-ov" viewBox="0 0 1360 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><polyline points="1153.8,294.5 1150.1,322.4 1128.4,372.0 1100.5,415.4 1090.0,425.9 1069.5,412.3 1050.9,396.8 992.0,396.8 946.1,400.5 880.4,378.2 806.0,356.5 744.0,357.7 714.9,355.9 694.4,331.7 679.5,303.8 660.9,266.6 647.9,248.0 632.4,232.5 601.4,223.2 539.4,207.7 483.6,200.9 440.2,207.7 411.7,210.8 385.6,201.5 385.6,167.4 412.3,135.2 437.1,123.4 461.9,115.3 486.7,100.4 501.0,99.2 508.3,102.0" fill="none" stroke="#141518" stroke-opacity="0.5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><g stroke="#FFFFFF" stroke-width="2"><circle cx="789.3" cy="277.8" r="7" fill="#B3200F"/><circle cx="714.9" cy="355.9" r="8" fill="#DD6248"/><circle cx="1187.9" cy="284" r="7" fill="#DD6248"/><circle cx="1153.8" cy="294.5" r="6" fill="#E9A190"/><circle cx="944.3" cy="352.8" r="6" fill="#E9A190"/></g></svg>
+<div class="m-top"><span class="m-caps m-glass" style="gap:10px;padding:0 14px 0 8px"><span class="m-logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><span style="font-size:14px;line-height:20px;font-weight:600">Atlas Electronics</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5F646C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg></span><div style="flex:1;display:flex;justify-content:center"><span class="m-caps m-glass" style="gap:2px;padding:0 2px"><span class="m-navl on">Overview</span><span class="m-navl">Register<small>7</small></span><span class="m-navl">Scenarios</span><span class="m-navl">Sources<span class="m-dot"></span></span></span></div><span class="m-caps m-glass" style="justify-content:center;width:48px;color:#5F646C"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.4-4.4"/></svg></span><span class="m-caps m-glass" style="justify-content:center;width:48px;font-size:12px;line-height:16px;font-weight:600">RL</span></div>
+<div class="m-sheet m-glass" style="left:16px;top:76px;bottom:16px;width:300px">
+<div class="m-sec" style="padding-top:16px;padding-bottom:6px"><span class="m-lbl">7 risks touch you</span></div>
+<div class="m-sec" style="border-top:0;padding-top:0">
+<div class="m-rr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Sanctions"><circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/></svg><b>Sanctions match, Gulf Components</b><span class="m-pill" style="background:#FADBD5;color:#8F1A0B">81</span></div>
+<div class="m-rr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Supply chain"><path d="M12 3.5 4.5 7.5v9l7.5 4 7.5-4v-9z"/><path d="M4.5 7.5 12 11.5l7.5-4M12 11.5v9"/></svg><b>Red Sea transit</b><span class="m-pill" style="background:#FCE5E0;color:#A42D16">74</span></div>
+<div class="m-rr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Geopolitical"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></svg><b>Taiwan Strait</b><span class="m-pill" style="background:#FCE5E0;color:#A42D16">68</span></div>
+<div class="m-rr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Cyber"><rect x="5.5" y="10.5" width="13" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2"/></svg><b>VPN gateway, exploited flaw</b><span class="m-pill" style="background:#FCE5E0;color:#A42D16">61</span></div>
+<div class="m-rr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Financial"><path d="M3.5 19.5h17M5 15l4.5-4.5 3.5 3.5L19 7.5M15 7.5h4v4"/></svg><b>Taiwan dollar +1.8%</b><span class="m-pill" style="background:#FBEAE6;color:#9C3522">52</span></div>
+<div class="m-rr"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Natural hazard"><path d="M3.5 9.5c1.4 0 1.4-1.5 2.8-1.5s1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5M3.5 15.5c1.4 0 1.4-1.5 2.8-1.5s1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5 1.4-1.5 2.8-1.5 1.4 1.5 2.8 1.5"/></svg><b>Heavy rain in Chennai</b><span class="m-pill" style="background:#FBF1EF;color:#8A3B2E">24</span></div>
+</div>
+</div>
+<div class="m-ctrl m-glass" style="right:16px;top:193px"><span class="m-mb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span class="m-hr"></span><span class="m-mb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></span><span class="m-hr"></span><span class="m-mb" style="background:rgba(20,21,24,0.05)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg></span></div>
+<span class="m-tip" role="tooltip" style="right:68px;top:291px">Fit all suppliers</span>
+<div class="m-lg m-glass" style="right:16px;bottom:16px"><span style="display:inline-flex;align-items:center;gap:8px;color:#141518"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.75" r="0.9" fill="currentColor" stroke="none"/></svg>NewsData paused until midnight</span><span class="m-vr"></span><span>8 of 9 feeds live</span></div>
+</div>
+<span class="t12" style="margin-top:4px">Sections stay words. Icons sit beside a label in rows and the legend, and stand alone only on map controls and Jump to, where each has a spoken name and a tooltip.</span>
+</div>
+<div class="item" style="grid-column:span 4"><span class="cap">Three sizes</span>
+<div class="card" style="padding:8px 24px">
+<div class="sz"><span class="tile"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><div style="display:flex;flex-direction:column"><span class="t15">24</span><span class="t13">Empty states and dialogs</span></div></div>
+<div class="sz"><span class="tile"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><div style="display:flex;flex-direction:column"><span class="t15">20</span><span class="t13">Map controls, icon buttons, banners</span></div></div>
+<div class="sz"><span class="tile"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg></span><div style="display:flex;flex-direction:column"><span class="t15">16</span><span class="t13">Inside fields, buttons and tables</span></div></div>
+</div>
+<span class="t12" style="margin-top:4px">Icons take the colour of the text beside them. Anything you can press is 44 across, whatever the icon size.</span>
+</div>
+</div>
+</section>
+
+<section>
+<div class="sh"><h2>Construction</h2><p>Every icon is drawn on the same grid with the same pen, so a new one always looks like it belongs.</p></div>
+<div class="grid">
+<div class="item" style="grid-column:span 6"><span class="cap">Signals on its grid</span>
+<div class="card" style="padding:40px;display:flex;flex-direction:column;align-items:center;gap:24px">
+<div style="position:relative;width:336px;height:336px;border-radius:12px;background-color:#FFFFFF;background-image:linear-gradient(rgba(20,21,24,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(20,21,24,0.06) 1px,transparent 1px);background-size:14px 14px;box-shadow:0 0 0 1px rgba(20,21,24,0.08)">
+<div style="position:absolute;inset:28px;border:1px dashed rgba(20,21,24,0.3)" aria-hidden="true"></div>
+<div style="position:absolute;inset:28px;border-radius:50%;border:1px solid rgba(23,102,240,0.35)" aria-hidden="true"></div>
+<svg style="position:absolute;inset:0;color:#141518" width="336" height="336" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="The Signals icon drawn large on its 24 by 24 grid"><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/><path d="M8.1 15.9a5.5 5.5 0 0 1 0-7.8M15.9 8.1a5.5 5.5 0 0 1 0 7.8M5.3 18.7a9.5 9.5 0 0 1 0-13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/></svg>
+</div>
+<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px 20px">
+<span style="display:inline-flex;align-items:center;gap:8px" class="t12"><span style="width:12px;height:12px;background-image:linear-gradient(rgba(20,21,24,0.2) 1px,transparent 1px),linear-gradient(90deg,rgba(20,21,24,0.2) 1px,transparent 1px);background-size:4px 4px"></span>24 × 24 grid</span>
+<span style="display:inline-flex;align-items:center;gap:8px" class="t12"><span style="width:12px;height:12px;box-sizing:border-box;border:1px dashed rgba(20,21,24,0.4)"></span>Drawing area 20 × 20</span>
+<span style="display:inline-flex;align-items:center;gap:8px" class="t12"><span style="width:12px;height:12px;box-sizing:border-box;border-radius:6px;border:1px solid rgba(23,102,240,0.6)"></span>Circle keyline</span>
+</div>
+</div>
+</div>
+<div class="item" style="grid-column:span 6"><span class="cap">Drawing rules</span>
+<div class="card" style="padding:8px 24px">
+<div class="tk"><b>Grid</b><span class="t13">24 × 24, with 2 clear on every side</span></div>
+<div class="tk"><b>Stroke</b><span class="t13">1.5, thinning to 1.25 at 20 and 1 at 16</span></div>
+<div class="tk"><b>Ends</b><span class="t13">Round caps and round joins</span></div>
+<div class="tk"><b>Corners</b><span class="t13">Radius 2 on boxes, matching the cards</span></div>
+<div class="tk"><b>Fill</b><span class="t13">Outline only. Small dots are the one solid shape</span></div>
+<div class="tk"><b>Balance</b><span class="t13">Circles reach the keyline, squares stop just inside it</span></div>
+<div class="tk"><b>Meaning</b><span class="t13">One icon per idea, never reused for something else</span></div>
+</div>
+</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2360}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
