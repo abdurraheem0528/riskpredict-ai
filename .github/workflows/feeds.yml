@@ -1,7 +1,8 @@
-# Fetch and store the public feeds every 15 minutes.
+# Fetch and store the public feeds every 15 minutes, then analyse them
+# (news tagging with GLiNER2 on CPU, spike detection on the stored series).
 # Skips cleanly (exit 0, with a notice) until the DATABASE_URL_FEEDS secret exists.
-# This repository is public: the CLI prints only per-source status and counts,
-# never record contents, and the secret is passed only to the steps that need it.
+# This repository is public: the CLI prints only per-source / per-step status and
+# counts, never record contents, and the secret is passed only to the steps that need it.
 name: feeds
 
 on:
@@ -14,9 +15,13 @@ on:
         required: false
         default: all
       force:
-        description: "Run sources even if their minimum interval has not passed"
+        description: "Run sources (and spike detection) even if their minimum interval has not passed"
         type: boolean
         default: false
+      analysis:
+        description: "'all', 'tagging' or 'anomalies'"
+        required: false
+        default: all
 
 permissions:
   contents: read
@@ -29,6 +34,8 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      configured: ${{ steps.secret.outputs.configured }}
     steps:
       - name: Check for database secret
         id: secret
@@ -71,3 +78,67 @@ jobs:
           SOURCES: ${{ inputs.sources || 'all' }}
           FORCE: ${{ inputs.force && '--force' || '' }}
         run: python -m jobs.run --sources "$SOURCES" $FORCE
+
+  analyse:
+    needs: fetch
+    # Runs after a fetch attempt (even a failed one: stored data can still be
+    # analysed); skipped entirely when the secret is missing.
+    if: ${{ !cancelled() && needs.fetch.outputs.configured == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      TRANSFORMERS_VERBOSITY: error
+      TOKENIZERS_PARALLELISM: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: jobs/requirements*.txt
+
+      - name: Install (CPU-only torch, then the model stack)
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.15.0
+          pip install -r jobs/requirements-model.txt
+
+      - name: Model cache key
+        id: model
+        run: echo "key=$(python -m jobs.analyse.download --cache-key)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore model
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ steps.model.outputs.key }}
+
+      # The only step that reaches Hugging Face; it runs on a cache miss only.
+      - name: Download model
+        if: steps.restore.outputs.cache-hit != 'true'
+        run: python -m jobs.analyse.download
+
+      - name: Save model
+        if: steps.restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ steps.model.outputs.key }}
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+        run: python -m jobs.migrate
+
+      - name: Analyse
+        env:
+          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+          HF_HUB_OFFLINE: "1"
+          ANALYSIS: ${{ inputs.analysis || 'all' }}
+          FORCE: ${{ inputs.force && '--force' || '' }}
+        run: python -m jobs.run --analyse --analysis "$ANALYSIS" $FORCE

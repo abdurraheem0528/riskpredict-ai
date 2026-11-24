@@ -1,0 +1,479 @@
+# ISO 3166-1 alpha-3 code, then one English name or alias per line (tab-separated).
+# kind: iso = ISO 3166-1 short name, official = ISO official name, common = ISO common name,
+#       alias = everyday form written for this project (e.g. 'Russia', 'UAE').
+# The iso/official/common rows are the ISO 3166-1 English names (taken once from the copy
+# packaged with pycountry, which this repo already uses); codes and country names are
+# factual data. Aliases were written for this project. Only whole, exact names match
+# (see jobs/analyse/places.py); ambiguous names such as 'Georgia' are refused there.
+alpha3	name	kind
+ABW	Aruba	iso
+AFG	Afghanistan	iso
+AFG	Islamic Republic of Afghanistan	official
+AGO	Angola	iso
+AGO	Republic of Angola	official
+AIA	Anguilla	iso
+ALA	Åland Islands	iso
+ALB	Albania	iso
+ALB	Republic of Albania	official
+AND	Andorra	iso
+AND	Principality of Andorra	official
+ARE	United Arab Emirates	iso
+ARE	Emirates	alias
+ARE	U.A.E.	alias
+ARE	UAE	alias
+ARG	Argentina	iso
+ARG	Argentine Republic	official
+ARM	Armenia	iso
+ARM	Republic of Armenia	official
+ASM	American Samoa	iso
+ATA	Antarctica	iso
+ATF	French Southern Territories	iso
+ATG	Antigua and Barbuda	iso
+AUS	Australia	iso
+AUT	Austria	iso
+AUT	Republic of Austria	official
+AZE	Azerbaijan	iso
+AZE	Republic of Azerbaijan	official
+BDI	Burundi	iso
+BDI	Republic of Burundi	official
+BEL	Belgium	iso
+BEL	Kingdom of Belgium	official
+BEN	Benin	iso
+BEN	Republic of Benin	official
+BES	Bonaire, Sint Eustatius and Saba	iso
+BFA	Burkina Faso	iso
+BGD	Bangladesh	iso
+BGD	People's Republic of Bangladesh	official
+BGR	Bulgaria	iso
+BGR	Republic of Bulgaria	official
+BHR	Bahrain	iso
+BHR	Kingdom of Bahrain	official
+BHS	Bahamas	iso
+BHS	Commonwealth of the Bahamas	official
+BIH	Bosnia and Herzegovina	iso
+BIH	Bosnia	alias
+BIH	Bosnia-Herzegovina	alias
+BIH	Republic of Bosnia and Herzegovina	official
+BLM	Saint Barthélemy	iso
+BLR	Belarus	iso
+BLR	Republic of Belarus	official
+BLZ	Belize	iso
+BMU	Bermuda	iso
+BOL	Bolivia, Plurinational State of	iso
+BOL	Bolivia	common
+BOL	Plurinational State of Bolivia	official
+BRA	Brazil	iso
+BRA	Federative Republic of Brazil	official
+BRB	Barbados	iso
+BRN	Brunei Darussalam	iso
+BRN	Brunei	alias
+BTN	Bhutan	iso
+BTN	Kingdom of Bhutan	official
+BVT	Bouvet Island	iso
+BWA	Botswana	iso
+BWA	Republic of Botswana	official
+CAF	Central African Republic	iso
+CAN	Canada	iso
+CCK	Cocos (Keeling) Islands	iso
+CHE	Switzerland	iso
+CHE	Swiss Confederation	official
+CHL	Chile	iso
+CHL	Republic of Chile	official
+CHN	China	iso
+CHN	People's Republic of China	official
+CIV	Côte d'Ivoire	iso
+CIV	Cote d'Ivoire	alias
+CIV	Ivory Coast	alias
+CIV	Republic of Côte d'Ivoire	official
+CMR	Cameroon	iso
+CMR	Republic of Cameroon	official
+COD	Congo, The Democratic Republic of the	iso
+COD	Congo-Kinshasa	alias
+COD	DR Congo	alias
+COD	DRC	alias
+COD	Democratic Republic of the Congo	alias
+COG	Congo	iso
+COG	Congo-Brazzaville	alias
+COG	Republic of the Congo	official
+COK	Cook Islands	iso
+COL	Colombia	iso
+COL	Republic of Colombia	official
+COM	Comoros	iso
+COM	Union of the Comoros	official
+CPV	Cabo Verde	iso
+CPV	Cape Verde	alias
+CPV	Republic of Cabo Verde	official
+CRI	Costa Rica	iso
+CRI	Republic of Costa Rica	official
+CUB	Cuba	iso
+CUB	Republic of Cuba	official
+CUW	Curaçao	iso
+CUW	Curacao	alias
+CXR	Christmas Island	iso
+CYM	Cayman Islands	iso
+CYP	Cyprus	iso
+CYP	Republic of Cyprus	official
+CZE	Czechia	iso
+CZE	Czech Republic	official
+DEU	Germany	iso
+DEU	Federal Republic of Germany	official
+DJI	Djibouti	iso
+DJI	Republic of Djibouti	official
+DMA	Dominica	iso
+DMA	Commonwealth of Dominica	official
+DNK	Denmark	iso
+DNK	Kingdom of Denmark	official
+DOM	Dominican Republic	iso
+DZA	Algeria	iso
+DZA	People's Democratic Republic of Algeria	official
+ECU	Ecuador	iso
+ECU	Republic of Ecuador	official
+EGY	Egypt	iso
+EGY	Arab Republic of Egypt	official
+ERI	Eritrea	iso
+ERI	the State of Eritrea	official
+ESH	Western Sahara	iso
+ESP	Spain	iso
+ESP	Kingdom of Spain	official
+EST	Estonia	iso
+EST	Republic of Estonia	official
+ETH	Ethiopia	iso
+ETH	Federal Democratic Republic of Ethiopia	official
+FIN	Finland	iso
+FIN	Republic of Finland	official
+FJI	Fiji	iso
+FJI	Republic of Fiji	official
+FLK	Falkland Islands (Malvinas)	iso
+FLK	Falkland Islands	alias
+FRA	France	iso
+FRA	French Republic	official
+FRO	Faroe Islands	iso
+FSM	Micronesia, Federated States of	iso
+FSM	Federated States of Micronesia	official
+FSM	Micronesia	alias
+GAB	Gabon	iso
+GAB	Gabonese Republic	official
+GBR	United Kingdom	iso
+GBR	Britain	alias
+GBR	Great Britain	alias
+GBR	U.K.	alias
+GBR	UK	alias
+GBR	United Kingdom of Great Britain and Northern Ireland	official
+GEO	Georgia	iso
+GGY	Guernsey	iso
+GHA	Ghana	iso
+GHA	Republic of Ghana	official
+GIB	Gibraltar	iso
+GIN	Guinea	iso
+GIN	Republic of Guinea	official
+GLP	Guadeloupe	iso
+GMB	Gambia	iso
+GMB	Republic of the Gambia	official
+GNB	Guinea-Bissau	iso
+GNB	Republic of Guinea-Bissau	official
+GNQ	Equatorial Guinea	iso
+GNQ	Republic of Equatorial Guinea	official
+GRC	Greece	iso
+GRC	Hellenic Republic	official
+GRD	Grenada	iso
+GRL	Greenland	iso
+GTM	Guatemala	iso
+GTM	Republic of Guatemala	official
+GUF	French Guiana	iso
+GUM	Guam	iso
+GUY	Guyana	iso
+GUY	Republic of Guyana	official
+HKG	Hong Kong	iso
+HKG	Hong Kong Special Administrative Region of China	official
+HMD	Heard Island and McDonald Islands	iso
+HND	Honduras	iso
+HND	Republic of Honduras	official
+HRV	Croatia	iso
+HRV	Republic of Croatia	official
+HTI	Haiti	iso
+HTI	Republic of Haiti	official
+HUN	Hungary	iso
+IDN	Indonesia	iso
+IDN	Republic of Indonesia	official
+IMN	Isle of Man	iso
+IND	India	iso
+IND	Republic of India	official
+IOT	British Indian Ocean Territory	iso
+IRL	Ireland	iso
+IRN	Iran, Islamic Republic of	iso
+IRN	Iran	common
+IRN	Islamic Republic of Iran	official
+IRQ	Iraq	iso
+IRQ	Republic of Iraq	official
+ISL	Iceland	iso
+ISL	Republic of Iceland	official
+ISR	Israel	iso
+ISR	State of Israel	official
+ITA	Italy	iso
+ITA	Italian Republic	official
+JAM	Jamaica	iso
+JEY	Jersey	iso
+JOR	Jordan	iso
+JOR	Hashemite Kingdom of Jordan	official
+JPN	Japan	iso
+KAZ	Kazakhstan	iso
+KAZ	Republic of Kazakhstan	official
+KEN	Kenya	iso
+KEN	Republic of Kenya	official
+KGZ	Kyrgyzstan	iso
+KGZ	Kyrgyz Republic	official
+KHM	Cambodia	iso
+KHM	Kingdom of Cambodia	official
+KIR	Kiribati	iso
+KIR	Republic of Kiribati	official
+KNA	Saint Kitts and Nevis	iso
+KNA	St Kitts and Nevis	alias
+KOR	Korea, Republic of	iso
+KOR	Republic of Korea	alias
+KOR	South Korea	common
+KWT	Kuwait	iso
+KWT	State of Kuwait	official
+LAO	Lao People's Democratic Republic	iso
+LAO	Laos	common
+LBN	Lebanon	iso
+LBN	Lebanese Republic	official
+LBR	Liberia	iso
+LBR	Republic of Liberia	official
+LBY	Libya	iso
+LCA	Saint Lucia	iso
+LCA	St Lucia	alias
+LIE	Liechtenstein	iso
+LIE	Principality of Liechtenstein	official
+LKA	Sri Lanka	iso
+LKA	Democratic Socialist Republic of Sri Lanka	official
+LSO	Lesotho	iso
+LSO	Kingdom of Lesotho	official
+LTU	Lithuania	iso
+LTU	Republic of Lithuania	official
+LUX	Luxembourg	iso
+LUX	Grand Duchy of Luxembourg	official
+LVA	Latvia	iso
+LVA	Republic of Latvia	official
+MAC	Macao	iso
+MAC	Macao Special Administrative Region of China	official
+MAC	Macau	alias
+MAF	Saint Martin (French part)	iso
+MAF	Saint Martin	alias
+MAR	Morocco	iso
+MAR	Kingdom of Morocco	official
+MCO	Monaco	iso
+MCO	Principality of Monaco	official
+MDA	Moldova, Republic of	iso
+MDA	Moldova	common
+MDA	Republic of Moldova	official
+MDG	Madagascar	iso
+MDG	Republic of Madagascar	official
+MDV	Maldives	iso
+MDV	Republic of Maldives	official
+MEX	Mexico	iso
+MEX	United Mexican States	official
+MHL	Marshall Islands	iso
+MHL	Republic of the Marshall Islands	official
+MKD	North Macedonia	iso
+MKD	Republic of North Macedonia	official
+MLI	Mali	iso
+MLI	Republic of Mali	official
+MLT	Malta	iso
+MLT	Republic of Malta	official
+MMR	Myanmar	iso
+MMR	Burma	alias
+MMR	Republic of Myanmar	official
+MNE	Montenegro	iso
+MNG	Mongolia	iso
+MNP	Northern Mariana Islands	iso
+MNP	Commonwealth of the Northern Mariana Islands	official
+MOZ	Mozambique	iso
+MOZ	Republic of Mozambique	official
+MRT	Mauritania	iso
+MRT	Islamic Republic of Mauritania	official
+MSR	Montserrat	iso
+MTQ	Martinique	iso
+MUS	Mauritius	iso
+MUS	Republic of Mauritius	official
+MWI	Malawi	iso
+MWI	Republic of Malawi	official
+MYS	Malaysia	iso
+MYT	Mayotte	iso
+NAM	Namibia	iso
+NAM	Republic of Namibia	official
+NCL	New Caledonia	iso
+NER	Niger	iso
+NER	Republic of the Niger	official
+NFK	Norfolk Island	iso
+NGA	Nigeria	iso
+NGA	Federal Republic of Nigeria	official
+NIC	Nicaragua	iso
+NIC	Republic of Nicaragua	official
+NIU	Niue	iso
+NLD	Netherlands	iso
+NLD	Kingdom of the Netherlands	official
+NOR	Norway	iso
+NOR	Kingdom of Norway	official
+NPL	Nepal	iso
+NPL	Federal Democratic Republic of Nepal	official
+NRU	Nauru	iso
+NRU	Republic of Nauru	official
+NZL	New Zealand	iso
+OMN	Oman	iso
+OMN	Sultanate of Oman	official
+PAK	Pakistan	iso
+PAK	Islamic Republic of Pakistan	official
+PAN	Panama	iso
+PAN	Republic of Panama	official
+PCN	Pitcairn	iso
+PER	Peru	iso
+PER	Republic of Peru	official
+PHL	Philippines	iso
+PHL	Republic of the Philippines	official
+PLW	Palau	iso
+PLW	Republic of Palau	official
+PNG	Papua New Guinea	iso
+PNG	Independent State of Papua New Guinea	official
+POL	Poland	iso
+POL	Republic of Poland	official
+PRI	Puerto Rico	iso
+PRK	Korea, Democratic People's Republic of	iso
+PRK	Democratic People's Republic of Korea	official
+PRK	North Korea	common
+PRT	Portugal	iso
+PRT	Portuguese Republic	official
+PRY	Paraguay	iso
+PRY	Republic of Paraguay	official
+PSE	Palestine, State of	iso
+PSE	Gaza	alias
+PSE	Gaza Strip	alias
+PSE	Palestine	alias
+PSE	Palestinian Territories	alias
+PSE	West Bank	alias
+PSE	the State of Palestine	official
+PYF	French Polynesia	iso
+QAT	Qatar	iso
+QAT	State of Qatar	official
+REU	Réunion	iso
+ROU	Romania	iso
+RUS	Russian Federation	iso
+RUS	Russia	alias
+RWA	Rwanda	iso
+RWA	Rwandese Republic	official
+SAU	Saudi Arabia	iso
+SAU	Kingdom of Saudi Arabia	official
+SDN	Sudan	iso
+SDN	Republic of the Sudan	official
+SEN	Senegal	iso
+SEN	Republic of Senegal	official
+SGP	Singapore	iso
+SGP	Republic of Singapore	official
+SGS	South Georgia and the South Sandwich Islands	iso
+SHN	Saint Helena, Ascension and Tristan da Cunha	iso
+SJM	Svalbard and Jan Mayen	iso
+SLB	Solomon Islands	iso
+SLE	Sierra Leone	iso
+SLE	Republic of Sierra Leone	official
+SLV	El Salvador	iso
+SLV	Republic of El Salvador	official
+SMR	San Marino	iso
+SMR	Republic of San Marino	official
+SOM	Somalia	iso
+SOM	Federal Republic of Somalia	official
+SPM	Saint Pierre and Miquelon	iso
+SRB	Serbia	iso
+SRB	Republic of Serbia	official
+SSD	South Sudan	iso
+SSD	Republic of South Sudan	official
+STP	Sao Tome and Principe	iso
+STP	Democratic Republic of Sao Tome and Principe	official
+SUR	Suriname	iso
+SUR	Republic of Suriname	official
+SVK	Slovakia	iso
+SVK	Slovak Republic	official
+SVN	Slovenia	iso
+SVN	Republic of Slovenia	official
+SWE	Sweden	iso
+SWE	Kingdom of Sweden	official
+SWZ	Eswatini	iso
+SWZ	Kingdom of Eswatini	official
+SWZ	Swaziland	alias
+SXM	Sint Maarten (Dutch part)	iso
+SXM	Sint Maarten	alias
+SYC	Seychelles	iso
+SYC	Republic of Seychelles	official
+SYR	Syrian Arab Republic	iso
+SYR	Syria	common
+TCA	Turks and Caicos Islands	iso
+TCD	Chad	iso
+TCD	Republic of Chad	official
+TGO	Togo	iso
+TGO	Togolese Republic	official
+THA	Thailand	iso
+THA	Kingdom of Thailand	official
+TJK	Tajikistan	iso
+TJK	Republic of Tajikistan	official
+TKL	Tokelau	iso
+TKM	Turkmenistan	iso
+TLS	Timor-Leste	iso
+TLS	Democratic Republic of Timor-Leste	official
+TLS	East Timor	alias
+TLS	Timor Leste	alias
+TON	Tonga	iso
+TON	Kingdom of Tonga	official
+TTO	Trinidad and Tobago	iso
+TTO	Republic of Trinidad and Tobago	official
+TUN	Tunisia	iso
+TUN	Republic of Tunisia	official
+TUR	Türkiye	iso
+TUR	Republic of Türkiye	official
+TUR	Turkey	alias
+TUR	Turkiye	alias
+TUV	Tuvalu	iso
+TWN	Taiwan, Province of China	iso
+TWN	Taiwan	common
+TZA	Tanzania, United Republic of	iso
+TZA	Tanzania	common
+TZA	United Republic of Tanzania	official
+UGA	Uganda	iso
+UGA	Republic of Uganda	official
+UKR	Ukraine	iso
+UMI	United States Minor Outlying Islands	iso
+URY	Uruguay	iso
+URY	Eastern Republic of Uruguay	official
+USA	United States	iso
+USA	U.S.	alias
+USA	U.S.A.	alias
+USA	US	alias
+USA	USA	alias
+USA	United States of America	official
+UZB	Uzbekistan	iso
+UZB	Republic of Uzbekistan	official
+VAT	Holy See (Vatican City State)	iso
+VAT	Vatican	alias
+VAT	Vatican City	alias
+VCT	Saint Vincent and the Grenadines	iso
+VCT	St Vincent and the Grenadines	alias
+VEN	Venezuela, Bolivarian Republic of	iso
+VEN	Bolivarian Republic of Venezuela	official
+VEN	Venezuela	common
+VGB	Virgin Islands, British	iso
+VGB	British Virgin Islands	official
+VIR	Virgin Islands, U.S.	iso
+VIR	Virgin Islands of the United States	official
+VNM	Viet Nam	iso
+VNM	Socialist Republic of Viet Nam	official
+VNM	Vietnam	common
+VUT	Vanuatu	iso
+VUT	Republic of Vanuatu	official
+WLF	Wallis and Futuna	iso
+WSM	Samoa	iso
+WSM	Independent State of Samoa	official
+YEM	Yemen	iso
+YEM	Republic of Yemen	official
+ZAF	South Africa	iso
+ZAF	Republic of South Africa	official
+ZMB	Zambia	iso
+ZMB	Republic of Zambia	official
+ZWE	Zimbabwe	iso
+ZWE	Republic of Zimbabwe	official

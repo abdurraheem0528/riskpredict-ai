@@ -1,0 +1,4 @@
+# Spike detection (jobs/analyse/anomalies.py). Small, CPU-only, no model.
+-r requirements.txt
+numpy==2.5.5
+scikit-learn==1.9.1
