@@ -36,7 +36,7 @@ needs_db = pytest.mark.skipif(not DSN, reason="TEST_DATABASE_URL not set")
 def dsn():
     with psycopg.connect(DSN, autocommit=True) as conn:
         conn.execute("DROP SCHEMA IF EXISTS feeds CASCADE")
-    assert migrate.apply(DSN) == ["001_feeds_schema", "002_seed_watch_terms", "003_analysis"]
+    assert migrate.apply(DSN) == ["001_feeds_schema", "002_seed_watch_terms", "003_analysis", "004_maintenance"]
     return DSN
 
 
@@ -49,8 +49,8 @@ def query(dsn, sql, *args):
 def test_migrations_are_idempotent(dsn):
     assert migrate.apply(dsn) == []
     assert migrate.apply(dsn, status_only=True) == []
-    terms, health = db.load_state(dsn)
-    assert len(terms) == len(DEFAULT_TERMS) and health == {}
+    terms, health, notes = db.load_state(dsn)
+    assert len(terms) == len(DEFAULT_TERMS) and health == {} and notes == {}
 
 
 @needs_db
@@ -87,7 +87,7 @@ def test_failures_keep_last_success_and_count_up(dsn):
     )[0]
     assert (status, last_ok, failures, err) == ("error", NOW, 2, "HTTP 503 from www.gdacs.org")
     assert query(dsn, "SELECT count(*) FROM feeds.events")[0][0] == 4  # failed runs delete nothing
-    _, health = db.load_state(dsn)
+    _, health, _ = db.load_state(dsn)
     assert health == {"gdacs": NOW}
 
 

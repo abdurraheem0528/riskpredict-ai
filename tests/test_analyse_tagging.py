@@ -208,3 +208,33 @@ def test_real_model_on_fixture_titles():
         assert t.event_type in tagging.EVENT_TYPES
         assert t.entities["type_guess"]["type"] in tagging.EVENT_TYPES
         assert 0 <= (t.type_confidence or 0) <= 1
+
+
+def test_bench_disk_size_follows_hf_cache_symlinks_once(tmp_path):
+    """A Hugging Face cache laid out as on disk: blobs plus snapshot symlinks."""
+    from jobs.analyse.bench import disk_bytes
+
+    repo = tmp_path / "hub" / "models--org--model"
+    blobs = repo / "blobs"
+    blobs.mkdir(parents=True)
+    (blobs / "aaa").write_bytes(b"w" * 5000)  # model.safetensors
+    (blobs / "bbb").write_bytes(b"c" * 100)  # config.json
+    elsewhere = tmp_path / "xet"  # a weights file kept outside the repo folder
+    elsewhere.mkdir()
+    (elsewhere / "ccc").write_bytes(b"x" * 700)
+    for rev in ("rev1", "rev2"):  # two revisions sharing the same blobs
+        snap = repo / "snapshots" / rev
+        snap.mkdir(parents=True)
+        (snap / "model.safetensors").symlink_to("../../blobs/aaa")
+        (snap / "config.json").symlink_to("../../blobs/bbb")
+    snap1 = repo / "snapshots" / "rev1"
+    (snap1 / "extra.bin").symlink_to(elsewhere / "ccc")
+    (snap1 / "tokenizer.json").write_bytes(b"t" * 10)  # a plain file
+    (snap1 / "hard.json").hardlink_to(snap1 / "tokenizer.json")
+    (snap1 / "broken").symlink_to("../../blobs/missing")
+    (snap1 / "loop").symlink_to(snap1, target_is_directory=True)
+
+    assert disk_bytes(str(snap1)) == 5000 + 100 + 700 + 10
+    assert disk_bytes(str(repo)) == 5000 + 100 + 700 + 10  # blobs and both snapshots, once each
+    assert disk_bytes(str(repo), str(snap1)) == 5810
+    assert disk_bytes(str(tmp_path / "nope")) == 0

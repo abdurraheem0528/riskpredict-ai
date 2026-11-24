@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from functools import lru_cache
+from pathlib import Path
 
 import pycountry
 
@@ -158,3 +159,26 @@ def locode(value: str | None) -> str | None:
     if re.fullmatch(r"[A-Z]{2}[A-Z2-9]{3}", s) and pycountry.countries.get(alpha_2=s[:2]):
         return s
     return None
+
+
+FIPS_TABLE = Path(__file__).resolve().parent / "data" / "fips_countries.tsv"
+
+
+@lru_cache(maxsize=1)
+def fips_table() -> dict[str, str]:
+    """FIPS 10-4 country code → ISO 3166-1 alpha-3 (vendored, see the file header)."""
+    out: dict[str, str] = {}
+    lines = [ln for ln in FIPS_TABLE.read_text(encoding="utf-8").splitlines() if ln and not ln.startswith("#")]
+    for line in lines[1:]:
+        fips, alpha3 = line.split("\t")
+        if fips in out or not re.fullmatch(r"[A-Z]{2}", fips) or not is_country(alpha3):
+            raise ValueError(f"bad row in {FIPS_TABLE.name}: {line!r}")
+        out[fips] = alpha3
+    return out
+
+
+def fips_alpha3(code: str | None) -> str | None:
+    """Alpha-3 for a FIPS 10-4 country code (GDELT's location codes), else ``None``."""
+    if not code:
+        return None
+    return fips_table().get(code.strip().upper())

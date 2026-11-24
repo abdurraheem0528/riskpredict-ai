@@ -48,14 +48,15 @@ def connect(dsn: str) -> Iterator[psycopg.Connection]:
 # --- reads -------------------------------------------------------------------
 
 
-def load_state(dsn: str) -> tuple[list[WatchTerm], dict[str, datetime | None]]:
-    """Enabled watch terms and each source's last successful run, in one trip."""
+def load_state(dsn: str) -> tuple[list[WatchTerm], dict[str, datetime | None], dict[str, dict]]:
+    """Enabled watch terms, each source's last successful run and the notes of
+    its last run (e.g. the GDELT file window stored), in one trip."""
     with connect(dsn) as conn, conn.cursor() as cur:
         cur.execute("SELECT kind, term, scope FROM feeds.watch_terms WHERE enabled ORDER BY id")
         terms = [WatchTerm(kind, term, scope) for kind, term, scope in cur.fetchall()]
-        cur.execute("SELECT source, last_success_at FROM feeds.source_health")
-        health = dict(cur.fetchall())
-    return terms, health
+        cur.execute("SELECT source, last_success_at, notes FROM feeds.source_health")
+        rows = cur.fetchall()
+    return terms, {s: t for s, t, _ in rows}, {s: n or {} for s, _, n in rows}
 
 
 # --- writes ------------------------------------------------------------------

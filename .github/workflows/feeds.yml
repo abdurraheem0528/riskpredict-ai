@@ -79,6 +79,14 @@ jobs:
           FORCE: ${{ inputs.force && '--force' || '' }}
         run: python -m jobs.run --sources "$SOURCES" $FORCE
 
+      # Retention for Neon's 1 GB free tier; deletes at most once a day (see jobs/prune.py),
+      # otherwise only prints the database size.
+      - name: Prune old rows
+        if: steps.secret.outputs.configured == 'true'
+        env:
+          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+        run: python -m jobs.prune
+
   analyse:
     needs: fetch
     # Runs after a fetch attempt (even a failed one: stored data can still be
