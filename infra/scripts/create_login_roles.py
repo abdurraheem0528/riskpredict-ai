@@ -82,7 +82,15 @@ def ensure_login_role(conn: psycopg.Connection, name: str, group: str, password:
             )
             done = "created"
         else:
-            conn.execute(sql.SQL("ALTER ROLE {} " + ATTRS).format(ident))
+            # A non-superuser owner (Neon's neondb_owner) may not even *clear*
+            # SUPERUSER/REPLICATION/BYPASSRLS, so only touch them when one is set;
+            # then a permission error is the right outcome.
+            wide = conn.execute(
+                "SELECT rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls "
+                "FROM pg_roles WHERE rolname = %s",
+                (name,),
+            ).fetchone()[0]
+            conn.execute(sql.SQL("ALTER ROLE {} " + (ATTRS if wide else "LOGIN INHERIT")).format(ident))
             done = "unchanged"
             if rotate:
                 conn.execute(sql.SQL("ALTER ROLE {} PASSWORD {}").format(ident, sql.Literal(password)))

@@ -44,6 +44,10 @@ CREATE TABLE biz.workspaces (
     name            text        NOT NULL CHECK (length(name) BETWEEN 1 AND 120),
     base_currency   text        CHECK (base_currency ~ '^[A-Z]{3}$'),  -- ISO 4217; NULL until the user sets it
     alert_min_score real        NOT NULL DEFAULT 60 CHECK (alert_min_score BETWEEN 0 AND 100),
+    -- Opt-in: may the worker add watch terms derived from this workspace's entities
+    -- (package names → OSV, critical supplier names → GDELT)? Those queries leave
+    -- the platform, so the default is no.
+    share_watch_terms boolean   NOT NULL DEFAULT false,
     created_at      timestamptz NOT NULL DEFAULT now(),
     updated_at      timestamptz NOT NULL DEFAULT now()
 );

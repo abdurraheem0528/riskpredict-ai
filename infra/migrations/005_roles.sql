@@ -20,8 +20,11 @@ BEGIN
     FOREACH r IN ARRAY ARRAY['rp_feeds', 'rp_app', 'rp_definer'] LOOP
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
             EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS', r);
-        ELSE
-            -- Re-assert the attributes in case someone changed them by hand.
+        ELSIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r AND (rolcanlogin OR rolsuper OR rolcreatedb
+                      OR rolcreaterole OR rolreplication OR rolbypassrls)) THEN
+            -- Someone widened the role by hand: put it back. (Only when needed: a
+            -- non-superuser owner may not touch SUPERUSER/REPLICATION/BYPASSRLS at all,
+            -- so on such a role this fails the migration, which is what we want.)
             EXECUTE format('ALTER ROLE %I NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS', r);
         END IF;
     END LOOP;

@@ -1,6 +1,6 @@
 # Tests on every pull request: parsers against saved real responses, analysis
-# logic (tagging model mocked), and the migrations + writers against a throwaway
-# Postgres 16. No network fetches and no model download (except the one USGS
+# logic (tagging model mocked), the migrations, writers and biz row-level security
+# against a throwaway Postgres 16, and the API contract (docs/contracts). No network fetches and no model download (except the one USGS
 # dry run in fetch-only, which checks the fetch job's install works end to end).
 name: ci
 
@@ -39,8 +39,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: jobs/requirements*.txt
-      - run: pip install -r jobs/requirements-dev.txt
+          cache-dependency-path: |
+            jobs/requirements*.txt
+            docs/contracts/requirements.txt
+      - run: pip install -r jobs/requirements-dev.txt -r docs/contracts/requirements.txt
       - run: python -m pytest -v
 
   # The scheduled fetch job installs only jobs/requirements.txt; make sure the
@@ -75,3 +77,22 @@ jobs:
         run: docker build -f jobs/Dockerfile -t riskpredict-jobs:ci .
       - name: Dry run inside the image (CLI wiring only, no network)
         run: docker run --rm --network none --entrypoint python riskpredict-jobs:ci -m jobs.run --help
+
+  # The API contract: lint it, and check that TypeScript types generate from it
+  # and compile (the dashboard uses the same generator).
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Lint openapi.yaml (Redocly)
+        run: npx --yes @redocly/cli@2.76.0 lint --config docs/contracts/redocly.yaml docs/contracts/openapi.yaml
+      - name: Generate TypeScript types
+        run: npx --yes openapi-typescript@7.13.0 docs/contracts/openapi.yaml -o "$RUNNER_TEMP/openapi.d.ts"
+      - name: Type-check them
+        run: npx --yes -p typescript@6.0.3 tsc --noEmit --strict "$RUNNER_TEMP/openapi.d.ts"
