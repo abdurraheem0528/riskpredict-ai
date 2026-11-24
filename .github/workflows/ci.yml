@@ -1,6 +1,7 @@
 # Tests on every pull request: parsers against saved real responses, analysis
 # logic (tagging model mocked), and the migrations + writers against a throwaway
-# Postgres 16. No network fetches and no model download.
+# Postgres 16. No network fetches and no model download (except the one USGS
+# dry run in fetch-only, which checks the fetch job's install works end to end).
 name: ci
 
 on:
@@ -41,6 +42,27 @@ jobs:
           cache-dependency-path: jobs/requirements*.txt
       - run: pip install -r jobs/requirements-dev.txt
       - run: python -m pytest -v
+
+  # The scheduled fetch job installs only jobs/requirements.txt; make sure the
+  # fetch path never needs the analysis deps (numpy, scikit-learn, torch).
+  fetch-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: jobs/requirements.txt
+      - run: pip install -r jobs/requirements.txt
+      - name: Import without analysis deps
+        run: python -c "import sys, jobs.run; assert 'numpy' not in sys.modules, 'jobs.run imported numpy'"
+      - run: python -m jobs.run --help
+      - name: Dry run one source (exits 0 even if the feed is down; fails only on a crash)
+        run: python -m jobs.run --dry-run --sources usgs
 
   docker:
     runs-on: ubuntu-latest

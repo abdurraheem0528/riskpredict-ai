@@ -22,18 +22,22 @@ import argparse
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 import psycopg
 
 from jobs import db
-from jobs.analyse import runner as analyse
-from jobs.analyse import store as analyse_store
-from jobs.analyse.tagging import TAG_SOURCES
 from jobs.connectors import CONNECTORS
 from jobs.connectors.base import RunContext
 from jobs.http import make_client
 from jobs.models import FetchResult, Status
 from jobs.watch_defaults import DEFAULT_TERMS
+
+# jobs.analyse needs numpy/scikit-learn (requirements-analyse.txt), which the
+# fetch-only install (requirements.txt) does not have, so it is imported only
+# on the --analyse path.
+if TYPE_CHECKING:
+    from jobs.analyse.runner import AnalysisResult
 
 # GitHub's scheduler often starts runs late; don't skip a source for that.
 SCHEDULE_SLACK = timedelta(minutes=3)
@@ -88,6 +92,8 @@ def print_table(results: list[FetchResult], written: dict[str, int | str] | None
 
 
 def parse_steps(value: str) -> list[str]:
+    from jobs.analyse import runner as analyse
+
     if value.strip().lower() == "all":
         return list(analyse.STEPS)
     steps = [n.strip().lower() for n in value.split(",") if n.strip()]
@@ -96,7 +102,7 @@ def parse_steps(value: str) -> list[str]:
     return list(dict.fromkeys(steps))
 
 
-def print_analysis(results: list[analyse.AnalysisResult], out=None) -> None:
+def print_analysis(results: list[AnalysisResult], out=None) -> None:
     """Status and counts per step; notes hold only counts keyed by rule/type names."""
     out = out or sys.stdout
     header = f"{'analysis':<10} {'status':<21} {'inputs':>7} {'outputs':>8} {'ms':>8}  note"
@@ -112,13 +118,20 @@ def print_analysis(results: list[analyse.AnalysisResult], out=None) -> None:
             print(f"  {r.name}: " + ", ".join(f"{k}={v}" for k, v in sorted(r.notes.items())), file=out)
 
 
-# Replaced in tests with a fake model.
-load_model = analyse.default_loader
+def load_model():
+    """Load the tagging model. Replaced in tests with a fake model."""
+    from jobs.analyse import runner as analyse
+
+    return analyse.default_loader()
 
 
 def run_analysis(args, names: list[str], now: datetime) -> int:
-    steps: list[str] = args.analysis
-    results: list[analyse.AnalysisResult] = []
+    from jobs.analyse import runner as analyse
+    from jobs.analyse import store as analyse_store
+    from jobs.analyse.tagging import TAG_SOURCES
+
+    steps: list[str] = args.analysis or parse_steps("all")
+    results: list[AnalysisResult] = []
 
     if args.dry_run:
         fetched = fetch_all(names, RunContext(now=now, watch_terms=list(DEFAULT_TERMS)))
@@ -194,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--strict", action="store_true", help="exit 1 if any source errors")
     parser.add_argument("--analyse", action="store_true", help="tag events and detect spikes (no fetching)")
     parser.add_argument(
-        "--analysis", type=parse_steps, default="all", help="with --analyse: 'all', 'tagging' or 'anomalies'"
+        "--analysis", type=parse_steps, default=None, help="with --analyse: 'all', 'tagging' or 'anomalies'"
     )
     args = parser.parse_args(argv)
     names: list[str] = args.sources  # argparse also runs `type` on the string default
