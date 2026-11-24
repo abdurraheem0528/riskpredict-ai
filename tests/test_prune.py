@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import psycopg
 import pytest
+from conftest import reset_database
 
 from jobs import db, migrate, prune
 from jobs.models import Event, FetchResult, SeriesPoint, Status
@@ -18,8 +19,7 @@ pytestmark = pytest.mark.skipif(not DSN, reason="TEST_DATABASE_URL not set")
 
 @pytest.fixture
 def dsn():
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute("DROP SCHEMA IF EXISTS feeds CASCADE")
+    reset_database(DSN)
     migrate.apply(DSN)
     return DSN
 
