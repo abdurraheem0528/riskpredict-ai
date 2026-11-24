@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 import psycopg
 import pytest
-from conftest import fixture_json
+from conftest import fixture_json, reset_database
 
 from jobs import db, migrate
 from jobs.connectors import gdacs, usgs
@@ -34,9 +34,11 @@ needs_db = pytest.mark.skipif(not DSN, reason="TEST_DATABASE_URL not set")
 
 @pytest.fixture
 def dsn():
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute("DROP SCHEMA IF EXISTS feeds CASCADE")
-    assert migrate.apply(DSN) == ["001_feeds_schema", "002_seed_watch_terms", "003_analysis", "004_maintenance"]
+    reset_database(DSN)
+    assert migrate.apply(DSN) == [
+        "001_feeds_schema", "002_seed_watch_terms", "003_analysis", "004_maintenance",
+        "005_roles", "006_biz_schema", "007_biz_lookups",
+    ]  # fmt: skip
     return DSN
 
 

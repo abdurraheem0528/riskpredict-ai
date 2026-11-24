@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 import psycopg
 import pytest
-from conftest import fixture_bytes, fixture_json
+from conftest import fixture_bytes, fixture_json, reset_database
 from test_analyse_tagging import FakeModel, result
 
 from jobs import db, migrate, run
@@ -26,8 +26,7 @@ MODEL, VERSION = "fake/gliner2", tagging.model_version(FakeModel.revision)
 
 @pytest.fixture
 def dsn():
-    with psycopg.connect(DSN, autocommit=True) as conn:
-        conn.execute("DROP SCHEMA IF EXISTS feeds CASCADE")
+    reset_database(DSN)
     migrate.apply(DSN)
     return DSN
 
