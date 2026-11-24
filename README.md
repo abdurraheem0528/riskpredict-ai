@@ -19,7 +19,8 @@ business's own connected tools and shows the result on a map-first dashboard.
 | Part | Where it runs | Status |
 |---|---|---|
 | `jobs/` – fetch and normalise public feeds | GitHub Actions (`.github/workflows/feeds.yml`) | **step 1** |
-| `infra/migrations/` – SQL for the `feeds` schema | applied by `python -m jobs.migrate` | **step 1** |
+| `jobs/analyse/` – news tagging (GLiNER2) and spike detection | GitHub Actions, after each fetch | **step 2** |
+| `infra/migrations/` – SQL for the `feeds` schema | applied by `python -m jobs.migrate` | **steps 1–2** |
 | `api/` – FastAPI for business data | Northflank Sandbox | later |
 | `worker/` – business data sync and analysis | Northflank Sandbox | later |
 | `web/` – dashboard | Cloudflare Pages | later |
@@ -51,6 +52,67 @@ software, severity 0–1, position, source, raw id) or a **series point**
 `feeds.source_health` with the source's status (`ok`, `empty`, `partial`,
 `throttled`, `error`, `skipped`), last success and last error.
 
+## Analysis (step 2)
+
+`python -m jobs.run --analyse` reads what is stored, analyses it and writes the
+results to their own tables. It never changes a field in `feeds.events` or
+`feeds.series`.
+
+**News tagging** (`feeds.event_tags`). [GLiNER2](https://github.com/fastino-ai/GLiNER2)
+(`fastino/gliner2-base-v1`, Apache-2.0) runs on CPU. One pass per title extracts
+companies, places and commodities, and picks one event type from a fixed set:
+`conflict`, `protest`, `sanctions`, `trade_policy`, `port_shipping_disruption`,
+`natural_hazard`, `cyber_incident`, `labour_action`, `financial_stress`, `other`.
+
+* **What gets tagged:** English GDELT titles first, then GDACS, EONET and OFAC titles.
+* **Event type:** GDACS and EONET keep `natural_hazard` and OFAC keeps `sanctions`,
+  because the source already says so (`type_source = 'source'`). The model's own guess
+  is still stored as `entities.type_guess`. A GDELT title gets the model's type when its
+  confidence is at least 0.4, otherwise `other`.
+* **Places:** a place becomes an ISO 3166-1 alpha-3 code only when the whole name
+  exactly matches a country name or alias in `jobs/analyse/data/countries.tsv`.
+  "Texas", "Red Sea", "Georgia" and "Congo" stay unmatched. There is no geocoding service.
+* **What gets re-tagged:** an event is tagged again only when its title changes, or when
+  `model_version` changes. `model_version` is the model revision plus a hash of the
+  label schema.
+* **Limits per run:** at most 2,000 events and a 540-second budget, so the job fits
+  in 15 minutes.
+
+**Spike detection** (`feeds.anomalies`). For every stored series key, and for daily
+GDELT article counts per watch term, each recent point gets a **robust z-score**: its
+distance from the median of the trailing window, divided by 1.4826 × MAD. A point is
+flagged at |z| ≥ 3.5. An **IsolationForest** gives a second opinion when there is
+enough history. Each method writes its own rows.
+
+| Series | Window | Min. points | Scored on | Direction |
+|---|---|---|---|---|
+| `fx.rate` | 90 days | 40 (forest: 55) | daily log returns | both |
+| `portwatch.*` | 90 days | 30 (forest: 60) | level | both |
+| `gdelt.articles` (per watch term) | 30 days | 14 (forest: 25) | daily count | rises only |
+| `wb.*` (annual) | 10 years | 8 | level | both |
+| `epss.score` | – | – | not scored | – |
+
+* **Too little history:** keys with too few points are never flagged. They are
+  recorded as `insufficient_history` in `feeds.analysis_status`, which works like
+  `source_health` (one row per job and one per key).
+* **EPSS:** scores are only stored when they are ≥ `EPSS_MIN_SCORE`, so the
+  history is censored and EPSS is not scored.
+* **GDELT gaps:** a day with no stored GDELT article at all counts as an outage, not
+  as zero. Note that the counts are articles *stored*, which is a proxy for news volume.
+* **How often:** spike detection runs at most every 6 hours (`--force` overrides);
+  tagging runs every time.
+
+```bash
+pip install -r jobs/requirements-analyse.txt          # spike detection only
+pip install --index-url https://download.pytorch.org/whl/cpu torch==2.15.0
+pip install -r jobs/requirements-model.txt            # + the tagging model stack
+python -m jobs.run --analyse --dry-run                # fetch live, analyse in memory, store nothing
+python -m jobs.run --analyse --analysis anomalies     # one step only
+python -m jobs.analyse.bench                          # model size, peak RAM, time per 100 events
+```
+
+Without the model libraries, tagging reports `skipped` and spike detection still runs.
+
 ## Running
 
 ```bash
@@ -68,13 +130,22 @@ python -m jobs.run --sources all                    # skips sources not due yet
 python -m jobs.run --sources usgs,gdacs --force
 ```
 
-Self-hosted, with Postgres 16 in Docker: `docker compose up -d --build`.
+Self-hosted, with Postgres 16 in Docker: `docker compose up -d --build`. The
+container runs spike detection after every fetch. To include tagging, build with
+`--build-arg WITH_MODEL=true`, which adds CPU torch and the model libraries.
 
 ### GitHub Actions
 
 * `feeds.yml` runs every 15 minutes (and on demand). It exits cleanly with a notice
-  until the `DATABASE_URL_FEEDS` repository secret is set.
-* `ci.yml` runs the tests (including a Postgres 16 service) and a Docker build on pull requests.
+  until the `DATABASE_URL_FEEDS` repository secret is set. Its `analyse` job runs after
+  the fetch:
+  * It installs CPU-only torch and restores the model from `actions/cache`.
+  * It downloads the model from Hugging Face only on a cache miss.
+  * It then runs with `HF_HUB_OFFLINE=1`.
+* `model-bench.yml` (manual only) runs `jobs.analyse.bench` on GitHub's runner. It
+  prints only the model size, peak RAM, seconds per 100 events and tags per type.
+* `ci.yml` runs the tests (including a Postgres 16 service) and a Docker build on pull
+  requests. The tagging model is mocked there, so nothing is downloaded.
 
 The repository is public, so job logs only ever show per-source status, counts and timings.
 
@@ -84,5 +155,8 @@ The repository is public, so job logs only ever show per-source status, counts a
   short-lived connections only (one to read state, one to write), but a 15-minute
   schedule still keeps a 0.25 CU compute awake roughly 6 of every 15 minutes:
   about 60–75 of the 100 free CU-hours a month, before the API and worker add theirs.
+* The `analyse` job uses the same short connections, right after the fetch, while
+  the compute is still awake. Tags add about one row per tagged event, and anomaly
+  rows exist only for flagged points.
 * Unchanged records are not rewritten (`IS DISTINCT FROM` upserts), so repeated runs
   add little write load or storage. One full run currently stores about 19k rows (~14 MB).

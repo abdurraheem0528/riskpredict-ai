@@ -36,7 +36,7 @@ needs_db = pytest.mark.skipif(not DSN, reason="TEST_DATABASE_URL not set")
 def dsn():
     with psycopg.connect(DSN, autocommit=True) as conn:
         conn.execute("DROP SCHEMA IF EXISTS feeds CASCADE")
-    assert migrate.apply(DSN) == ["001_feeds_schema", "002_seed_watch_terms"]
+    assert migrate.apply(DSN) == ["001_feeds_schema", "002_seed_watch_terms", "003_analysis"]
     return DSN
 
 

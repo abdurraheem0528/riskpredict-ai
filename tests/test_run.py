@@ -85,3 +85,53 @@ def test_is_due():
     assert not run.is_due("worldbank", now - timedelta(hours=2), now)
     assert run.is_due("worldbank", now - timedelta(hours=23, minutes=58), now)  # schedule slack
     assert run.is_due("usgs", now - timedelta(minutes=13), now)
+
+
+# --- --analyse ---------------------------------------------------------------
+
+
+def test_analyse_dry_run_tags_in_memory_and_prints_counts_only(offline, capsys, monkeypatch):
+    from test_analyse_tagging import FakeModel
+
+    monkeypatch.delenv("DATABASE_URL_FEEDS", raising=False)
+    monkeypatch.setattr(run, "load_model", lambda: FakeModel())
+    assert run.main(["--analyse", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "\ntagging    ok" in out
+    # Each step-1 fixture holds a few days at most, so nothing can be scored yet.
+    assert "\nanomalies  insufficient_history" in out
+    assert "dry run, nothing written" in out
+    for leaked in ("Stock Market", "Indonesia", "H N B TRADING", "Tennessee", "EUR/USD", "MOZ", "CVE-2026-76466"):
+        assert leaked not in out
+
+
+def test_analyse_without_model_libraries_skips_tagging(offline, capsys, monkeypatch):
+    import sys
+
+    from jobs.analyse import tagging
+
+    for name in ("torch", "gliner2"):
+        monkeypatch.setitem(sys.modules, name, None)
+    monkeypatch.setattr(run, "load_model", tagging.Gliner2Model)
+    assert run.main(["--analyse", "--dry-run", "--analysis", "tagging"]) == 0
+    out = capsys.readouterr().out
+    assert "skipped" in out and "model libraries not installed" in out
+
+
+def test_analyse_needs_database_url(monkeypatch, capsys):
+    monkeypatch.delenv("DATABASE_URL_FEEDS", raising=False)
+    assert run.main(["--analyse"]) == 2
+    assert "DATABASE_URL_FEEDS is not set" in capsys.readouterr().err
+
+
+def test_analyse_bad_database_url_does_not_echo_it(monkeypatch, capsys):
+    monkeypatch.setenv("DATABASE_URL_FEEDS", "postgresql://user:hunter2@127.0.0.1:1/db")
+    assert run.main(["--analyse"]) == 1
+    captured = capsys.readouterr()
+    assert "hunter2" not in captured.out + captured.err
+
+
+def test_unknown_analysis_step_is_rejected(capsys):
+    with pytest.raises(SystemExit):
+        run.main(["--analyse", "--analysis", "nope"])
+    assert "choose from: all, tagging, anomalies" in capsys.readouterr().err

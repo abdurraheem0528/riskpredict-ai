@@ -1,2 +1,3 @@
--r requirements.txt
+# Tests. The tagging model is mocked, so torch and gliner2 are not needed.
+-r requirements-analyse.txt
 pytest==9.2.0

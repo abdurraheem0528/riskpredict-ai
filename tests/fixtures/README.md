@@ -1,7 +1,7 @@
 # Test fixtures
 
 Every file here is a real response from the public source, fetched live on
-2026-11-23 while building step 1. Nothing is hand-written. Where the API could
+2026-11-23 while building step 1 (or on 2026-11-24 for step 2, marked below). Nothing is hand-written. Where the API could
 not return a small response, the real response was **trimmed**: whole records
 were dropped, and the records that remain are byte-for-byte unchanged.
 
@@ -20,6 +20,7 @@ were dropped, and the records that remain are byte-for-byte unchanged.
 | `usgs_4.5_day.geojson` | `earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson` | no |
 | `eonet_events.json` | `eonet.gsfc.nasa.gov/api/v3/events?status=open&days=30&limit=5` | no |
 | `frankfurter_latest.json` | `api.frankfurter.dev/v1/latest?base=EUR` | no |
+| `frankfurter_history.json` (step 2) | `api.frankfurter.dev/v1/2026-05-01..2026-11-20?base=EUR&symbols=USD,TRY,JPY,CHF` (146 business days, for spike detection) | no |
 | `frankfurter_range.json` | `api.frankfurter.dev/v1/2026-11-19..2026-11-20?base=EUR` | no |
 | `worldbank_page1.json`, `worldbank_last_page.json` | `api.worldbank.org/v2/country/all/indicator/FP.CPI.TOTL.ZG?format=json&mrv=1&per_page=4&page=1` / `page=67` | no |
 | `worldbank_error.json` | same API with an unknown indicator code | no |

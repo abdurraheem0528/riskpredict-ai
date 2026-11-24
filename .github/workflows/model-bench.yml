@@ -1,0 +1,70 @@
+# Measure the tagging model on GitHub's runner (manual only).
+# Runs jobs.analyse.bench on the saved real fixture titles in tests/fixtures and
+# prints only four aggregates: model size on disk, peak RAM, seconds per 100
+# events and the number of tags per event type. No secrets, no database.
+name: model-bench
+
+on:
+  workflow_dispatch:
+    inputs:
+      events:
+        description: "Events in the timing run (fixture titles are cycled up to this count)"
+        required: false
+        default: "100"
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      TRANSFORMERS_VERBOSITY: error
+      TOKENIZERS_PARALLELISM: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: jobs/requirements*.txt
+
+      - name: Install (CPU-only torch, then the model stack)
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.15.0
+          pip install -r jobs/requirements-model.txt
+
+      - name: Model cache key
+        id: model
+        run: echo "key=$(python -m jobs.analyse.download --cache-key)" >> "$GITHUB_OUTPUT"
+
+      # Same cache as the feeds workflow, so a bench run also warms it.
+      - name: Restore model
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ steps.model.outputs.key }}
+
+      - name: Download model
+        if: steps.restore.outputs.cache-hit != 'true'
+        run: python -m jobs.analyse.download
+
+      - name: Save model
+        if: steps.restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ steps.model.outputs.key }}
+
+      - name: Benchmark
+        env:
+          HF_HUB_OFFLINE: "1"
+          EVENTS: ${{ inputs.events }}
+        run: python -m jobs.analyse.bench --n "$EVENTS"
