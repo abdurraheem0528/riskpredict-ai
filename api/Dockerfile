@@ -1,7 +1,7 @@
 # API service. Build from the repository root:
 #   docker build -f api/Dockerfile -t riskpredict-api .
-# The engine/ package (session C) is copied in when it exists; until then the
-# API runs without it (scenarios report that the engine is not installed).
+# The engine/ package (session C) is copied in with its requirements; without it
+# the API still runs (scenarios report that the engine is not installed).
 FROM python:3.12-slim AS source
 WORKDIR /src
 COPY . .

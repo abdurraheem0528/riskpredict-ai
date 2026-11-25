@@ -15,7 +15,7 @@ from api import pagination
 from api.context import WsCtx
 from api.core import engine as engine_iface
 from api.core import serialize as ser
-from api.core.errors import not_found
+from api.core.errors import invalid, not_found
 
 log = logging.getLogger("riskpredict.scenarios")
 router = APIRouter(tags=["scenarios"])
@@ -125,6 +125,13 @@ def run_scenario(body: NewScenario, ctx: WsCtx) -> dict:
                 results = eng.run_scenario(conn, ctx.workspace_id, engine_inputs(eng, inputs))
             version = (results or {}).get("engine_version") or getattr(eng, "ENGINE_VERSION", None)
         except Exception as exc:  # report, don't crash: the row records the failure
+            scenario_error = getattr(eng, "ScenarioError", None)
+            if scenario_error is not None and isinstance(exc, scenario_error):
+                # Bad inputs (e.g. an entity that is not in this workspace); the engine's
+                # message is safe to show (risk-engine.md §2). Keep no row for them.
+                with ctx.tx("editor") as conn:
+                    conn.execute("DELETE FROM biz.scenarios WHERE id = %s", (sid,))
+                raise invalid([{"field": "/inputs", "message": str(exc)[:300]}], "the scenario inputs are not valid") from None
             log.warning("scenario run failed (%s)", type(exc).__name__)
             error = "the scenario could not be run"
             results = None

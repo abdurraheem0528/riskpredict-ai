@@ -1,7 +1,6 @@
 # Worker service. Build from the repository root:
 #   docker build -f worker/Dockerfile -t riskpredict-worker .
-# It imports the shared code in api/core (no FastAPI needed) and, once session C
-# has merged, the engine/ package.
+# It imports the shared code in api/core (no FastAPI needed) and the engine/ package.
 FROM python:3.12-slim AS source
 WORKDIR /src
 COPY . .

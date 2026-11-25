@@ -10,8 +10,9 @@ pip install -r worker/requirements.txt
 python -m worker
 ```
 
-It imports `api.core` (shared code, no FastAPI) and, lazily, `engine` (session C). Until
-`engine/` exists the worker still syncs sources and logs once that scoring is skipped.
+It imports `api.core` (shared code, no FastAPI) and, lazily, `engine` (session C). If the
+package is missing from an image, the worker still syncs sources and logs once that scoring
+is skipped.
 
 ## What wakes it
 
