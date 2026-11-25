@@ -1,4 +1,4 @@
-# `feeds` schema (as on `main`, migrations 001–004 and 030)
+# `feeds` schema (as on `main`, migrations 001–004, 030, 040 and 041)
 
 The public-data side, written only by the GitHub Actions jobs (`rp_feeds`) and read by
 the API, worker and risk engine (`rp_app`, SELECT only). Nothing here belongs to a
@@ -49,7 +49,7 @@ Indexes: `published_at DESC`; `(type, published_at DESC)`; GIN on `countries`, `
 
 | `source` | Every | `type` | `raw_id` | Keys filled | `severity` | `attrs` keys |
 |---|---|---|---|---|---|---|
-| `gdelt` | 15 min | `news` | sha256(url)[:32] | none (publisher country is in attrs, **not** `countries`) | – | `query` (the watch term), `domain`, `language`, `sourcecountry` |
+| `gdelt` | 15 min | `news` | sha256(url)[:32] | none (publisher country is in attrs, **not** `countries`) | – | `query` (the watch term), `themes` (for a `theme:` term: the GKG theme codes of that term the article carries), `domain`, `language`, `sourcecountry` (DOC API) or `tone`, `gkg_id` (file feed), `feed` (`gkg`/`doc`) |
 | `gdacs` | 15 min | `hazard.earthquake` / `tropical_cyclone` / `flood` / `volcano` / `drought` / `wildfire` / `tsunami` (else the lower-cased GDACS code) | `<TYPE>-<eventid>-<episodeid>` | countries, lat/lon | GDACS alert score / 3 (Green ⅓, Orange ⅔, Red 1) | `alert_level`, `alert_score`, `episode_alert_level`, `to_date`, `modified`, `is_current`, `severity_text`, `glide` |
 | `usgs` | 15 min | `hazard.earthquake` (M4.5+, past day) | USGS id | countries (only if the place text ends in a country or US state), lat/lon | USGS `sig` / 1000, clipped | `magnitude`, `mag_type`, `depth_km`, `place`, `alert`, `tsunami`, `sig`, `status`, `updated` |
 | `eonet` | 30 min | `hazard.<category>`: wildfire, volcano, severe_storm, flood, earthquake, landslide, temperature_extreme, sea_lake_ice, dust_haze, drought, snow, water_color, manmade, other | EONET id | lat/lon (latest point) only | – | `categories`, `sources`, `last_observed`, `magnitude`, `magnitude_unit`, `observations` |
@@ -92,7 +92,7 @@ Primary key `(series, key, ts, source)`. Columns: `value` (double), `unit`, `att
 | `epss.score` | CVE id | `epss` | score date | `probability` | only scores ≥ `EPSS_MIN_SCORE` (0.5) are stored; `attrs.percentile`, `attrs.model_version` |
 | `fred.<SERIES_ID>` | `USA` | `fred` | observation date, 00:00 UTC | per series, e.g. `% (effective federal funds rate)` | every 6 h, last 400 days. Series: `DFF`, `T10Y2Y`, `BAMLH0A0HYM2` (HY spread), `VIXCLS`, `DTWEXBGS` (broad USD index), `CPIAUCSL`, `UNRATE`, `INDPRO`. FRED's missing value `"."` is skipped |
 | `eia.spot_price` | EIA series id: `RWTC` (WTI Cushing), `RBRTE` (Brent), `RNGWHHD` (Henry Hub gas) | `eia` | trading day | as EIA gives it: `$/BBL`, `$/MMBTU` | every 6 h; `attrs.description`, `attrs.product` |
-| `comtrade.import_value`, `comtrade.export_value` | `<reporter ISO3>:<HS>` (trade with the world), e.g. `JPN:8542`; `<ISO3>:<HS>:<partner ISO3>` for a bilateral row | `comtrade` | 1 Jan of the year | `USD` (CIF imports, FOB exports, as reported) | daily, last two complete years, HS `27 2709 2711 10 31 30 72 74 76 2805 8542 8507`; aggregate reporters (EU, "nes") dropped. `attrs.description`, `net_weight_kg`, `weight_estimated`, `reported`, `classification`. No spike detection (2 points per key) |
+| `comtrade.import_value`, `comtrade.export_value` | `<reporter ISO3>:<HS>` (trade with the World), e.g. `JPN:8542`. No bilateral keys (migration 040 removed the rows stored before) | `comtrade` | 1 Jan of the year | `USD` (CIF imports, FOB exports, as reported) | daily, one call, last two complete years, HS `27 2709 2711 10 31 30 72 74 76 2805 8542 8507`, World totals only (partner, second partner, customs procedure and transport mode all = total; any other row is dropped, `notes.dropped_breakdown`), at most ~9,600 rows; aggregate reporters (EU, "nes") dropped. `attrs.description`, `net_weight_kg`, `weight_estimated`, `reported`, `classification`. No spike detection (2 points per key) |
 | `tiingo.close` | ETF ticker: `SPY EEM VGK EWJ FXI SOXX BDRY USO UNG CPER DBA GLD` | `tiingo` | trading day | `USD` | every 12 h, last 120 days; unadjusted close, `attrs.adjClose`, `volume`, `divCash`, `splitFactor`. `BDRY` is a dry-bulk freight-rate ETF |
 | `tiingo.fx_close` | `USD/<CCY>` for `RUB ARS NGN EGP PKR VND KZT UAH` | `tiingo` | day, 00:00 UTC | `<CCY> per USD` | daily close; currencies the ECB does not publish (so **not** in `fx.rate`). A pair Tiingo does not cover is counted in `notes.symbols_unavailable` |
 
@@ -165,6 +165,11 @@ at the size of the lists (~18k rows, a few MB). A download that fails or comes b
 implausibly small (< 5,000 SDN / < 50 consolidated entries) is upserted but deletes
 nothing, and the run reports `partial`.
 
+These rows are neither events nor series, so the run's `source_health` row counts
+them: `records_last_run` = entries read, `records_changed` = entries inserted, changed
+or delisted, and `notes` has `sdn_entries`, `consolidated_entries`,
+`sanctions_upserted` and `sanctions_delisted`. Unchanged entries are not rewritten.
+
 Primary key `(source, dataset, entity_id)`.
 
 | Column | Type | Notes |
@@ -192,10 +197,10 @@ For fuzzy matching load `name`, `aliases` (and optionally `weak_aliases`) with
 | Column | Notes |
 |---|---|
 | `id` | identity |
-| `kind` | `gdelt_query` (a GDELT DOC query string; also sent, as a boolean query, to `newsdata` and `currents`, up to 8 terms per run, rotating) or `osv_package` (`term` = package, `scope` = OSV ecosystem: `PyPI`, `npm`, `Maven`, `Go`, `crates.io`, `NuGet`, `RubyGems`, `Packagist`…) |
+| `kind` | `gdelt_query` (a GDELT DOC query string; also sent, as a boolean query, to `newsdata` and `currents`, up to 8 terms per run, rotating; terms with `theme:` GKG codes are matched only by `gdelt` and skipped by those two) or `osv_package` (`term` = package, `scope` = OSV ecosystem: `PyPI`, `npm`, `Maven`, `Go`, `crates.io`, `NuGet`, `RubyGems`, `Packagist`…) |
 | `term`, `scope` | unique together with `kind` |
 | `enabled` | |
-| `origin` | `default` (migration 002) or, from the worker, `workspace` |
+| `origin` | `default` (migrations 002: phrases and OSV packages; 041: ten GKG-theme terms, one per risk category) or, from the worker, `workspace` |
 | `created_at` | |
 
 `rp_app` may INSERT `(kind, term, scope, origin)` but never update or delete, and a

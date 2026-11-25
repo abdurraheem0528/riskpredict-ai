@@ -84,11 +84,23 @@ def print_table(results: list[FetchResult], written: dict[str, int | str] | None
         note = r.error or ""
         if changed.startswith("db error"):
             note, changed = changed, "-"
+        elif r.sanctions:
+            note = "; ".join(filter(None, [sanctions_note(r, written is not None), note]))
         print(
             f"{r.source:<12} {r.status.value:<10} {len(r.events):>7} {len(r.series):>7} "
             f"{changed:>8} {r.duration_ms:>7}  {note}",
             file=out,
         )
+
+
+def sanctions_note(r: FetchResult, stored: bool) -> str:
+    """Sanctions lists go to ``feeds.sanctions_entries``, not events or series, so
+    the table would otherwise show 0 / 0 for a run that read every entry."""
+    parts = [f"entries={len(r.sanctions)}"]
+    parts += [f"{d}={r.notes[f'{d}_entries']}" for d in ("sdn", "consolidated") if f"{d}_entries" in r.notes]
+    if stored and "sanctions_upserted" in r.notes:
+        parts += [f"upserted={r.notes['sanctions_upserted']}", f"delisted={r.notes.get('sanctions_delisted', 0)}"]
+    return " ".join(parts)
 
 
 def parse_steps(value: str) -> list[str]:

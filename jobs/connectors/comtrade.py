@@ -9,15 +9,27 @@ Free-tier limits (checked 2026-11-24, comtradeplus.un.org/en/subscriptions):
 500 calls a day, 1 call a second, at most 100,000 records per call (more are
 silently truncated), at most 12 periods per call; the key "may be renewed from
 time to time". We make ONE call a day (``min_interval`` 24 h) for the last two
-complete years, every reporter, partner = World, imports and exports, and the
-HS codes in :data:`HS_CODES`: roughly 200 x 2 x 2 x 12 = ~10,000 records.
+complete years, every reporter, imports and exports, and the HS codes in
+:data:`HS_CODES`, with every breakdown pinned to its total:
+
+* ``partnerCode=0`` — trade with the World, not one row per partner;
+* ``breakdownMode=classic`` plus ``partner2Code=0``, ``customsCode=C00`` and
+  ``motCode=0`` — without them the API answers in "plus" mode, one row per
+  second partner, customs procedure and mode of transport, which is what filled
+  the 100,000-record cap before (about ten rows per reporter, code and year).
+
+That is at most (reporters) x 12 codes x 2 flows x 2 years: about 200 x 48 =
+9,600 records, a tenth of the cap. A response that still reaches the cap is
+reported ``partial``, never stored silently as complete.
 
 Each record becomes ``feeds.series`` ``comtrade.import_value`` or
 ``comtrade.export_value`` with key ``<ISO3>:<HS>`` (e.g. ``JPN:8542``; trade
-with the whole world) or, for a bilateral row, ``<ISO3>:<HS>:<partner ISO3>``; ``ts`` =
-1 January of the year, unit ``USD`` (the reporter's primary value: CIF for
-imports, FOB for exports). Reporters without an ISO 3166-1 code (regional
-aggregates such as "EU" or "Other Asia, nes") are dropped and counted.
+with the whole world); ``ts`` = 1 January of the year, unit ``USD`` (the
+reporter's primary value: CIF for imports, FOB for exports). Reporters without
+an ISO 3166-1 code (regional aggregates such as "EU" or "Other Asia, nes") are
+dropped and counted, and so is any row that is not a World total (a partner,
+second partner, customs procedure or transport mode breakdown), so a reply in
+an unexpected mode can never overwrite a total with one of its parts.
 """
 
 from __future__ import annotations
@@ -33,7 +45,7 @@ from jobs.http import SourceError, get_json
 from jobs.models import SeriesPoint, Status
 
 API = "https://comtradeapi.un.org/data/v1/get/C/A/HS"
-MAX_RECORDS = 100_000  # free-tier cap per call
+MAX_RECORDS = 100_000  # free-tier cap per call; the totals-only query needs < 10,000
 DAILY_LIMIT = 400  # of the 500 free calls a day; leaves room for manual use of the key
 # HS codes (digits only) for supply-chain-critical goods. Chapters and headings.
 HS_CODES = (
@@ -51,6 +63,14 @@ HS_CODES = (
     "8507",  # electric accumulators (batteries)
 )
 FLOWS = {"M": "comtrade.import_value", "X": "comtrade.export_value"}
+# The totals we ask for, field by field; anything else in a reply is a breakdown.
+# A field the reply leaves out counts as the total (older record layouts).
+TOTALS = {"partnerCode": "0", "partner2Code": "0", "customsCode": "C00", "motCode": "0"}
+
+
+def is_world_total(row: dict) -> bool:
+    """True for a reporter's trade with the World, all customs procedures and transport modes."""
+    return all(row.get(k) is None or str(row.get(k)).strip().upper() == v for k, v in TOTALS.items())
 
 
 def parse(payload: dict, notes: dict[str, int] | None = None) -> list[SeriesPoint]:
@@ -60,6 +80,7 @@ def parse(payload: dict, notes: dict[str, int] | None = None) -> list[SeriesPoin
     if "data" not in payload:
         raise SourceError("Comtrade response has no data")
     points = []
+    seen: set[tuple] = set()
     for row in payload.get("data") or []:
         iso = (row.get("reporterISO") or "").strip().upper()
         series = FLOWS.get(row.get("flowCode"))
@@ -70,18 +91,19 @@ def parse(payload: dict, notes: dict[str, int] | None = None) -> list[SeriesPoin
         if not codes.is_country(iso):
             notes["dropped_aggregate_reporter"] = notes.get("dropped_aggregate_reporter", 0) + 1
             continue
+        if not is_world_total(row):
+            notes["dropped_breakdown"] = notes.get("dropped_breakdown", 0) + 1
+            continue
         value = row.get("primaryValue")
         if value is None:
             notes["missing_values"] = notes.get("missing_values", 0) + 1
             continue
         ts = datetime(int(row["refYear"]), 1, 1, tzinfo=timezone.utc) if row.get("refYear") else None
         key = f"{iso}:{hs}"
-        if row.get("partnerCode") != 0:  # a bilateral flow: name the partner too
-            partner = (row.get("partnerISO") or "").strip().upper()
-            if not codes.is_country(partner):
-                notes["dropped_aggregate_partner"] = notes.get("dropped_aggregate_partner", 0) + 1
-                continue
-            key = f"{key}:{partner}"
+        if (series, key, ts) in seen:  # one total per key and year; never let a later row overwrite it
+            notes["duplicate_keys"] = notes.get("duplicate_keys", 0) + 1
+            continue
+        seen.add((series, key, ts))
         p = safe_build(
             SeriesPoint,
             notes,
@@ -117,9 +139,10 @@ def query(ctx: RunContext) -> str:
     return API + "?" + urlencode(
         {
             "period": ",".join(periods(ctx)),
-            "partnerCode": "0",
             "cmdCode": ",".join(HS_CODES),
             "flowCode": ",".join(FLOWS),
+            **TOTALS,
+            "breakdownMode": "classic",
             "maxRecords": str(MAX_RECORDS),
             "includeDesc": "true",
         }
@@ -149,7 +172,11 @@ class ComtradeConnector(KeyedConnector):
         batch.series = parse(payload, batch.notes)
         count = int(payload.get("count") or 0)
         batch.notes["records_in_response"] = count
-        if count >= MAX_RECORDS:
+        if count >= MAX_RECORDS:  # only if the totals-only query somehow grows past the cap
             batch.status = Status.PARTIAL
-            batch.error = f"Comtrade returned the {MAX_RECORDS} record maximum; result may be truncated"
+            dropped = batch.notes.get("dropped_breakdown", 0)
+            batch.error = (
+                f"Comtrade returned the {MAX_RECORDS} record maximum ({dropped} were not World totals); "
+                "result may be truncated"
+            )
         return batch
