@@ -67,7 +67,7 @@ MIN_TYPE_CONFIDENCE = 0.4
 MAX_TEXT_CHARS = 600  # titles are short; this only guards against odd inputs
 
 # Which sources are tagged, and the type the source itself already states.
-TAG_SOURCES = ("gdelt", "gdacs", "eonet", "ofac")
+TAG_SOURCES = ("gdelt", "gdacs", "eonet", "ofac", "newsdata", "currents")
 SOURCE_TYPES = {"gdacs": "natural_hazard", "eonet": "natural_hazard", "ofac": "sanctions"}
 
 

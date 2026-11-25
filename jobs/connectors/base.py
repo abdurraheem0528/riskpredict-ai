@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -7,8 +8,8 @@ from typing import Callable, ClassVar
 
 import httpx
 
-from jobs.http import SourceError, Throttled
-from jobs.models import Event, FetchResult, SeriesPoint, Status
+from jobs.http import SourceError, Throttled, redact
+from jobs.models import Event, FetchResult, SanctionEntry, SeriesPoint, Status
 
 
 @dataclass
@@ -39,6 +40,8 @@ class RunContext:
 class Batch:
     events: list[Event] = field(default_factory=list)
     series: list[SeriesPoint] = field(default_factory=list)
+    sanctions: list[SanctionEntry] = field(default_factory=list)
+    replace_datasets: list[str] = field(default_factory=list)
     status: Status | None = None  # override (e.g. PARTIAL); None = derive
     error: str | None = None
     notes: dict[str, int] = field(default_factory=dict)
@@ -72,7 +75,7 @@ class Connector:
         else:
             status = batch.status
             if status is None:
-                status = Status.OK if (batch.events or batch.series) else Status.EMPTY
+                status = Status.OK if (batch.events or batch.series or batch.sanctions) else Status.EMPTY
             result = FetchResult(
                 self.name,
                 status,
@@ -80,9 +83,74 @@ class Connector:
                 series=batch.series,
                 error=batch.error,
                 notes=batch.notes,
+                sanctions=batch.sanctions,
+                replace_datasets=tuple(batch.replace_datasets),
             )
+        result.error = redact(result.error)
         result.duration_ms = int((time.monotonic() - started) * 1000)
         return result
+
+
+NO_KEY = "no key"
+
+
+class KeyedConnector(Connector):
+    """A source that needs a free API key, read from ``<NAME>_API_KEY``.
+
+    Without the key the source reports ``skipped`` ("no key") and makes no
+    request, so the fetch job passes with no keys set. With
+    ``key_optional = True`` it runs keyless (at the lower keyless rate) instead.
+    """
+
+    key_optional: ClassVar[bool] = False
+
+    @classmethod
+    def key_env(cls) -> str:
+        return f"{cls.name.upper()}_API_KEY"
+
+    @classmethod
+    def api_key(cls) -> str | None:
+        return (os.environ.get(cls.key_env()) or "").strip() or None
+
+    def fetch(self, client: httpx.Client, ctx: RunContext) -> Batch:
+        key = self.api_key()
+        if key is None and not self.key_optional:
+            return Batch(status=Status.SKIPPED, error=NO_KEY)
+        return self.fetch_with_key(client, ctx, key)
+
+    def fetch_with_key(self, client: httpx.Client, ctx: RunContext, key: str | None) -> Batch:  # pragma: no cover
+        raise NotImplementedError
+
+
+@dataclass
+class DailyBudget:
+    """Requests spent today (UTC), carried between runs in the source's notes.
+
+    ``min_interval`` and the per-run caps already keep each source under its
+    provider's daily quota; this is the backstop for manual ``--force`` runs.
+    The count lives in ``feeds.source_health.notes`` (``budget_day`` as
+    YYYYMMDD, ``budget_used``), so a dry run (no stored state) starts at 0.
+    """
+
+    limit: int
+    day: int
+    used: int = 0
+
+    @classmethod
+    def load(cls, ctx: RunContext, source: str, limit: int) -> "DailyBudget":
+        today = int(ctx.now.strftime("%Y%m%d"))
+        prev = ctx.state.get(source) or {}
+        used = prev.get("budget_used", 0) if prev.get("budget_day") == today else 0
+        return cls(limit=limit, day=today, used=int(used or 0))
+
+    def take(self, n: int = 1) -> bool:
+        if self.used + n > self.limit:
+            return False
+        self.used += n
+        return True
+
+    def save(self, notes: dict[str, int]) -> None:
+        notes.update(budget_day=self.day, budget_used=self.used)
 
 
 def safe_build(builder, notes: dict[str, int], *args, **kwargs):

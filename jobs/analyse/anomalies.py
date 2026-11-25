@@ -70,6 +70,11 @@ RULES: tuple[Rule, ...] = (
     # report insufficient history until more years accumulate.
     Rule("macro_annual", ("wb.",), window_days=3660, min_points=8, if_min_points=12, eval_days=400),
     Rule(
+        "comtrade",
+        ("comtrade.",),
+        skip_reason="annual trade totals (two years per key); too few points for spike detection",
+    ),
+    Rule(
         "epss",
         ("epss.score",),
         skip_reason="scores are only stored when >= EPSS_MIN_SCORE, so the history is censored",

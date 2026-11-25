@@ -23,7 +23,15 @@ ROUTES = {
     "api.worldbank.org": "worldbank_last_page.json",
     "sanctionslistservice.ofac.treas.gov": "ofac_delta_trimmed.xml",
     "api.gdeltproject.org": "gdelt_artlist.json",
+    "services.nvd.nist.gov": "nvd_cves_pub_window.json",
 }
+
+
+def xml_zip(name: str, fixture: str) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(name, fixture_bytes(fixture))
+    return buf.getvalue()
 
 
 def gkg_zip() -> bytes:
@@ -35,6 +43,9 @@ def gkg_zip() -> bytes:
 
 def handler(request: httpx.Request) -> httpx.Response:
     host = request.url.host
+    if host == "sanctionslistservice.ofac.treas.gov" and "/exports/" in request.url.path:
+        name = request.url.path.rsplit("/", 1)[-1].replace(".ZIP", ".XML")
+        return httpx.Response(200, content=xml_zip(name, "ofac_enhanced_shape.xml"))
     if host == "data.gdeltproject.org":
         if request.url.path.endswith("lastupdate.txt"):
             return httpx.Response(200, content=fixture_bytes("gdelt_lastupdate.txt"))
@@ -55,6 +66,8 @@ def handler(request: httpx.Request) -> httpx.Response:
 
 @pytest.fixture
 def offline(monkeypatch):
+    for name, cls in CONNECTORS.items():  # keyed sources: test the no-key path here
+        monkeypatch.delenv(f"{name.upper()}_API_KEY", raising=False)
     monkeypatch.setattr(run, "make_client", lambda: make_client(transport=httpx.MockTransport(handler)))
     monkeypatch.setattr("time.sleep", lambda s: None)
 
@@ -67,7 +80,10 @@ def test_dry_run_all_sources_prints_counts_only(offline, capsys, monkeypatch):
         assert f"\n{name} " in out
     assert "error" not in out and "dry run, nothing written" in out
     # Record contents must never reach the (public) log.
-    for leaked in ("H N B TRADING", "Tobi Village", "Jinja2 sandbox", "newsonjapan", "CVE-2026-76466", "Mozambique"):
+    for leaked in (
+        "H N B TRADING", "Tobi Village", "Jinja2 sandbox", "newsonjapan", "CVE-2026-76466", "Mozambique",
+        "EXAMPLE TRADING", "Info-ZIP", "CVE-2026-12487",
+    ):  # fmt: skip
         assert leaked not in out
 
 

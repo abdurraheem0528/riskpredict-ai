@@ -1,0 +1,55 @@
+{
+  "count": 3,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": "000000000000000000000001",
+      "name": "Example pulse: ransomware campaign against logistics firms",
+      "description": "Placeholder text; field layout from the OTX DirectConnect API and OTX-Python-SDK docs.",
+      "author_name": "AlienVault",
+      "created": "2026-11-22T10:00:00.000000",
+      "modified": "2026-11-23T09:30:00.000000",
+      "revision": 2,
+      "TLP": "white",
+      "public": 1,
+      "adversary": "",
+      "targeted_countries": ["Germany", "United States of America", "Atlantis"],
+      "industries": ["Transportation", "Logistics"],
+      "malware_families": [{"id": "ExampleLocker", "display_name": "ExampleLocker", "target": null}],
+      "attack_ids": [{"id": "T1486", "name": "Data Encrypted for Impact", "display_name": "T1486 - Data Encrypted for Impact"}],
+      "tags": ["ransomware", "logistics"],
+      "references": ["https://example.com/report"],
+      "indicators": [
+        {"id": 1, "indicator": "203.0.113.10", "type": "IPv4", "created": "2026-11-22T10:00:00", "description": ""},
+        {"id": 2, "indicator": "CVE-2021-44228", "type": "CVE", "created": "2026-11-22T10:00:00", "description": ""}
+      ]
+    },
+    {
+      "id": "000000000000000000000002",
+      "name": "Example pulse marked amber",
+      "author_name": "example-user",
+      "created": "2026-11-22T11:00:00.000000",
+      "modified": "2026-11-23T08:00:00.000000",
+      "TLP": "amber",
+      "targeted_countries": [],
+      "tags": [],
+      "indicators": []
+    },
+    {
+      "id": "000000000000000000000003",
+      "name": "Example pulse with no targets",
+      "author_name": "AlienVault",
+      "created": "2026-11-21T12:00:00.000000",
+      "modified": "2026-11-23T07:00:00.000000",
+      "TLP": "green",
+      "targeted_countries": [],
+      "industries": [],
+      "malware_families": [],
+      "attack_ids": [],
+      "tags": ["phishing"],
+      "references": [],
+      "indicators": [{"id": 3, "indicator": "example.net", "type": "domain"}]
+    }
+  ]
+}

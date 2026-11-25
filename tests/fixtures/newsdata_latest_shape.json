@@ -1,0 +1,52 @@
+{
+  "status": "success",
+  "totalResults": 2,
+  "results": [
+    {
+      "article_id": "example-article-0001",
+      "link": "https://example.com/news/port-strike-example",
+      "title": "Example headline: dockworkers strike at an example port",
+      "description": "Placeholder description; field layout from newsdata.io/openapi.json.",
+      "content": "ONLY AVAILABLE IN PAID PLANS",
+      "keywords": ["example"],
+      "creator": ["example.com"],
+      "language": "english",
+      "country": ["united kingdom"],
+      "category": ["business"],
+      "datatype": "news",
+      "pubDate": "2026-11-23 08:15:00",
+      "pubDateTZ": "UTC",
+      "fetched_at": "2026-11-23 08:20:00",
+      "image_url": null,
+      "video_url": null,
+      "source_id": "example",
+      "source_name": "Example",
+      "source_priority": 100000,
+      "source_url": "https://example.com",
+      "source_icon": null,
+      "sentiment": "negative",
+      "sentiment_stats": {"positive": 0.1, "neutral": 0.2, "negative": 0.7},
+      "ai_tag": ["supply chain"],
+      "ai_region": "ONLY AVAILABLE IN CORPORATE PLANS",
+      "ai_org": "ONLY AVAILABLE IN CORPORATE PLANS",
+      "ai_summary": "ONLY AVAILABLE IN PAID PLANS",
+      "duplicate": false
+    },
+    {
+      "article_id": "example-article-0002",
+      "link": "https://example.org/news/duplicate-example",
+      "title": "Example duplicate article",
+      "description": "Placeholder.",
+      "language": "english",
+      "country": ["united states of america"],
+      "category": ["top"],
+      "pubDate": "2026-11-23 07:00:00",
+      "pubDateTZ": "UTC",
+      "source_id": "exampleorg",
+      "sentiment": "neutral",
+      "ai_tag": ["ONLY AVAILABLE IN PAID PLANS"],
+      "duplicate": true
+    }
+  ],
+  "nextPage": null
+}

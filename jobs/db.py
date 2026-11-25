@@ -17,7 +17,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from jobs.connectors.base import WatchTerm
-from jobs.models import Event, FetchResult, SeriesPoint, Status
+from jobs.models import Event, FetchResult, SanctionEntry, SeriesPoint, Status
 
 ENV_VAR = "DATABASE_URL_FEEDS"
 SUCCESS = {Status.OK, Status.EMPTY, Status.PARTIAL}
@@ -94,6 +94,33 @@ ON CONFLICT (series, key, ts, source) DO UPDATE SET
 WHERE (s.value, s.unit, s.attrs) IS DISTINCT FROM (EXCLUDED.value, EXCLUDED.unit, EXCLUDED.attrs)
 """
 
+_SANCTION_COLS = (
+    "entity_type",
+    "name",
+    "aliases",
+    "weak_aliases",
+    "countries",
+    "programs",
+    "lists",
+    "listed_on",
+)
+UPSERT_SANCTION = f"""
+INSERT INTO feeds.sanctions_entries AS s (source, dataset, entity_id, {", ".join(_SANCTION_COLS)})
+VALUES (%s, %s, %s, {", ".join(["%s"] * len(_SANCTION_COLS))})
+ON CONFLICT (source, dataset, entity_id) DO UPDATE SET
+    {", ".join(f"{c} = EXCLUDED.{c}" for c in _SANCTION_COLS)},
+    updated_at = now()
+WHERE ({", ".join(f"s.{c}" for c in _SANCTION_COLS)})
+      IS DISTINCT FROM ({", ".join(f"EXCLUDED.{c}" for c in _SANCTION_COLS)})
+"""
+
+# Replace, don't accumulate: an entity that is no longer on a list read in full
+# is deleted (that is what "delisted" means for this table).
+DELETE_DELISTED = """
+DELETE FROM feeds.sanctions_entries
+WHERE source = %s AND dataset = %s AND NOT (entity_id = ANY(%s))
+"""
+
 UPSERT_HEALTH = """
 INSERT INTO feeds.source_health AS h (
     source, status, last_run_at, last_success_at, last_error,
@@ -166,6 +193,26 @@ def _series_row(p: SeriesPoint) -> tuple:
     return (p.series, p.key, p.ts, p.source, p.value, p.unit, Jsonb(p.attrs))
 
 
+def dedupe_sanctions(entries: list[SanctionEntry]) -> list[SanctionEntry]:
+    return list({(e.source, e.dataset, e.entity_id): e for e in entries}.values())
+
+
+def _sanction_row(e: SanctionEntry) -> tuple:
+    return (
+        e.source,
+        e.dataset,
+        e.entity_id,
+        e.entity_type,
+        e.name,
+        list(e.aliases),
+        list(e.weak_aliases),
+        list(e.countries),
+        list(e.programs),
+        list(e.lists),
+        e.listed_on,
+    )
+
+
 def write_result(conn: psycopg.Connection, result: FetchResult, now: datetime) -> int:
     """Upsert one source's records and its health row in a single transaction.
 
@@ -180,6 +227,16 @@ def write_result(conn: psycopg.Connection, result: FetchResult, now: datetime) -
         points = dedupe_series(result.series)
         if points:
             cur.executemany(UPSERT_SERIES, [_series_row(p) for p in points])
+            changed += max(cur.rowcount, 0)
+        entries = dedupe_sanctions(result.sanctions)
+        if entries:
+            cur.executemany(UPSERT_SANCTION, [_sanction_row(e) for e in entries])
+            changed += max(cur.rowcount, 0)
+        for dataset in result.replace_datasets:
+            ids = [e.entity_id for e in entries if e.dataset == dataset]
+            if not ids:  # never empty a list because a file came back empty
+                continue
+            cur.execute(DELETE_DELISTED, (result.source, dataset, ids))
             changed += max(cur.rowcount, 0)
         cur.execute(
             UPSERT_HEALTH,
