@@ -1,5 +1,219 @@
 # web
 
-Map-first dashboard (React + MapLibre GL JS on Cloudflare Pages). Consumes
-[`docs/contracts/openapi.yaml`](../docs/contracts/openapi.yaml); the six screens and the
-endpoints behind each are listed at the top of that file. Arrives with session D.
+The map-first dashboard: React 19 + TypeScript + Vite + MapLibre GL JS, hosted on
+Cloudflare Pages (free). It reads everything through the API in
+[`docs/contracts/openapi.yaml`](../docs/contracts/openapi.yaml). The look and behaviour
+follow the 13 approved files in [`design/project/`](../design/project/).
+
+There is no sample data in the app. Every number, name and status on screen comes from the
+API; a new workspace shows the Empty screen with the real global feed signals
+(`GET /v1/map/events`) and the real feed health (`GET /v1/feeds/health`). Mock data exists
+only in `tests/` (MSW), and CI fails if the designs' sample names or the test fixtures
+appear in the built bundle.
+
+## Run it
+
+```bash
+cd web
+npm ci
+VITE_API_URL=http://localhost:8000 npm run dev      # the API from `docker compose up`
+```
+
+| Script | What it does |
+|---|---|
+| `npm run gen:api` | Regenerate `src/api/schema.d.ts` from the contract (`openapi-typescript`). CI fails if it is out of date. |
+| `npm run typecheck` / `npm run lint` / `npm test` | `tsc`, ESLint, Vitest (+ MSW) |
+| `npm run build` | Typecheck, then a production build in `dist/` |
+| `npm run check:bundle` | Fails on design sample content or fixtures in `dist/`; prints every file's size |
+| `npm run e2e` | Playwright screenshots of every screen (after `VITE_API_URL=http://api.test npm run build`) |
+| `npm run map-data` | Rebuild `public/map/` from Natural Earth and the World Port Index (rarely needed) |
+
+`VITE_API_URL` is the API's base URL without `/v1`, read at build time (the root
+`.env.example`'s `VITE_API_BASE_URL` also works). Without it the app says so instead of
+guessing.
+
+## Deploy (Cloudflare Pages, free)
+
+| Setting | Value |
+|---|---|
+| Root directory | `web` |
+| Build command | `npm ci && npm run build` |
+| Output directory | `dist` |
+| Environment variable | `VITE_API_URL=https://<api host>` |
+
+`public/_redirects` sends every path to `index.html` (client-side routes) and
+`public/_headers` sets security headers and long caching for hashed assets. Set the API's
+`WEB_ORIGIN` to the Pages URL so CORS and the Google/Composio redirects come back here.
+
+## How it fits together
+
+```
+src/
+  api/        openapi-fetch client, auth (tokens), SSE stream, React Query hooks, generated types
+  app/        session (user, workspace, role), top row (capsules and menus), Jump to, toast
+  map/        the one MapLibre map, layers as components, placing features, static lookups
+  screens/    SignIn, Empty, Connect, Confirm, Main (Overview and Register), RiskView, Scenario
+  ui/         icons (copied from System-Icons), shared parts
+  styles.css  tokens and parts copied from the design files
+```
+
+- **Auth** (contract decision 6). The access token lives only in memory. The refresh token
+  is the one value in `localStorage` (it must survive a reload; there are no cookies, as
+  the API is on another site). It is rotated on every use, and refreshes are serialised
+  across tabs with the Web Locks API so two tabs never present the same token (which the
+  API treats as reuse and revokes the family). A request that gets a 401 refreshes once
+  and retries once. A rejected refresh signs out; a network failure keeps the session.
+- **Workspace.** Every workspace endpoint gets `X-Workspace-Id`. Query keys start with the
+  workspace id, so switching workspace never shows another workspace's rows.
+- **Live updates.** `POST /v1/stream/ticket`, then `EventSource` on
+  `/v1/stream?ticket=…`. On any error the stream closes and reconnects with a fresh ticket,
+  backing off 1 s → 30 s with jitter (EventSource's own retry would replay the spent
+  ticket). A new EventSource cannot send `Last-Event-ID`, so after a reconnect the
+  workspace's queries are refetched, as for `resync`. Each event invalidates only what it
+  changes (`applyStreamEvent` in `api/queries.ts`).
+- **Roles.** Viewers see everything but no editing controls; editors confirm mappings,
+  change risk status and run what-ifs; only admins connect or disconnect tools (the API
+  enforces all of this too).
+
+## The map
+
+No tiles, no keys, no glyph server. The base map is Natural Earth (public domain) served
+from `public/map/` and drawn with three layers in the System-Color surface tokens: sea
+`#E7ECF1`, land `#FFFFFF`, coast `#CFD5DC`. Everything else is a layer from the API's
+GeoJSON endpoints, clustered where dense (signals, entities).
+
+All map text is MapLibre symbols, so it takes part in symbol collision (`map/labels.ts`):
+risk callouts (score pill and place in a capsule), cluster counts and entity names. The
+style has no `glyphs` URL, so MapLibre draws the glyphs itself with TinySDF from two
+FontFace aliases of the self-hosted Inter, loaded before the first label. Each label gets
+only the anchors (`text-variable-anchor-offset`) under which it stays inside the open map,
+clear of the edges, the top row, the sheet, corner card, legend and map controls. MapLibre
+places it at the first of those that does not collide, or hides it. Cluster counts are
+placed first, then callouts, then names. The only HTML markers left are the decorative
+pulses on Empty.
+
+Features without a position are placed as the contract says: by their first port (World
+Port Index UN/LOCODE) or first country (Natural Earth label point). `/v1/map/risks` places
+of type `country`/`port` are joined on `place_key` the same way.
+
+| File | Source | Raw | gzip |
+|---|---|---:|---:|
+| `countries.geojson` | Natural Earth 1:50m admin-0, simplified to 12 %, 0.01° | 217 KiB | 70 KiB |
+| `ports.json` | NGA World Port Index (Pub 150), 3,282 ports by UN/LOCODE | 117 KiB | 53 KiB |
+| `centroids.json` | Natural Earth label points and names, 246 codes | 8 KiB | 4 KiB |
+
+The 1:50m set is used (not 1:110m) because 1:110m has no Singapore, Hong Kong, Bahrain or
+Malta. `ports.json` and `centroids.json` load once, in parallel with MapLibre.
+
+## Bundle
+
+From `npm run check:bundle` on the production build:
+
+| Chunk | Raw | gzip | When |
+|---|---:|---:|---|
+| App (React, React Query, openapi-fetch, screens) | 376 KiB | 116 KiB | first load |
+| MapLibre GL JS | 1,030 KiB | 278 KiB | loaded in parallel, after the shell paints; cached separately |
+| CSS (app + MapLibre) | 92 KiB | 15 KiB | first load |
+| Inter (variable, optical sizes), Latin subset | 71 KiB | 71 KiB | first load; other subsets only if the page needs them |
+| Map data (`public/map/`) | 342 KiB | 127 KiB | first map |
+
+A first visit downloads about 600 KiB compressed, more than half of it MapLibre.
+
+## Tests
+
+- **Vitest + Testing Library + MSW** (`tests/unit/`): auth (memory-only access token,
+  single rotation for concurrent callers, reuse → signed out, retry after 401, headers),
+  the stream (ticket per connection, reconnect with a new ticket, refetch after
+  reconnect), placement, formatting, and each screen against the fixtures, including
+  their empty and error states.
+- **Playwright** (`tests/e2e/`): every screen at 1360×900, 900 and 375 wide, against the
+  same MSW handlers routed with `@msw/playwright`. CI uploads them as the
+  `web-screenshots` artifact. WebGL runs on SwiftShader.
+- Fixtures (`tests/fixtures/`) describe an invented company. They are never imported by
+  `src/`, and `check:bundle` fails if any of their names reach `dist/`.
+
+## Where it differs from the designs, and why
+
+The designs' content is illustration. The structure, tokens, type, spacing, capsules,
+breakpoints and wording rules are followed as drawn. These are the deliberate differences.
+
+**Everywhere**
+- *Sign in and sign up* are not designed. They reuse the Empty screen's centred glass card
+  with the System-Controls fields.
+- *Account menu* has the user, unread alerts (with "Mark all read") and Sign out. There is
+  no profile page, because none is designed and the API has only name and password changes.
+- *Workspace menu* switches and creates workspaces. "Workspace settings" and "Members and
+  access" are left out until they are designed.
+- *Map:* MapLibre over Natural Earth instead of the rendered image. Routes are not drawn as
+  sea lanes: the API has no route geometry, and great-circle lines between ports cross
+  land, so a route appears at its ports. Callouts have no leader lines: they sit beside
+  their point, flip side to stay on the map, and hide when there is no room (the same risks
+  are in the sheet's list, which is also the keyboard path).
+- *Bottom sheet on phones:* the grab handle lowers and raises the sheet (tap), rather than
+  dragging.
+- *Feed health:* the legend's dot is green when every feed is live and amber when one is
+  down; hovering or focusing it names the feeds that are down.
+
+**Empty**
+- No "Upload a file" button: the API has no upload endpoint, and the view keeps one primary
+  button. The step 1 hint lists the tools the server has set up (`/connections/providers`),
+  not "Sheets, Excel, accounting, a CRM, or a file".
+- When a picked sheet is waiting for review, step 2 is active and the button goes to Confirm.
+- The footnote says "No row becomes part of your map until you confirm how we read it",
+  because creating a source does store headers and five sample values.
+
+**Connect**
+- The tiles are the API's providers (today Google Sheets and Airtable), not a fixed list of
+  ten. A tool the server lacks credentials for shows "Not set up on this server".
+- "Changes picked up" shows the last edit and last read times of the connection's sources.
+  The API has no per-row change log.
+- Disconnecting is behind a confirmation dialog with a destructive button, per
+  System-Controls.
+
+**Confirm**
+- The tab segments are the sources picked from the same spreadsheet. The Picker adds the
+  first tab; other tabs need their gid, which the API cannot list yet.
+- Field choices come from `mapping.fields`, filtered to the chosen entity kind. "Every row
+  is a…" is added, because `MappingSpec.entity_kind` needs it.
+- The corner card says how many entities the preview placed and how many countries and
+  ports will be watched. "5 risks already touch you" is not shown: the preview endpoint
+  returns entities and problems, not risks. Problem rows are listed instead.
+
+**Main (Overview)**
+- The headline is the highest open score with the open count. The API has no portfolio
+  risk index or index history for the workspace, so there is no 30-day sparkline.
+- The layer chips are the categories that have open risks, from `risks/summary`.
+- The selected risk shows its explanation, likelihood and impact (out of 5). "% of spend"
+  and "open orders" style figures are not in the risk list.
+- The legend says "N of M feeds live" from feed health, or names a broken source with Fix.
+
+**Register**
+- The phone design's list, used at every width, with Score / Newest sorting, category
+  chips with counts and "Show more" paging.
+
+**Risk**
+- No "R-011" style reference: risks have UUIDs only.
+- "What to do" is the advice text split into steps. There is no "in your plan" checklist,
+  because the API cannot store a plan. "Assign" is left out, as risks have no owner field.
+- The three tiles are the exposure share (or criticality), signals matched, and time since
+  the last one. A "Why this reaches you" list shows the evidence with its source, match and
+  contribution.
+- Status changes (acknowledge, mitigating, dismiss, reopen) use `PATCH /v1/risks/{id}`,
+  with Undo in the toast.
+
+**Scenario**
+- The four choices are the shocks the API takes: a choke point closing, an event in a
+  country, a currency move, and a sanctioned entity. "How long it lasts" (weeks) is replaced
+  by severity, or by the size of the move for currencies, because the engine has no
+  duration input.
+- Results are the engine's: risk index (portfolio score) before → after, risk count and
+  highest score, and the largest changes. There is no cost figure, because the engine
+  returns none.
+- "Save" and "Add to risk plan" are gone: every run is stored, and recent runs are listed
+  under "Saved what-ifs". The view's one primary button is "Run what-if".
+
+## Contract
+
+No change to `openapi.yaml` was needed. The gaps above (portfolio index history, risks in
+the mapping preview, sheet tabs, risk owners and plans, scenario duration and cost) are
+candidates for later contract changes.
