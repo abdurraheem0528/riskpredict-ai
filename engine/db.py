@@ -177,11 +177,11 @@ LEFT JOIN LATERAL (
     ORDER BY t.tagged_at DESC, t.model LIMIT 1
 ) t ON true
 WHERE coalesce(e.published_at, e.first_seen_at) >= %(oldest)s
-  AND NOT (e.type >= 'sanction.' AND e.type < 'sanction/')
+  AND NOT (e.type LIKE 'sanction.%%')
   AND (
     -- hazards and port disruptions: by position, country or port; ongoing ones (to_date ahead) too
     ((e.type LIKE 'hazard.%%' OR e.type = 'port.disruption')
-      AND (coalesce(e.published_at, e.first_seen_at) >= %(geo_since)s OR e.attrs->>'to_date' > %(now_text)s)
+      AND (coalesce(e.published_at, e.first_seen_at) >= %(geo_since)s OR (e.attrs->>'to_date') COLLATE "C" > %(now_text)s)
       AND (e.lat IS NOT NULL OR e.countries && %(countries)s::text[] OR e.ports && %(ports)s::text[]))
     -- vulnerabilities: software keys are compared after normalisation, in Python
     OR (%(has_software)s AND e.type LIKE 'cyber.%%' AND e.software <> '{{}}'
@@ -203,10 +203,10 @@ ORDER BY coalesce(e.published_at, e.first_seen_at) DESC, e.source, e.raw_id
 LIMIT %(limit)s
 """
 
-SANCTIONS_STAMP_SQL = "SELECT count(*), max(updated_at) FROM feeds.events WHERE type >= 'sanction.' AND type < 'sanction/'"
+SANCTIONS_STAMP_SQL = "SELECT count(*), max(updated_at) FROM feeds.events WHERE type LIKE 'sanction.%'"
 SANCTIONS_SQL = f"""
 SELECT {EVENT_COLS} FROM feeds.events e
-WHERE e.type >= 'sanction.' AND e.type < 'sanction/'
+WHERE e.type LIKE 'sanction.%%'
 ORDER BY e.source, e.raw_id
 LIMIT %(limit)s
 """
