@@ -1,0 +1,10 @@
+# Worker service (Northflank). No web framework: it talks to the API over HTTP.
+cryptography==50.0.2
+psycopg[binary,pool]==3.3.9
+psycopg-pool==3.3.3
+httpx==0.28.1
+pycountry==26.2.16
+# The risk engine's allowed dependencies (docs/contracts/risk-engine.md §1).
+numpy==2.5.5
+scikit-learn==1.9.1
+rapidfuzz==3.14.6

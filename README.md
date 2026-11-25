@@ -23,8 +23,8 @@ business's own connected tools and shows the result on a map-first dashboard.
 | `jobs/analyse/` – news tagging (GLiNER2) and spike detection | GitHub Actions, after each fetch | **step 2** |
 | `infra/migrations/` – SQL for the `feeds` and `biz` schemas, roles | applied by `python -m jobs.migrate` | **steps 1–3** |
 | `docs/contracts/` – API, engine and feed contracts | – | **step 3** |
-| `api/` – FastAPI for business data | Northflank Sandbox | next (session B) |
-| `worker/` – sync, watch renewal, scoring runs, advice | Northflank Sandbox | next (session B) |
+| `api/` – FastAPI for business data | Northflank Sandbox | **session B** ([`api/README.md`](api/README.md)) |
+| `worker/` – sync, watch renewal, scoring runs, advice | Northflank Sandbox | **session B** ([`worker/README.md`](worker/README.md)) |
 | `engine/` – risk engine library | imported by worker and api | **step 3** |
 | `web/` – dashboard | Cloudflare Pages | next (session D) |
 
@@ -71,17 +71,23 @@ expose to the browser.
 | `EPSS_MIN_SCORE` | optional | | | | Default 0.5 |
 | `JWT_SIGNING_KEY` | | ✓ | | | ≥ 32 random bytes, base64 |
 | `TOKEN_ENCRYPTION_KEYS` | | ✓ | ✓ | | `k1:<base64 32 bytes>[,k2:…]`; the first entry encrypts, every entry decrypts |
-| `INTERNAL_TOKEN` | | ✓ | ✓ | | Shared secret for `POST /internal/events` |
+| `INTERNAL_TOKEN` | | ✓ | ✓ | | Shared secret for `POST /internal/events` and `GET /internal/work` |
 | `WEB_ORIGIN` | | ✓ | | | Dashboard origin, for CORS and OAuth redirects |
-| `PUBLIC_API_URL` | | ✓ | ✓ | | The API's public HTTPS base; OAuth callback and Drive webhook address |
+| `PUBLIC_API_URL` | | ✓ | ✓ | | The API's public HTTPS base; OAuth callback and Drive webhook address (Drive push needs `https://`) |
 | `API_INTERNAL_URL` | | | ✓ | | API on the private network, e.g. `http://api:8000` |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | ✓ | ✓ | | Google Cloud OAuth client (Drive API, Sheets API, Picker API enabled) |
 | `GOOGLE_PICKER_API_KEY` | | ✓ (public) | | | Browser key, HTTP-referrer restricted to `WEB_ORIGIN` |
 | `GOOGLE_CLOUD_PROJECT_NUMBER` | | ✓ (public) | | | Picker `app_id` |
 | `COMPOSIO_API_KEY` | | ✓ | ✓ | | Composio Hobby (free); without it only Google Sheets is offered |
 | `COMPOSIO_WEBHOOK_SECRET` | | ✓ | | | Verifies Composio webhooks |
+| `COMPOSIO_AUTH_CONFIGS` | | ✓ | ✓ | | `<app>:<auth config id>` per tool, e.g. `airtable:ac_…` (Composio dashboard) |
+| `COMPOSIO_TRIGGER_SLUGS` | | | optional | | `<app>:<trigger slug>` to subscribe to on connect |
 | `GROQ_API_KEY` | | ✓ | ✓ | | Groq free tier |
 | `GROQ_MAPPING_MODEL` / `GROQ_ADVICE_MODEL` | | ✓ | ✓ | | Llama model ids; configurable because Groq renames models |
+| `WORKER_DB_INTERVAL_SECONDS` / `SOURCE_RECHECK_SECONDS` | | | optional | | Database pass (default 1800) and the tool re-read fallback (default 900) |
+| `ADVICE_PER_RUN` | | | optional | | Groq advice calls per engine run (default 20) |
+| `EXPECTED_SCHEMA_VERSION` / `DB_MAX_CONNECTIONS` | | optional | | | Startup schema check (default `007_biz_lookups`); pool size (default 5) |
+| `PORT` / `FORWARDED_ALLOW_IPS` | | optional | | | Listen port (8000); proxies whose `X-Forwarded-For` is trusted for rate limits |
 | `VITE_API_BASE_URL` | | | | ✓ (public) | The API base URL baked into the dashboard build |
 
 ## Public sources (step 1, no API keys)
@@ -230,6 +236,8 @@ container runs spike detection after every fetch. To include tagging, build with
   prints only the model size, peak RAM, seconds per 100 events and tags per type.
 * `ci.yml` runs the tests (including a Postgres 16 service) and a Docker build on pull
   requests. The tagging model is mocked there, so nothing is downloaded.
+* `ci-api.yml` runs the API and worker tests (`tests/apiservice`, Postgres 16, Google,
+  Composio and Groq replaced inside the tests) and builds the `api` and `worker` images.
 
 The repository is public, so job logs only ever show per-source status, counts and timings.
 

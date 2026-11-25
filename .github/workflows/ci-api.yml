@@ -1,0 +1,67 @@
+# api/ and worker/ (session B): tests against a throwaway Postgres 16 (migrated with the
+# repository's runner, python -m jobs.migrate), and both Docker images. Google, Composio
+# and Groq are never called: the tests replace them (tests/apiservice), and the image
+# checks run with --network none.
+name: ci-api
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: api_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d api_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://test:test@localhost:5432/api_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            api/requirements*.txt
+            worker/requirements.txt
+            jobs/requirements*.txt
+      - run: pip install -r api/requirements-dev.txt
+      - name: The worker never needs the web framework
+        run: python -c "import sys, worker.main, worker.scoring; assert 'fastapi' not in sys.modules"
+      - run: python -m pytest tests/apiservice -v -p no:cacheprovider
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build api image
+        run: docker build -f api/Dockerfile -t riskpredict-api:ci .
+      - name: Build worker image
+        run: docker build -f worker/Dockerfile -t riskpredict-worker:ci .
+      - name: Import inside the images (no network)
+        run: |
+          docker run --rm --network none riskpredict-api:ci python -c "import api.main"
+          docker run --rm --network none riskpredict-worker:ci python -c "import sys, worker.main; assert 'fastapi' not in sys.modules"
+      - name: Compose file is valid
+        run: docker compose --profile app config --quiet

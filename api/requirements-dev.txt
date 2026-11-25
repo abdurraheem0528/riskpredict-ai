@@ -1,0 +1,5 @@
+# Tests for api/ and worker/ (tests/apiservice), against a throwaway Postgres 16.
+-r requirements.txt
+-r ../worker/requirements.txt
+-r ../jobs/requirements-dev.txt
+-r ../engine/requirements.txt

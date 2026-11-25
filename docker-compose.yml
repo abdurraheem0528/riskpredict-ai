@@ -2,7 +2,12 @@
 #   docker compose up -d --build
 #   docker compose logs -f jobs
 #   docker compose down -v        # remove everything, including the data volume
-# The api, worker and web services join this file in later steps.
+#
+# The api and worker (profile "app") connect as an rp_app login, never as the
+# superuser above. Create it once (docs/database-roles.md, "Self-hosting"), put
+# DATABASE_URL_APP and the api/worker variables in .env (see .env.example), then:
+#   docker compose --profile app up -d --build
+# The web service joins this file in a later step.
 name: riskpredict
 
 services:
@@ -34,6 +39,47 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment: &app_env
+      DATABASE_URL_APP: ${DATABASE_URL_APP:-}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
+      TOKEN_ENCRYPTION_KEYS: ${TOKEN_ENCRYPTION_KEYS:-}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+      API_INTERNAL_URL: http://api:8000
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_PICKER_API_KEY: ${GOOGLE_PICKER_API_KEY:-}
+      GOOGLE_CLOUD_PROJECT_NUMBER: ${GOOGLE_CLOUD_PROJECT_NUMBER:-}
+      COMPOSIO_API_KEY: ${COMPOSIO_API_KEY:-}
+      COMPOSIO_WEBHOOK_SECRET: ${COMPOSIO_WEBHOOK_SECRET:-}
+      COMPOSIO_AUTH_CONFIGS: ${COMPOSIO_AUTH_CONFIGS:-}
+      COMPOSIO_TRIGGER_SLUGS: ${COMPOSIO_TRIGGER_SLUGS:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MAPPING_MODEL: ${GROQ_MAPPING_MODEL:-}
+      GROQ_ADVICE_MODEL: ${GROQ_ADVICE_MODEL:-}
+    ports:
+      - "127.0.0.1:8000:8000" # local machine only
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    environment: *app_env
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:
