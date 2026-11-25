@@ -9,8 +9,14 @@ yet (at most :data:`MAX_WINDOWS`, tracked as ``gkg_window`` in this source's
 the articles that match a watch term. Earlier windows have predictable names,
 so a late run still picks up the windows it missed (up to the cap).
 
-**Fallback: one DOC 2.0 API call.** If the file feed cannot be read at all,
-all watch terms are ORed into a single query. That API is rate-limited (one
+GDELT sometimes skips a 15-minute file, so a computed earlier window can be a
+404: that window is counted in ``notes.missing_windows`` and passed over (the
+stored window moves past it). Only the file ``lastupdate.txt`` lists is sure to
+exist; if it is a 404 anyway (not on the server yet), it is left for the next
+run (``notes.latest_missing``) and the stored window does not move past it.
+
+**Fallback: one DOC 2.0 API call.** Only if ``lastupdate.txt`` cannot be read
+(or names no usable GKG file); never because a window file failed. Then all watch terms are ORed into a single query. That API is rate-limited (one
 request per 5 s per IP, shared by everyone on a GitHub runner), so on a 429 or
 its throttle text the run stops at once and reports ``throttled``.
 
@@ -99,6 +105,10 @@ _TITLE_RE = re.compile(r"<PAGE_TITLE>(.*?)</PAGE_TITLE>", re.S)
 _TAG_RE = re.compile(r"<[^>]*>")
 _NONWORD_RE = re.compile(r"[^0-9a-z|]+")
 _WINDOW_RE = re.compile(r"/(\d{14})\.gkg\.csv\.zip$")
+
+
+class MissingFile(SourceError):
+    """HTTP 404 for a GKG window file: GDELT skipped it or has not published it yet."""
 
 
 # --- DOC 2.0 API ---------------------------------------------------------------
@@ -470,14 +480,15 @@ def read_gkg_zip(data: bytes, matchers: list[Matcher], notes: dict[str, int]) ->
 
 
 def download(client: httpx.Client, url: str, cap: int, deadline: float, clock) -> bytes:
-    """GET with a byte cap and a wall-clock deadline. Raises ``SourceError``."""
+    """GET with a byte cap and a wall-clock deadline. Raises ``SourceError``
+    (``MissingFile`` on a 404)."""
     host = host_of(url)
     try:
         with client.stream("GET", url, timeout=FILE_TIMEOUT) as resp:
             if resp.status_code == 429:
                 raise Throttled(f"HTTP 429 from {host}")
             if resp.status_code == 404:
-                raise SourceError(f"HTTP 404 from {host}")
+                raise MissingFile(f"HTTP 404 from {host}")
             if resp.status_code >= 400:
                 raise SourceError(f"HTTP {resp.status_code} from {host}")
             length = resp.headers.get("content-length")
@@ -500,6 +511,40 @@ def download(client: httpx.Client, url: str, cap: int, deadline: float, clock) -
 # --- connector ----------------------------------------------------------------------
 
 
+@dataclass
+class FileRun:
+    """What :meth:`GdeltConnector.fetch_files` did with this run's windows."""
+
+    todo: int = 0
+    read: int = 0
+    missing: int = 0  # earlier windows that are a 404: skipped by GDELT, passed over
+    latest_missing: bool = False  # the file lastupdate.txt lists is a 404: retried next run
+    failed: int = 0  # other errors (timeouts, 5xx, bad zip)
+    not_run: int = 0  # over the time budget
+    last_error: str | None = None
+
+    def outcome(self, latest: int | None) -> tuple[Status | None, str | None]:
+        if self.todo == 0:
+            return Status.EMPTY, None  # newest window already stored
+        problems = []
+        if self.latest_missing:
+            problems.append(f"newest GKG file {latest} not on the server yet (HTTP 404); retried next run")
+        if self.failed:
+            problems.append(self.last_error or "window download failed")
+        if self.not_run:
+            problems.append("time budget reached")
+        if self.missing and not self.read:
+            problems.append(f"{self.missing} earlier GKG window(s) skipped by GDELT (HTTP 404)")
+        if not problems:
+            return None, None  # every window read or skipped by GDELT
+        msg = "; ".join(problems)
+        if self.read:
+            return Status.PARTIAL, msg
+        if self.failed:
+            return Status.ERROR, f"file feed: {msg}"
+        return Status.EMPTY, f"file feed: no GKG window to read: {msg}"
+
+
 class GdeltConnector(Connector):
     name = "gdelt"
     min_interval = timedelta(minutes=15)
@@ -509,10 +554,8 @@ class GdeltConnector(Connector):
         self.budget = budget
         self.max_windows = max_windows
 
-    def fetch_files(
-        self, client: httpx.Client, ctx: RunContext, matchers: list[Matcher], batch: Batch
-    ) -> tuple[int, int, str | None]:
-        """Returns (windows read, windows failed, last error). Raises if the list can't be read."""
+    def fetch_files(self, client: httpx.Client, ctx: RunContext, matchers: list[Matcher], batch: Batch) -> FileRun:
+        """Reads the windows not stored yet. Raises if lastupdate.txt can't be used."""
         started = self.clock()
         listing = parse_lastupdate(get(client, LASTUPDATE, attempts=1, timeout=LIST_TIMEOUT).text)
         if "gkg" not in listing:
@@ -526,29 +569,42 @@ class GdeltConnector(Connector):
         batch.notes["gkg_latest"] = window_key(latest)
         if size > MAX_ZIP_BYTES:
             raise SourceError("GKG file over the size cap")
-        ok = failed = 0
-        last_error = None
-        newest_ok = done or 0
+        run = FileRun(todo=len(todo))
+        newest_done = done or 0
         for ts in todo:  # newest first, so the budget drops the oldest
             if self.clock() - started > self.budget:
-                batch.notes["windows_not_run"] = batch.notes.get("windows_not_run", 0) + 1
+                run.not_run += 1
                 continue
             key = window_key(ts)
             try:
                 data = download(client, gkg_url(ts), MAX_ZIP_BYTES, started + self.budget, self.clock)
                 batch.notes["bytes_downloaded"] = batch.notes.get("bytes_downloaded", 0) + len(data)
                 batch.events.extend(read_gkg_zip(data, matchers, batch.notes))
-            except SourceError as exc:
-                failed += 1
-                last_error = str(exc)
+            except MissingFile:
+                if ts == latest:
+                    run.latest_missing = True  # listed, so it will exist: don't move past it
+                else:
+                    run.missing += 1  # GDELT skipped this window: nothing to come back for
+                    newest_done = max(newest_done, key)
                 continue
-            ok += 1
-            newest_ok = max(newest_ok, key)
-        if newest_ok:
-            batch.notes["gkg_window"] = newest_ok
-        batch.notes["windows_read"] = ok
-        batch.notes["windows_failed"] = failed
-        return ok, len(todo), last_error
+            except SourceError as exc:
+                run.failed += 1
+                run.last_error = str(exc)
+                continue
+            run.read += 1
+            newest_done = max(newest_done, key)
+        if newest_done:
+            batch.notes["gkg_window"] = newest_done
+        batch.notes["windows_read"] = run.read
+        batch.notes["windows_failed"] = run.failed
+        for note, n in (
+            ("missing_windows", run.missing),
+            ("latest_missing", int(run.latest_missing)),
+            ("windows_not_run", run.not_run),
+        ):
+            if n:
+                batch.notes[note] = n
+        return run
 
     def fetch_doc(self, client: httpx.Client, matchers: list[Matcher], batch: Batch) -> None:
         """One DOC API call for all terms. Raises ``Throttled`` on the first throttle reply."""
@@ -585,19 +641,14 @@ class GdeltConnector(Connector):
             batch.notes["gkg_window"] = done  # carried forward even if this run fails over
 
         try:
-            ok, todo, last_error = self.fetch_files(client, ctx, matchers, batch)
+            files = self.fetch_files(client, ctx, matchers, batch)
         except SourceError as exc:
             file_error = str(exc)
         else:
-            if todo == 0:
-                return self._finish(batch, Status.EMPTY, None)  # newest window already stored
-            if ok == todo:
-                return self._finish(batch, None, None)
-            if ok:
-                return self._finish(batch, Status.PARTIAL, last_error or "time budget reached")
-            file_error = last_error or "time budget reached"
+            # The listing was read: whatever the window files did, no DOC call.
+            return self._finish(batch, *files.outcome(batch.notes.get("gkg_latest")))
 
-        # Fallback: the file feed could not be read. One DOC call, no back-off.
+        # Fallback: lastupdate.txt could not be read. One DOC call, no back-off.
         batch.notes["doc_fallback"] = 1
         try:
             self.fetch_doc(client, matchers, batch)
