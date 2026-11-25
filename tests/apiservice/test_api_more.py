@@ -105,7 +105,7 @@ def test_composio_connect_browse_source_and_sync(client, owner_db, fake_http, se
     assert ent["lineage"]["row_key"] == "rec1" and ent["lineage"]["url"] == "https://airtable.com/appB/tblS/rec1"
 
     assert client.delete(f"/v1/connections/{cid}", headers=hdr(me)).status_code == 204
-    assert state["deleted"] == [f"/api/v3.1/connected_accounts/ca_new"]
+    assert state["deleted"] == ["/api/v3.1/connected_accounts/ca_new"]
 
 
 def test_composio_expiry_webhook_marks_the_connection(client, owner_db, fake_http, settings):
@@ -331,3 +331,31 @@ def test_outbound_transport_is_real_by_default():
     code = "from api.core import http; c = http.client(); assert http.transport is None; print(type(c._transport).__name__)"
     out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "HTTPTransport"
+
+
+def test_housekeeping_prunes_only_this_workspace(client, owner_db, settings):
+    from worker import sync
+    from worker.main import Worker
+    from test_api_google_flow import RecordingApi
+
+    a, b = sign_up(client), sign_up(client)
+    for ws in (a["workspace_id"], b["workspace_id"]):
+        owner_db.execute(
+            "INSERT INTO biz.webhook_events (workspace_id, provider, delivery_id, event_type, status, received_at) VALUES"
+            " (%(ws)s, 'composio', 'old-done', 't', 'processed', now() - interval '40 days'),"
+            " (%(ws)s, 'composio', 'old-open', 't', 'received', now() - interval '40 days'),"
+            " (%(ws)s, 'composio', 'new-done', 't', 'processed', now())",
+            {"ws": ws},
+        )
+        owner_db.execute("INSERT INTO biz.connections (workspace_id, provider, status, created_at)"
+                         " VALUES (%s, 'google_sheets', 'pending', now() - interval '2 days')", (ws,))  # fmt: skip
+    worker = Worker(settings, api=RecordingApi())
+    worker.db.open()
+    try:
+        sync.housekeeping(worker.ctx, UUID(a["workspace_id"]))
+    finally:
+        worker.db.close()
+    left = owner_db.execute("SELECT workspace_id::text AS ws, delivery_id FROM biz.webhook_events ORDER BY 1, 2").fetchall()
+    assert [r["delivery_id"] for r in left if r["ws"] == a["workspace_id"]] == ["new-done", "old-open"]
+    assert len([r for r in left if r["ws"] == b["workspace_id"]]) == 3
+    assert owner_db.execute("SELECT count(*) AS n FROM biz.connections").fetchone()["n"] == 1

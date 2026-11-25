@@ -253,6 +253,7 @@ def refresh_composio_status(st, ws: UUID, row: dict) -> dict | None:
         )
     st.hub.publish(ws, "connection.updated", {"connection_id": str(row["id"]), "status": status, "status_reason": reason})
     if status == "active":
+        composio.subscribe_trigger(st.settings, row["provider"], row["composio_connected_account_id"], ws)
         st.hints.add(ws, "connection")
     return {"status": status, "status_reason": reason}
 

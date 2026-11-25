@@ -155,6 +155,19 @@ def upsert_trigger(settings: Settings, slug: str, account_id: str, workspace_id:
     )
 
 
+def subscribe_trigger(settings: Settings, provider: str, account_id: str, workspace_id: UUID | str) -> bool:
+    """Subscribe the trigger configured for this app, if any. Best effort: the
+    worker's periodic re-read keeps the source fresh without it."""
+    slug = settings.composio_trigger_slugs.get(provider.split(":", 1)[-1])
+    if not slug:
+        return False
+    try:
+        upsert_trigger(settings, slug, account_id, workspace_id)
+        return True
+    except (UpstreamUnavailable, UpstreamNotFound):
+        return False
+
+
 # --- webhook signature ---------------------------------------------------------------
 
 

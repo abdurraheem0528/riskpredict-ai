@@ -68,6 +68,7 @@ class Worker:
             conns = sync._connections(ctx, ws)
             self._step("composio status", sync.check_pending_composio, ctx, ws, conns)
             self._step("drive watch", sync.ensure_watches, ctx, ws, conns)
+            self._step("housekeeping", sync.housekeeping, ctx, ws)
             changed = False
             for src in sync.due_sources(ctx, ws):
                 result = self._step("source sync", sync.sync_source, ctx, ws, src["id"])

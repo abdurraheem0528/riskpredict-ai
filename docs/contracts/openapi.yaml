@@ -89,7 +89,8 @@ paths:
     get:
       tags: [system]
       operationId: getHealth
-      summary: Liveness, plus the migration the API expects
+      summary: Liveness, plus the latest applied migration (read once at startup)
+      description: Never queries the database, so platform health checks do not keep Neon awake. `schema_version` is `unknown` if the database was unreachable at startup; the API refuses to start when `EXPECTED_SCHEMA_VERSION` (default `007_biz_lookups`) is not applied.
       security: []
       responses:
         "200":
@@ -139,7 +140,7 @@ paths:
       tags: [auth]
       operationId: signIn
       summary: Exchange email and password for tokens
-      description: Wrong email and wrong password give the same `401 invalid_credentials`. Ten failures lock the account for 15 minutes (`423`-style `401 account_locked`).
+      description: Wrong email and wrong password give the same `401 invalid_credentials` (and take the same time). Ten failures in a row lock the account for 15 minutes (`401 account_locked`, also with the right password). Rate limits are 20 attempts a minute per IP and 10 per account (`429`).
       security: []
       requestBody:
         required: true
@@ -416,7 +417,7 @@ paths:
       tags: [connections]
       operationId: listProviders
       summary: Tools that can be connected (Connect screen)
-      description: Google Sheets is direct. Others go through Composio and are listed only when `COMPOSIO_API_KEY` is configured on the server.
+      description: Google Sheets is direct (`available` when the Google OAuth client and `TOKEN_ENCRYPTION_KEYS` are configured). Others go through Composio and are listed only when `COMPOSIO_API_KEY` is configured, and only for tools the API can read rows from (currently Airtable); one is `available` when `COMPOSIO_AUTH_CONFIGS` has an auth config for it.
       responses:
         "200":
           description: OK
@@ -484,6 +485,7 @@ paths:
                   connection_id: {type: string, format: uuid}
                   authorization_url: {type: string, format: uri}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "503": {$ref: "#/components/responses/Unavailable"}
 
   /v1/connections/google/callback:
     get:
@@ -641,7 +643,7 @@ paths:
       tags: [sources]
       operationId: createSource
       summary: Add a picked sheet tab or table (editor)
-      description: Reads the header row and up to 5 sample values per column, stores them in `columns`, and starts a mapping suggestion in the background (SSE `mapping.suggested`).
+      description: Reads the header row and up to 5 sample values per column (from the first 200 rows), stores them in `columns`, and starts a mapping suggestion in the background (Groq, else heuristics; SSE `mapping.suggested`). A Google spreadsheet the user did not pick with the Picker is `404`; an inactive connection is `409 connection_not_active`.
       parameters:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
       requestBody:
@@ -718,7 +720,7 @@ paths:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
         - {$ref: "#/components/parameters/SourceIdPath"}
       responses:
-        "202": {description: "Queued; SSE `source.synced` or `source.sync_failed` follows"}
+        "202": {description: "Queued (a source in `error` goes back to `active`); SSE `source.sync_started`, then `source.synced` or `source.sync_failed`, follows"}
         "409": {$ref: "#/components/responses/Conflict"}
 
   /v1/sources/{source_id}/mapping:
@@ -756,8 +758,10 @@ paths:
       description: |
         Sends only the header names and up to 5 sample values per column to Groq
         (`GROQ_MAPPING_MODEL`). The model's JSON is validated against `MappingSpec`;
-        anything invalid is dropped. This never writes entities. If Groq is
-        unavailable, the API returns `503 ai_unavailable` and the user maps by hand.
+        anything invalid is dropped, and columns the model skipped get the header
+        heuristics' suggestion. This never writes entities. If Groq is not configured,
+        unavailable or out of quota, the suggestion comes from deterministic header and
+        sample heuristics alone (`model` = `heuristic`); the user confirms either way.
       parameters:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
         - {$ref: "#/components/parameters/SourceIdPath"}
@@ -767,8 +771,8 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/ColumnMapping"}
-        "503": {$ref: "#/components/responses/Unavailable"}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
 
   /v1/sources/{source_id}/mapping/preview:
     post:
@@ -1028,7 +1032,7 @@ paths:
       tags: [map]
       operationId: mapDisruptions
       summary: Port disruptions (PortWatch) and chokepoints with their current status
-      description: Chokepoints come from the engine's static table (risk-engine.md §5.3). `status` is `disrupted` if a matching event in the last 7 days has severity ≥ 0.66, `watch` if any matching event, else `normal`.
+      description: Chokepoints come from the engine's static table (risk-engine.md §5.3; until the engine is installed, only port disruptions are returned). A chokepoint's matching events are positioned `hazard.*` / `port.disruption` events within its radius, and news tagged `port_shipping_disruption` or `conflict` naming one of its aliases. `status` is `disrupted` if a matching event in the last 7 days has severity ≥ 0.66, `watch` if any matching event, else `normal`.
       parameters:
         - {$ref: "#/components/parameters/Bbox"}
       responses:
@@ -1209,7 +1213,7 @@ paths:
       tags: [scenarios]
       operationId: runScenario
       summary: Run a what-if (editor); synchronous, at most 20 s
-      description: Runs the engine on the workspace's entities with the inputs applied (`engine.run_scenario`). Writes only the `biz.scenarios` row; real risks are untouched.
+      description: Runs the engine on the workspace's entities with the inputs applied (`engine.run_scenario`). Writes only the `biz.scenarios` row; real risks are untouched. When the engine is not installed or fails, the scenario is stored with `status` = `failed` and a safe `error`.
       parameters:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
       requestBody:
@@ -1416,11 +1420,22 @@ paths:
       operationId: composioTrigger
       summary: Composio trigger / connection-status webhook
       description: |
-        The API:
-        1. Verifies the signature (`webhook-id`, `webhook-timestamp` and `webhook-signature`, HMAC-SHA256 with `COMPOSIO_WEBHOOK_SECRET`, Standard Webhooks scheme, timestamps no more than 5 minutes old). An invalid signature gets 401.
-        2. Routes the delivery by `connected_account_id` with `biz.route_composio_account`.
-        3. Inserts `biz.webhook_events` (delivery id = `webhook-id`), ON CONFLICT DO NOTHING.
-        4. Queues a source sync or a connection-status update.
+        Checked against Composio's docs (REST API v3.1, V3 webhook payloads). The API:
+        1. Verifies the signature: `webhook-signature` is `v1,<base64 HMAC-SHA256>` over
+           `{webhook-id}.{webhook-timestamp}.{raw body}`, keyed with `COMPOSIO_WEBHOOK_SECRET`
+           **as UTF-8 bytes** (unlike the Standard Webhooks `whsec_` form, the secret is not
+           base64-decoded). The header may hold several space-separated `v1,…` values; any
+           match is enough. `webhook-timestamp` (Unix seconds) must be within 5 minutes. An
+           invalid signature gets 401.
+        2. Finds the connected account: `metadata.connected_account_id` for trigger events
+           (`type` = `composio.trigger.message`), `data.id` for connected-account lifecycle
+           events (`type` = `composio.connected_account.*`, e.g. `.expired`), and routes it
+           with `biz.route_composio_account`.
+        3. Inserts `biz.webhook_events` (delivery id = `webhook-id`, which equals the payload
+           `id` and is stable across retries), ON CONFLICT DO NOTHING. Only ids, the event
+           type, trigger slug and status are kept, never the record data.
+        4. Wakes the worker, which re-reads the connection's sources (trigger) or re-checks
+           the account's status with Composio (lifecycle).
         Unknown accounts get 200, and the delivery is dropped.
       security: []
       parameters:
@@ -1433,15 +1448,24 @@ paths:
           application/json:
             schema:
               type: object
-              description: Composio's payload; only these fields are read.
+              description: Composio's V3 payload; only these fields are read.
               properties:
-                type: {type: string}
-                data:
+                id: {type: string, description: "Equals the webhook-id header (msg_…)"}
+                type: {type: string, examples: [composio.trigger.message, composio.connected_account.expired]}
+                metadata:
                   type: object
+                  description: Trigger events
                   additionalProperties: true
                   properties:
                     connected_account_id: {type: string}
                     trigger_slug: {type: string}
+                    toolkit_slug: {type: string}
+                data:
+                  type: object
+                  description: "The trigger's event payload; for lifecycle events, the connected account (`id`, `status`)"
+                  additionalProperties: true
+                  properties:
+                    id: {type: string}
                     status: {type: string}
       responses:
         "200": {description: Accepted}
@@ -1477,6 +1501,45 @@ paths:
                       data: {type: object}
       responses:
         "202": {description: Accepted}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+
+  /internal/work:
+    get:
+      tags: [internal]
+      operationId: takeWorkHints
+      summary: The worker long-polls for wake-up hints
+      description: |
+        Returns (and clears) the workspaces that need a worker pass, waiting up to `wait`
+        seconds for one. The API adds a hint when a webhook was recorded, a mapping
+        confirmed, a sync or a re-score requested, or a connection activated. Hints live
+        in memory only: the durable state is in the database (`webhook_events`,
+        `sources.last_change_at`), which the worker's scheduled pass reads anyway. No
+        database query is made, so waiting costs no Neon compute. Private network and
+        `Authorization: Bearer ${INTERNAL_TOKEN}` only.
+      x-internal: true
+      security:
+        - internalToken: []
+      parameters:
+        - {name: wait, in: query, schema: {type: number, minimum: 0, maximum: 55, default: 25}}
+      responses:
+        "200":
+          description: Hints, possibly none
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [workspace_id, reasons]
+                      properties:
+                        workspace_id: {type: string, format: uuid}
+                        reasons:
+                          type: array
+                          items: {type: string, enum: [webhook, sync, engine, connection, deleted]}
         "401": {$ref: "#/components/responses/Unauthorized"}
 
 components:
@@ -1530,7 +1593,7 @@ components:
     Bbox:
       name: bbox
       in: query
-      description: "minLon,minLat,maxLon,maxLat (WGS84). Features without a position are included when their country intersects the box."
+      description: "minLon,minLat,maxLon,maxLat (WGS84); minLon > maxLon crosses the antimeridian. Filters positioned features only: features without a position are always included, and the dashboard places them by country/port (the API has no country geometries)."
       schema: {type: string, pattern: "^-?\\d+(\\.\\d+)?(,-?\\d+(\\.\\d+)?){3}$", examples: ["-10,35,30,60"]}
 
   responses:
@@ -1658,7 +1721,7 @@ components:
           required: [user, workspace_id]
           properties:
             user: {$ref: "#/components/schemas/User"}
-            workspace_id: {type: string, format: uuid, description: "The new workspace (sign-up) or the most recently used one (sign-in)"}
+            workspace_id: {type: [string, "null"], format: uuid, description: "The new workspace (sign-up), or the workspace the user joined most recently (sign-in; the dashboard may remember the last one it used). Null when the user belongs to none"}
     User:
       type: object
       required: [id, email, display_name, created_at]
@@ -1861,7 +1924,7 @@ components:
         version: {type: integer, minimum: 1}
         status: {type: string, enum: [suggested, confirmed, superseded, rejected]}
         spec: {$ref: "#/components/schemas/MappingSpec"}
-        model: {type: [string, "null"], description: "e.g. groq:llama-3.3-70b-versatile; null when mapped by hand"}
+        model: {type: [string, "null"], description: "`groq:<GROQ_MAPPING_MODEL>`, or `heuristic` when Groq was unavailable. On a confirmed version: the suggestion's model when it was confirmed unchanged, else null (mapped by hand)"}
         created_at: {type: string, format: date-time}
         confirmed_at: {type: [string, "null"], format: date-time}
     MappingPreview:

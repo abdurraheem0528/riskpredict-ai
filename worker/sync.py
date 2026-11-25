@@ -152,6 +152,16 @@ def _drive_changes(ctx: Ctx, ws: UUID, row: dict) -> None:
         )
 
 
+def housekeeping(ctx: Ctx, ws: UUID) -> None:
+    """Prune handled webhook rows after 30 days, and Google sign-ins never finished after a day."""
+    with ctx.db.workspace_tx(ws) as conn:
+        conn.execute("DELETE FROM biz.webhook_events WHERE status <> 'received' AND received_at < now() - interval '30 days'")
+        conn.execute(
+            "DELETE FROM biz.connections WHERE provider = 'google_sheets' AND status = 'pending'"
+            " AND created_at < now() - interval '1 day'"
+        )
+
+
 # --- Drive watch channels ---------------------------------------------------------------
 
 
@@ -200,17 +210,7 @@ def check_pending_composio(ctx: Ctx, ws: UUID, conns: list[dict]) -> None:
             if status != "pending":
                 _mark_connection(ctx, ws, row["id"], status, reason)
                 if status == "active":
-                    _maybe_trigger(ctx, ws, row)
-
-
-def _maybe_trigger(ctx: Ctx, ws: UUID, row: dict) -> None:
-    app = row["provider"].split(":", 1)[1]
-    slug = ctx.settings.composio_trigger_slugs.get(app)
-    if slug:
-        try:
-            composio.upsert_trigger(ctx.settings, slug, row["composio_connected_account_id"], ws)
-        except Problem as exc:
-            log.info("trigger setup skipped (%s); the periodic re-read covers this source", exc.code)
+                    composio.subscribe_trigger(ctx.settings, row["provider"], row["composio_connected_account_id"], ws)
 
 
 # --- sources ------------------------------------------------------------------------------
