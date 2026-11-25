@@ -80,8 +80,17 @@ src/
 No tiles, no keys, no glyph server. The base map is Natural Earth (public domain) served
 from `public/map/` and drawn with three layers in the System-Color surface tokens: sea
 `#E7ECF1`, land `#FFFFFF`, coast `#CFD5DC`. Everything else is a layer from the API's
-GeoJSON endpoints, clustered where dense (signals, entities). Callouts, cluster counts
-and pulses are HTML markers, so no font has to be served to MapLibre.
+GeoJSON endpoints, clustered where dense (signals, entities).
+
+All map text is MapLibre symbols, so it takes part in symbol collision (`map/labels.ts`):
+risk callouts (score pill and place in a capsule), cluster counts and entity names. The
+style has no `glyphs` URL, so MapLibre draws the glyphs itself with TinySDF from two
+FontFace aliases of the self-hosted Inter, loaded before the first label. Each label gets
+only the anchors (`text-variable-anchor-offset`) under which it stays inside the open map,
+clear of the edges, the top row, the sheet, corner card, legend and map controls. MapLibre
+places it at the first of those that does not collide, or hides it. Cluster counts are
+placed first, then callouts, then names. The only HTML markers left are the decorative
+pulses on Empty.
 
 Features without a position are placed as the contract says: by their first port (World
 Port Index UN/LOCODE) or first country (Natural Earth label point). `/v1/map/risks` places
@@ -102,7 +111,7 @@ From `npm run check:bundle` on the production build:
 
 | Chunk | Raw | gzip | When |
 |---|---:|---:|---|
-| App (React, React Query, openapi-fetch, screens) | 369 KiB | 113 KiB | first load |
+| App (React, React Query, openapi-fetch, screens) | 376 KiB | 116 KiB | first load |
 | MapLibre GL JS | 1,030 KiB | 278 KiB | loaded in parallel, after the shell paints; cached separately |
 | CSS (app + MapLibre) | 92 KiB | 15 KiB | first load |
 | Inter (variable, optical sizes), Latin subset | 71 KiB | 71 KiB | first load; other subsets only if the page needs them |
@@ -137,10 +146,13 @@ breakpoints and wording rules are followed as drawn. These are the deliberate di
   access" are left out until they are designed.
 - *Map:* MapLibre over Natural Earth instead of the rendered image. Routes are not drawn as
   sea lanes: the API has no route geometry, and great-circle lines between ports cross
-  land, so a route appears at its ports. Callouts have no leader lines; they stack when
-  places are close.
+  land, so a route appears at its ports. Callouts have no leader lines: they sit beside
+  their point, flip side to stay on the map, and hide when there is no room (the same risks
+  are in the sheet's list, which is also the keyboard path).
 - *Bottom sheet on phones:* the grab handle lowers and raises the sheet (tap), rather than
   dragging.
+- *Feed health:* the legend's dot is green when every feed is live and amber when one is
+  down; hovering or focusing it names the feeds that are down.
 
 **Empty**
 - No "Upload a file" button: the API has no upload endpoint, and the view keeps one primary

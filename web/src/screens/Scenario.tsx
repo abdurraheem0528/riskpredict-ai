@@ -176,11 +176,12 @@ export function Scenario() {
     <>
       <CountryShade iso={kind === 'country' ? country : null} />
       <EntitiesLayer id="sc-others" data={others} muted />
-      <EntitiesLayer id="sc-affected" data={affected} />
+      <EntitiesLayer id="sc-affected" data={affected} labels="names" />
       <DotsLayer id="sc-shock" data={shockFc} color="#DD6248" radius={6} />
 
-      <aside className="sheet right glass" aria-label="What if">
+      <aside className="sheet right split glass" aria-label="What if">
         <Grab />
+        <div className="sbody">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span className="lbl">What if</span>
           <h1 className="h2">{spec?.title ?? 'Pick an event'}</h1>
@@ -282,7 +283,8 @@ export function Scenario() {
 
         <SavedList items={saved.data?.items ?? []} current={result?.id ?? null} />
 
-        <div className="foot">
+        </div>
+        <div className="sfoot">
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" className="b pri" style={{ flex: 1 }} disabled={!editor || !spec || run.isPending} onClick={() => run.mutate()}>
             {run.isPending && <span className="spin" />}

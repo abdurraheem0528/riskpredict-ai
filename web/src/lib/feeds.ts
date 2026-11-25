@@ -1,22 +1,35 @@
 import type { components } from '../api/schema';
 import { feedName } from './format';
 
-type Health = { sources: components['schemas']['SourceHealth'][] };
+type SourceHealth = components['schemas']['SourceHealth'];
+type Health = { sources: SourceHealth[] };
 
-/** A feed is live when its last run worked (ok, or ran and found nothing new). */
-export const isLive = (s: components['schemas']['SourceHealth']) => s.status === 'ok' || s.status === 'empty' || s.status === 'partial';
+/** Live: the last run worked (ok, or ran and found nothing new). Anything else is down. */
+export const isLive = (s: SourceHealth) => s.status === 'ok' || s.status === 'empty' || s.status === 'partial';
+
+export const LIVE_GREEN = '#1A9E5A';
+export const DOWN_AMBER = '#D98E04';
+
+const STATUS_TEXT: Record<SourceHealth['status'], string> = {
+  ok: 'live', empty: 'live', partial: 'partly live', throttled: 'paused by its rate limit', error: 'failing', skipped: 'skipped',
+};
 
 export function feedSummary(h: Health | undefined) {
   const sources = h?.sources ?? [];
   const live = sources.filter(isLive);
-  const failing = sources.filter((s) => s.status === 'error');
+  const down = sources.filter((s) => !isLive(s));
   const names = [...new Set(sources.map((s) => feedName(s.source)))];
   return {
     total: sources.length,
     live: live.length,
-    failing,
+    down,
     names,
     text: sources.length ? `${live.length} of ${sources.length} feeds live` : 'No feeds have run yet',
-    color: sources.length && live.length === sources.length ? '#1A9E5A' : failing.length ? '#B3200F' : '#A3A7AE',
+    color: !sources.length ? '#A3A7AE' : down.length ? DOWN_AMBER : LIVE_GREEN,
+    /** "NewsData: paused by its rate limit (daily limit reached)" per down feed. */
+    downText: down.map((s) => {
+      const why = s.last_error ? ` (${s.last_error.length > 60 ? `${s.last_error.slice(0, 59)}…` : s.last_error})` : '';
+      return `${feedName(s.source)}: ${STATUS_TEXT[s.status]}${why}`;
+    }),
   };
 }

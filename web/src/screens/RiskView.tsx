@@ -11,13 +11,13 @@ import { useSession, canEdit } from '../app/Session';
 import { useToast } from '../app/Toast';
 import { useDismiss } from '../app/TopBar';
 import { navigate } from '../lib/router';
-import { CATEGORIES, KINDS, LEVELS, levelOf, ago, fmtDate, feedName, outOf5, pct, plural } from '../lib/format';
+import { CATEGORIES, KINDS, LEVELS, levelOf, ago, fmtDate, feedName, outOf5, plural } from '../lib/format';
 import { placeOf, countryName, portName } from '../map/geo';
 import { useMap, fitTo, sheetPadding } from '../map/MapRoot';
-import { DotsLayer, EntitiesLayer, Markers, RiskPlacesLayer } from '../map/layers';
+import { DotsLayer, EntitiesLayer, RiskPlacesLayer } from '../map/layers';
 import { usePlaced, useGazetteer } from '../map/data';
 import { Icon } from '../ui/Icon';
-import { ErrorState, LevelChip, MapControls, SheetHead, SkeletonRows, Spark } from '../ui/parts';
+import { ErrorState, LevelChip, MapControls, Pct, SheetHead, SkeletonRows, Spark } from '../ui/parts';
 import { Grab } from '../ui/Grab';
 
 type Status = 'open' | 'acknowledged' | 'mitigating' | 'dismissed';
@@ -77,36 +77,29 @@ export function RiskView({ id }: { id: string }) {
     fitTo(map, [[w, s], [e, n]], sheetPadding('left', 440), 4);
   }, [map, where, entityAt, evidencePoints]);
 
-  const label = useMemo(() => {
-    const at = entityAt ?? where;
-    if (!r || !at) return [];
-    return [{ key: 'risk-label', at, anchor: 'left' as const, offset: [14, 0] as [number, number], node: <span className="mlab" style={{ color: '#141518', fontWeight: 600, fontSize: 12 }}>{r.entity.name}</span> }];
-  }, [r, where, entityAt]);
-
   return (
     <>
       <EntitiesLayer id="others" data={others} muted />
       <DotsLayer id="evidence" data={evidencePoints} color="#7D838B" radius={3.5} />
       <RiskPlacesLayer data={hotspot} />
-      <EntitiesLayer id="affected" data={affected} />
-      <Markers items={label} />
+      <EntitiesLayer id="affected" data={affected} labels="strong" />
 
-      <aside className="sheet w440 glass" aria-label={r ? `Risk: ${r.title}` : 'Risk'}>
+      <aside className="sheet w440 split glass" aria-label={r ? `Risk: ${r.title}` : 'Risk'}>
         <Grab />
         {risk.isPending ? (
-          <>
+          <div className="sbody">
             <SheetHead back={{ to: '/', label: 'Overview', onClick: () => navigate('/') }} />
             <SkeletonRows n={6} h={40} />
-          </>
+          </div>
         ) : risk.isError ? (
-          <>
+          <div className="sbody">
             <SheetHead back={{ to: '/', label: 'Overview', onClick: () => navigate('/') }} />
             <ErrorState
               error={risk.error}
               title={(risk.error as { status?: number }).status === 404 ? 'This risk is not in this workspace' : 'The risk did not load'}
               retry={() => void risk.refetch()}
             />
-          </>
+          </div>
         ) : (
           <RiskBody r={risk.data} editor={canEdit(role)} />
         )}
@@ -160,6 +153,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
 
   return (
     <>
+      <div className="sbody">
       <SheetHead
         back={{ to: '/', label: 'Overview', onClick: () => (window.history.length > 1 ? window.history.back() : navigate('/')) }}
         right={
@@ -205,7 +199,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
             <span className="figxl">{Math.round(r.score)}</span>
             <LevelChip score={r.score} />
           </div>
-          <span className="t12">{pct(r.likelihood)} likely · impact {outOf5(r.impact)} of 5</span>
+          <span className="t12"><Pct value={r.likelihood} /> likely · impact {outOf5(r.impact)} of 5</span>
         </div>
         {history.length > 1 && first ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
@@ -222,7 +216,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>
         <div className="tile">
-          <span className="fig s">{imp.exposure_share != null ? pct(imp.exposure_share) : imp.criticality ? cap(imp.criticality) : '–'}</span>
+          <span className="fig s">{imp.exposure_share != null ? <Pct value={imp.exposure_share} /> : imp.criticality ? cap(imp.criticality) : '–'}</span>
           <span className="t12">{imp.exposure_share != null ? 'of spend or revenue' : 'criticality'}</span>
         </div>
         <div className="tile"><span className="fig s">{r.evidence_count}</span><span className="t12">{r.evidence_count === 1 ? 'signal matched' : 'signals matched'}</span></div>
@@ -255,12 +249,16 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
           <div className="evd" key={e.evidence_key}>
             <span style={{ minWidth: 0 }}>
               {e.snapshot.url ? (
-                <a href={e.snapshot.url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 500 }}>{e.snapshot.title}</a>
+                <a className="elink" href={e.snapshot.url} target="_blank" rel="noopener noreferrer">
+                  {e.snapshot.title}
+                  <Icon name="export" size={12} stroke={1.5} className="ext" aria-hidden="true" />
+                  <span className="vh"> (opens the source)</span>
+                </a>
               ) : (
                 <b>{e.snapshot.title}</b>
               )}
             </span>
-            <span className="t12 tnum" style={{ textAlign: 'right' }}>{pct(e.contribution)}</span>
+            <span className="t12" style={{ textAlign: 'right' }} title="Share of the likelihood"><Pct value={e.contribution} /></span>
             <span className="t12" style={{ gridColumn: '1 / -1' }}>
               {e.event ? feedName(e.event.source) : 'Anomaly'} · {MATCH_TEXT[e.match_type]}: {e.match_type === 'chokepoint' ? chokeName(e.match_value) : matchValue(e)}
               {e.snapshot.published_at ? ` · ${fmtDate(e.snapshot.published_at)}` : ''}
@@ -283,7 +281,8 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
         </div>
       )}
 
-      <div className="foot">
+      </div>
+      <div className="sfoot">
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" className="b pri" style={{ flex: 1 }} onClick={() => navigate(`/scenarios?risk=${r.id}`)}>Run what-if</button>
         {editor && !closed && (

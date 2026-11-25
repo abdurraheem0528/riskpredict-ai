@@ -4,6 +4,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Map as MlMap, StyleSpecification } from 'maplibre-gl';
 import { loadGazetteer } from './geo';
+import { addLabelImages, loadMapFonts } from './labels';
 
 type Lib = typeof import('maplibre-gl');
 type Ctx = { map: MlMap | null; lib: Lib | null; status: 'loading' | 'ready' | 'failed' };
@@ -60,10 +61,12 @@ export function MapRoot({ children, veil = false }: { children?: ReactNode; veil
         map.touchZoomRotate.disableRotation();
         map.keyboard.disableRotation();
         const m = map;
-        m.once('load', () => {
+        // Labels are drawn by MapLibre from the Inter faces: wait for them (≤ 2.5 s).
+        Promise.all([new Promise<void>((r) => m.once('load', () => r())), loadMapFonts()]).then(() => {
           if (cancelled) return;
+          addLabelImages(m);
           setCtx({ map: m, lib, status: 'ready' });
-        });
+        }, () => undefined);
         m.on('idle', () => ref.current?.setAttribute('data-map', 'idle'));
         m.on('movestart', () => ref.current?.setAttribute('data-map', 'moving'));
       })

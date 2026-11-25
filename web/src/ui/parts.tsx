@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { feedSummary } from '../lib/feeds';
 import { Icon } from './Icon';
 import { errorText } from '../api/errors';
 import { LEVELS, levelOf, scoreText } from '../lib/format';
@@ -119,5 +120,49 @@ export function SheetHead({ back, right }: { back: { to: string; label: string; 
       </a>
       {right}
     </div>
+  );
+}
+
+/**
+ * A percentage with no space before the sign (System-Type). Digits stay tabular; the sign
+ * does not, because Inter's tabular `%` is a figure wide and reads as "68 %".
+ */
+export function Pct({ value, digits = 0 }: { value: number | null | undefined; digits?: number }) {
+  if (value == null) return <>–</>;
+  return (
+    <>
+      <span className="tnum">{(value * 100).toFixed(digits)}</span>
+      <span className="pcts">%</span>
+    </>
+  );
+}
+
+/**
+ * "9 of 10 feeds live" with its dot: green when every feed is live, amber when one is
+ * down. When something is down, hover or keyboard focus names it (System-Controls tooltip).
+ */
+export function FeedStatus({ health, pending, failed }: { health: Parameters<typeof feedSummary>[0]; pending?: boolean; failed?: boolean }) {
+  const f = feedSummary(health);
+  const tipId = useId();
+  if (failed) return <span>Feed status did not load</span>;
+  if (pending) return <span className="k">Checking feeds</span>;
+  const down = f.downText.length > 0;
+  return (
+    <span
+      className={`k feedst${down ? ' has-tip' : ''}`}
+      style={{ color: '#141518' }}
+      tabIndex={down ? 0 : undefined}
+      aria-describedby={down ? tipId : undefined}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: 3, background: f.color, flex: 'none' }} aria-hidden="true" />
+      {f.text}
+      {down && (
+        <span role="tooltip" id={tipId} className="tip">
+          {f.downText.map((t) => (
+            <span key={t}>{t}</span>
+          ))}
+        </span>
+      )}
+    </span>
   );
 }

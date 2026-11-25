@@ -4,9 +4,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { FeatureCollection, Point } from 'geojson';
-import type { GeoJSONSource, GeoJSONSourceSpecification, LayerSpecification, Marker, MapLayerMouseEvent } from 'maplibre-gl';
+import type { ExpressionSpecification, GeoJSONSource, GeoJSONSourceSpecification, LayerSpecification, Marker, MapLayerMouseEvent } from 'maplibre-gl';
 import { useMap } from './MapRoot';
 import { LEVELS, levelOf } from '../lib/format';
+import { countryName, portName } from './geo';
+import { FONT, FONT_SEMIBOLD, raiseSymbols, useViewportAnchors, type LabelSpec } from './labels';
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
 type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -41,6 +43,7 @@ export function useGeoJson(
     const defs = JSON.parse(layersKey) as LayerDef[];
     map.addSource(id, { type: 'geojson', data: EMPTY, ...spec } as GeoJSONSourceSpecification);
     for (const l of defs) map.addLayer({ ...l, source: id } as LayerSpecification);
+    if (defs.some((l) => l.type === 'symbol')) raiseSymbols(map);
     const handlers: [string, (e: MapLayerMouseEvent) => void, () => void, () => void][] = [];
     for (const l of defs) {
       if (!(l as { metadata?: { click?: boolean } }).metadata?.click) continue;
@@ -70,7 +73,7 @@ export function useGeoJson(
   }, [map, id, data, layersKey, optsKey]);
 }
 
-// --- HTML markers (callouts, cluster counts, pulses) ---------------------------------
+// --- HTML markers (decorative pulses only; all text is drawn by MapLibre) -------------
 
 export type MarkerItem = { key: string; at: [number, number]; node: ReactNode; anchor?: 'center' | 'left' | 'bottom' | 'bottom-left' | 'top-left'; offset?: [number, number]; z?: number };
 
@@ -126,38 +129,6 @@ export function Markers({ items }: { items: MarkerItem[] }) {
   return <>{items.map((it) => createPortal(it.node, elFor(it.key), it.key))}</>;
 }
 
-/** Cluster bubbles' counts, read back from a clustered source after each move. */
-export function useClusters(sourceId: string, enabled: boolean) {
-  const { map } = useMap();
-  const [clusters, setClusters] = useState<{ id: number; at: [number, number]; count: number }[]>([]);
-  useEffect(() => {
-    if (!map || !enabled) return;
-    const read = () =>
-      safe(() => {
-        if (!map.getSource(sourceId)) return;
-        const seen = new Map<number, { id: number; at: [number, number]; count: number }>();
-        for (const f of map.querySourceFeatures(sourceId, { filter: ['has', 'point_count'] })) {
-          const id = f.properties?.cluster_id as number;
-          if (seen.has(id)) continue;
-          const c = (f.geometry as Point).coordinates as [number, number];
-          seen.set(id, { id, at: c, count: f.properties?.point_count as number });
-        }
-        setClusters([...seen.values()]);
-      });
-    map.on('idle', read);
-    return () => {
-      map.off('idle', read);
-    };
-  }, [map, sourceId, enabled]);
-  return enabled ? clusters : [];
-}
-
-export function zoomToCluster(map: ReturnType<typeof useMap>['map'], sourceId: string, id: number, at: [number, number]) {
-  if (!map) return;
-  const src = map.getSource(sourceId) as GeoJSONSource | undefined;
-  void src?.getClusterExpansionZoom(id).then((z) => map.easeTo({ center: at, zoom: z + 0.5 }));
-}
-
 // --- the layers the screens use -------------------------------------------------------
 
 /** Global feed signals: quiet grey dots, clustered where dense (Empty, Main). */
@@ -193,24 +164,55 @@ export function Pulses({ points, color = '#7D838B' }: { points: { key: string; a
 
 type EntityProps = { kind: string; name: string; _id: string; max_score?: number | null; open_risk_count?: number };
 
-/** The business's own things: ink dots (sites as rounded squares), clustered. */
+/** Entity names: small grey text with a white halo (the designs' `.lab`). */
+const NAME_LABEL: LabelSpec = {
+  font: `400 11px "${FONT}"`,
+  text: (p) => (typeof p.name === 'string' && p.name ? p.name : null),
+  extra: 0,
+  anchors: [
+    ['left', [0.9, 0]],
+    ['right', [-0.9, 0]],
+    ['top', [0, 0.9]],
+    ['bottom', [0, -0.9]],
+  ],
+  box: (a, w) => (a === 'left' ? [10, -8, 10 + w, 8] : a === 'right' ? [-10 - w, -8, -10, 8] : a === 'top' ? [-w / 2, 10, w / 2, 24] : [-w / 2, -24, w / 2, -10]),
+};
+/** The entity a risk is about: ink, semibold, a size up. */
+const STRONG_LABEL: LabelSpec = {
+  ...NAME_LABEL,
+  font: `600 12px "${FONT_SEMIBOLD}"`,
+  box: (a, w) => (a === 'left' ? [11, -9, 11 + w, 9] : a === 'right' ? [-11 - w, -9, -11, 9] : a === 'top' ? [-w / 2, 11, w / 2, 26] : [-w / 2, -26, w / 2, -11]),
+};
+
+const visible: ExpressionSpecification = ['==', ['get', '_hide'], false];
+
+/**
+ * The business's own things: ink dots (sites as rounded squares), clustered. Cluster
+ * counts and names are symbols, so names make way for counts and for each other, and are
+ * hidden rather than drawn over something or past the edge of the map.
+ */
 export function EntitiesLayer({
   data,
   id = 'entities',
   muted = false,
   ring = false,
+  labels = 'none',
   onPick,
 }: {
   data: FeatureCollection<Point, EntityProps> | null;
   id?: string;
   muted?: boolean;
   ring?: boolean;
+  labels?: 'none' | 'names' | 'strong';
   onPick?: (entityId: string) => void;
 }) {
+  const { map } = useMap();
   const ink = muted ? '#A3A7AE' : '#141518';
+  const spec = labels === 'strong' ? STRONG_LABEL : NAME_LABEL;
+  const anchored = useViewportAnchors(map, labels === 'none' ? null : data, spec);
   useGeoJson(
     id,
-    data,
+    labels === 'none' ? data : anchored,
     [
       { id: `${id}-cluster`, type: 'circle', filter: ['has', 'point_count'], paint: { 'circle-color': ink, 'circle-opacity': 0.12, 'circle-radius': ['step', ['get', 'point_count'], 12, 10, 15, 50, 18] } },
       ...(ring
@@ -230,30 +232,60 @@ export function EntitiesLayer({
         layout: { 'icon-image': muted ? 'rp-square-muted' : 'rp-square', 'icon-allow-overlap': true, 'icon-ignore-placement': true },
         metadata: { click: true },
       },
+      ...(labels === 'none'
+        ? []
+        : [
+            {
+              id: `${id}-label`,
+              type: 'symbol',
+              filter: ['all', ['!', ['has', 'point_count']], visible],
+              layout: {
+                'text-field': ['get', 'name'],
+                'text-font': [labels === 'strong' ? FONT_SEMIBOLD : FONT],
+                'text-size': labels === 'strong' ? 12 : 11,
+                'text-max-width': 30,
+                'text-variable-anchor-offset': ['get', '_vao'],
+                'text-justify': 'auto',
+                'text-padding': 3,
+                'symbol-sort-key': ['-', ['coalesce', ['get', 'max_score'], 0]],
+              },
+              paint: { 'text-color': labels === 'strong' ? '#141518' : '#5F646C', 'text-halo-color': '#FFFFFF', 'text-halo-width': 1.5 },
+            } as LayerDef,
+          ]),
+      {
+        id: `${id}-count`,
+        type: 'symbol',
+        filter: ['has', 'point_count'],
+        layout: {
+          // one digit gets thin spaces so its bubble stays round
+          'text-field': ['case', ['<', ['get', 'point_count'], 10], ['concat', '\u2009', ['to-string', ['get', 'point_count']], '\u2009'], ['get', 'point_count_abbreviated']],
+          'text-font': [FONT_SEMIBOLD],
+          'text-size': 12,
+          'icon-image': 'rp-bubble',
+          'icon-text-fit': 'both',
+          'text-allow-overlap': true,
+          'icon-allow-overlap': true,
+        },
+        paint: { 'text-color': muted ? '#5F646C' : '#141518' },
+        metadata: { click: true },
+      },
     ],
     { cluster: true, clusterRadius: 36, clusterMaxZoom: 7 },
     (e) => {
       const f = e.features?.[0];
-      if (f && onPick) onPick(String(f.properties?._id));
+      if (!f) return;
+      const cluster = f.properties?.cluster_id as number | undefined;
+      if (cluster != null && map) {
+        const at = (f.geometry as Point).coordinates as [number, number];
+        const src = map.getSource(id) as GeoJSONSource | undefined;
+        void src?.getClusterExpansionZoom(cluster).then((z) => map.easeTo({ center: at, zoom: z + 0.5 }));
+        return;
+      }
+      if (onPick) onPick(String(f.properties?._id));
     },
   );
   useSquareImages();
-  const clusters = useClusters(id, true);
-  const { map } = useMap();
-  const items = useMemo(
-    () =>
-      clusters.map((c) => ({
-        key: `${id}-c${c.id}`,
-        at: c.at,
-        node: (
-          <button type="button" className={muted ? 'clus grey' : 'clus'} aria-label={`${c.count} places, zoom in`} onClick={() => zoomToCluster(map, id, c.id, c.at)}>
-            {c.count}
-          </button>
-        ),
-      })),
-    [clusters, id, map, muted],
-  );
-  return <Markers items={items} />;
+  return null;
 }
 
 function useSquareImages() {
@@ -286,21 +318,113 @@ function useSquareImages() {
   }, [map]);
 }
 
-type PlaceProps = { _id: string; place_key: string; max_score: number; risk_count: number; label?: string | null };
+type PlaceProps = {
+  _id: string;
+  place_type: 'country' | 'port' | 'point';
+  place_key: string;
+  max_score: number;
+  risk_count: number;
+  label?: string | null;
+  top_risk_ids?: string[];
+};
 
-/** Risk hotspots: red halos whose strength follows the level (System-Color). */
-export function RiskPlacesLayer({ data }: { data: FeatureCollection<Point, PlaceProps> | null }) {
+/** Score pill + place name in a white capsule (Main.dc.html), drawn as one symbol. */
+const CALLOUT_LABEL: LabelSpec = {
+  font: `600 13px "${FONT_SEMIBOLD}"`,
+  text: (p) => (p._co ? `${p._score}\u2002\u2002\u2002${p._label}` : null),
+  extra: 26,
+  anchors: [
+    ['left', [2, 0]],
+    ['right', [-1.85, 0]],
+    ['bottom', [0, -1.77]],
+    ['top', [0, 1.77]],
+  ],
+  box: (a, w) => (a === 'left' ? [12, -17, 12 + w, 17] : a === 'right' ? [-12 - w, -17, -12, 17] : a === 'bottom' ? [-w / 2, -48, w / 2, -14] : [-w / 2, 14, w / 2, 48]),
+};
+
+const placeName = (p: PlaceProps) =>
+  p.label ?? (p.place_type === 'country' ? countryName(p.place_key) : p.place_type === 'port' ? portName(p.place_key) : `${p.risk_count} ${p.risk_count === 1 ? 'risk' : 'risks'}`);
+
+/**
+ * Risk hotspots: red halos whose strength follows the level (System-Color), with a callout
+ * on the strongest few. Callouts are symbols: they give way to cluster counts and to each
+ * other, flip side to stay on the map, and hide when there is no room.
+ */
+export function RiskPlacesLayer({
+  data,
+  callouts = 0,
+  selected = null,
+  onPick,
+}: {
+  data: FeatureCollection<Point, PlaceProps> | null;
+  callouts?: number;
+  selected?: string | null;
+  onPick?: (riskId: string) => void;
+}) {
+  const { map } = useMap();
   const colored = useMemo(() => {
     if (!data) return null;
+    const top = new Set([...data.features].sort((a, b) => b.properties.max_score - a.properties.max_score).slice(0, callouts).map((f) => f.properties._id));
     return {
       ...data,
-      features: data.features.map((f) => ({ ...f, properties: { ...f.properties, _fill: LEVELS[levelOf(f.properties.max_score)].fill } })),
+      features: data.features.map((f) => {
+        const p = f.properties;
+        const ids = p.top_risk_ids ?? [];
+        const lvl = levelOf(p.max_score);
+        const score = String(Math.round(p.max_score));
+        return {
+          ...f,
+          properties: {
+            ...p,
+            _fill: LEVELS[lvl].fill,
+            _co: top.has(p._id),
+            _lvl: lvl,
+            _tc: LEVELS[lvl].text,
+            _score: score.length === 1 ? `\u2009${score}\u2009` : score,
+            _label: placeName(p),
+            _on: !!selected && ids.includes(selected),
+            _top: ids[0] ?? '',
+          },
+        };
+      }),
     };
-  }, [data]);
-  useGeoJson('riskplaces', colored, [
-    { id: 'riskplaces-halo', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-opacity': 0.2, 'circle-radius': ['interpolate', ['linear'], ['get', 'max_score'], 0, 12, 100, 18] } },
-    { id: 'riskplaces-dot', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-radius': 4.5, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 } },
-  ]);
+  }, [data, callouts, selected]);
+  const anchored = useViewportAnchors(map, callouts ? colored : null, CALLOUT_LABEL);
+  useGeoJson(
+    'riskplaces',
+    callouts ? anchored : colored,
+    [
+      { id: 'riskplaces-halo', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-opacity': 0.2, 'circle-radius': ['interpolate', ['linear'], ['get', 'max_score'], 0, 12, 100, 18] } },
+      { id: 'riskplaces-dot', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-radius': 4.5, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }, metadata: { click: true } },
+      ...(callouts
+        ? [
+            {
+              id: 'riskplaces-callout',
+              type: 'symbol',
+              filter: ['all', ['==', ['get', '_co'], true], visible],
+              layout: {
+                'icon-image': ['concat', 'rp-callout-', ['get', '_lvl'], ['case', ['get', '_on'], '-on', '']],
+                'icon-text-fit': 'both',
+                'text-field': ['format', ['get', '_score'], { 'font-scale': 12 / 13, 'text-color': ['get', '_tc'] }, '\u2002\u2002\u2002', {}, ['get', '_label'], {}],
+                'text-font': [FONT_SEMIBOLD],
+                'text-size': 13,
+                'text-max-width': 100,
+                'text-variable-anchor-offset': ['get', '_vao'],
+                'text-padding': 4,
+                'symbol-sort-key': ['case', ['get', '_on'], -1000, ['-', ['get', 'max_score']]],
+              },
+              paint: { 'text-color': '#141518' },
+              metadata: { click: true },
+            } as LayerDef,
+          ]
+        : []),
+    ],
+    {},
+    (e) => {
+      const id = e.features?.[0]?.properties?._top;
+      if (id && onPick) onPick(String(id));
+    },
+  );
   return null;
 }
 

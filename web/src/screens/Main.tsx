@@ -7,14 +7,13 @@ import { useMapEntities, useMapRisks, useRisk, useRiskSummary, useRisks, useFeed
 import { useSession } from '../app/Session';
 import { useWorkspaceState } from '../app/TopBar';
 import { Link, navigate, useLocation } from '../lib/router';
-import { CATEGORIES, CATEGORY_ORDER, KINDS, fmtDay, fmtInt, ago, outOf5, pct, plural, type RiskCategory } from '../lib/format';
-import { feedSummary } from '../lib/feeds';
-import { placeLabel, countryName, portName } from '../map/geo';
+import { CATEGORIES, CATEGORY_ORDER, KINDS, fmtDay, fmtInt, ago, outOf5, plural, type RiskCategory } from '../lib/format';
+import { placeLabel } from '../map/geo';
 import { useMap, fitTo, sheetPadding } from '../map/MapRoot';
-import { EntitiesLayer, Markers, RiskPlacesLayer } from '../map/layers';
+import { EntitiesLayer, RiskPlacesLayer } from '../map/layers';
 import { usePlaced } from '../map/data';
 import { Icon } from '../ui/Icon';
-import { ErrorState, LiveDot, MapControls, ScorePill, SkeletonRows } from '../ui/parts';
+import { ErrorState, FeedStatus, LiveDot, MapControls, Pct, ScorePill, SkeletonRows } from '../ui/parts';
 import { Grab } from '../ui/Grab';
 
 const LEGEND: Partial<Record<RiskCategory, string>> = {
@@ -64,71 +63,16 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
     fitTo(map, fitBox, sheetPadding('left', 344));
   }, [map, fitBox]);
 
-  // Re-stack callouts after each move so nearby places don't cover each other.
-  const [view, setView] = useState(0);
-  useEffect(() => {
-    if (!map) return;
-    const bump = () => setView((v) => v + 1);
-    map.on('moveend', bump);
-    return () => {
-      map.off('moveend', bump);
-    };
-  }, [map]);
-
-  const callouts = useMemo(() => {
-    const fs = placedRisks?.fc.features ?? [];
-    const taken: { x: number; y: number }[] = [];
-    void view;
-    return [...fs]
-      .sort((a, b) => b.properties.max_score - a.properties.max_score)
-      .slice(0, 5)
-      .map((f, i) => {
-        let dy = -22;
-        if (map) {
-          const pt = map.project(f.geometry.coordinates as [number, number]);
-          while (taken.some((t) => Math.abs(t.x - pt.x) < 180 && Math.abs(t.y - (pt.y + dy)) < 38)) dy += 40;
-          taken.push({ x: pt.x, y: pt.y + dy });
-        }
-        const p = f.properties;
-        const label =
-          p.label ?? (p.place_type === 'country' ? countryName(p.place_key) : p.place_type === 'port' ? portName(p.place_key) : `${plural(p.risk_count, 'risk')}`);
-        const on = !!selected && p.top_risk_ids.includes(selected.id);
-        return {
-          key: `co:${f.properties._id}`,
-          at: f.geometry.coordinates as [number, number],
-          anchor: 'left' as const,
-          offset: [14, dy] as [number, number],
-          z: on ? 10 : 5 - i,
-          node: (
-            <button
-              type="button"
-              className={`callout${on ? ' on' : ''}`}
-              aria-label={`${label}: highest score ${Math.round(p.max_score)}, ${plural(p.risk_count, 'risk')}`}
-              onClick={() => {
-                const id = p.top_risk_ids[0];
-                if (!id) return;
-                if (mode === 'overview') setPicked(id);
-                else navigate(`/risks/${id}`);
-              }}
-            >
-              <ScorePill score={p.max_score} />
-              <span>{label}</span>
-            </button>
-          ),
-        };
-      });
-  }, [placedRisks, selected, mode, map, view]);
+  const pickPlace = (id: string) => (mode === 'overview' ? setPicked(id) : navigate(`/risks/${id}`));
 
   const chips = CATEGORY_ORDER.filter((c) => (summary.data?.by_category[c] ?? 0) > 0);
-  const feeds = feedSummary(health.data);
   const open = summary.data?.open_count ?? 0;
   const noRisks = summary.isSuccess && open === 0;
 
   return (
     <>
-      <EntitiesLayer data={placedEntities?.fc ?? null} />
-      <RiskPlacesLayer data={(placedRisks?.fc as FeatureCollection<Point, never>) ?? null} />
-      <Markers items={callouts} />
+      <EntitiesLayer data={placedEntities?.fc ?? null} labels="names" />
+      <RiskPlacesLayer data={(placedRisks?.fc as FeatureCollection<Point, never>) ?? null} callouts={5} selected={selected?.id ?? null} onPick={pickPlace} />
 
       <aside className="sheet w344 glass" aria-label={mode === 'overview' ? 'Risks' : 'Risk register'}>
         <Grab />
@@ -150,11 +94,11 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
               <span className="t12" style={{ textAlign: 'right' }}>Scored {ago(summary.data.last_scored_at)}</span>
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
-              <span className="h2">{plural(open, 'open risk')}</span>
-              <div className="segw" role="group" aria-label="Sort" style={{ width: 168 }}>
-                <button type="button" className={`sg${sort === '-score' ? ' on' : ''}`} aria-pressed={sort === '-score'} onClick={() => setSort('-score')}>Score</button>
-                <button type="button" className={`sg${sort === '-last_seen_at' ? ' on' : ''}`} aria-pressed={sort === '-last_seen_at'} onClick={() => setSort('-last_seen_at')}>Newest</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
+              <span className="h2" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{plural(open, 'open risk')}</span>
+              <div className="segw" role="group" aria-label="Sort">
+                <button type="button" className={`sg${sort === '-score' ? ' on' : ''}`} aria-pressed={sort === '-score'} onClick={() => setSort('-score')}>Highest first</button>
+                <button type="button" className={`sg${sort === '-last_seen_at' ? ' on' : ''}`} aria-pressed={sort === '-last_seen_at'} onClick={() => setSort('-last_seen_at')}>Newest first</button>
               </div>
             </div>
           )}
@@ -236,7 +180,7 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="tile"><span className="fig">{pct(selected.likelihood)}</span><span className="t12">likely</span></div>
+              <div className="tile"><span className="fig"><Pct value={selected.likelihood} /></span><span className="t12">likely</span></div>
               <div className="tile"><span className="fig">{outOf5(selected.impact)}/5</span><span className="t12">impact on you</span></div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
@@ -250,7 +194,7 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
       <MapControls fit={fitBox} fitLabel="Fit all your entities" />
 
       <div className="legend glass" style={{ paddingRight: broken.length ? 8 : 18 }}>
-        <span>{category ? (LEGEND[category] ?? `${CATEGORIES[category].name} risks`) : noRisks ? 'Your entities' : 'Every risk that touches your entities'}</span>
+        <span className="fill">{category ? (LEGEND[category] ?? `${CATEGORIES[category].name} risks`) : noRisks ? 'Your entities' : 'Every risk that touches your entities'}</span>
         <span className="vr" />
         {broken.length ? (
           <>
@@ -258,7 +202,7 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
             <Link to="/connect" className="b" style={{ height: 44, padding: '0 12px', background: 'transparent', color: '#1766F0', fontSize: 13 }}>Fix</Link>
           </>
         ) : (
-          <span className="k" style={{ color: '#141518' }}><span style={{ width: 6, height: 6, borderRadius: 3, background: feeds.color }} />{feeds.text}</span>
+          <FeedStatus health={health.data} pending={health.isPending} failed={health.isError} />
         )}
       </div>
     </>

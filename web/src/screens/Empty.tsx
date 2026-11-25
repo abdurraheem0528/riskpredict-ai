@@ -7,6 +7,7 @@ import { navigate } from '../lib/router';
 import { feedSummary } from '../lib/feeds';
 import { fmtInt } from '../lib/format';
 import { SignalsLayer, Pulses } from '../map/layers';
+import { FeedStatus } from '../ui/parts';
 import { usePlaced, topSignals } from '../map/data';
 
 export function Empty({ pending, hasConnection }: { pending: Source | null; hasConnection: boolean }) {
@@ -77,14 +78,8 @@ export function Empty({ pending, hasConnection }: { pending: Source | null; hasC
       <div className="legend left glass">
         <span className="k"><span className="sw" style={{ background: '#7D838B' }} />Global signals</span>
         <span className="vr" />
-        {health.isError ? (
-          <span>Feed status did not load</span>
-        ) : (
-          <>
-            <span className="k" style={{ color: '#141518' }}><span style={{ width: 6, height: 6, borderRadius: 3, background: feeds.color }} />{health.isPending ? 'Checking feeds' : feeds.text}</span>
-            {feeds.names.length > 0 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{feeds.names.join(' · ')}</span>}
-          </>
-        )}
+        <FeedStatus health={health.data} pending={health.isPending} failed={health.isError} />
+        {health.isSuccess && feeds.names.length > 0 && <span className="fill">{feeds.names.join(' · ')}</span>}
       </div>
     </>
   );

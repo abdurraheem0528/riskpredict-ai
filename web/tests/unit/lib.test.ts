@@ -76,6 +76,9 @@ describe('feed health', () => {
     });
     expect(s.text).toBe('1 of 2 feeds live');
     expect(s.names).toEqual(['USGS', 'NewsData']);
+    expect(s.color).toBe('#D98E04');
+    expect(s.downText).toEqual(['NewsData: paused by its rate limit']);
+    expect(feedSummary({ sources: [s.down[0]].map((d) => ({ ...d, status: 'ok' as const })) }).color).toBe('#1A9E5A');
     expect(feedSummary(undefined).text).toBe('No feeds have run yet');
   });
 });

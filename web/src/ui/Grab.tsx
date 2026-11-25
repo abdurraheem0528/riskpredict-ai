@@ -14,6 +14,8 @@ export function Grab() {
         sheet?.classList.toggle('min', !low);
         if (sheet && !low) sheet.scrollTop = 0;
         setLow(!low);
+        // map labels re-place themselves around the sheet's new height
+        window.setTimeout(() => window.dispatchEvent(new Event('rp:layout')), 250);
       }}
     />
   );

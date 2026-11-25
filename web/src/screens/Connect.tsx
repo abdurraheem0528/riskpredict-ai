@@ -19,7 +19,11 @@ import { ErrorState, SheetHead, SkeletonRows } from '../ui/parts';
 import { Grab } from '../ui/Grab';
 
 const needsConfirm = (s: S['Source']) => s.status === 'new' || s.status === 'mapping_suggested';
+// Monograms as the Connect design draws them; other tools use their initials.
+const MONOGRAMS: Record<string, string> = { airtable: 'AT', notion: 'NO', quickbooks: 'QB', xero: 'XE', salesforce: 'SF', hubspot: 'HS', excel: 'XL' };
 const monogram = (name: string) => {
+  const known = MONOGRAMS[name.toLowerCase().replace(/[^a-z]/g, '')];
+  if (known) return known;
   const words = name.split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words.map((w) => w[0]).join('') : name).slice(0, 2).toUpperCase();
 };
@@ -96,7 +100,7 @@ export function Connect() {
 
   return (
     <>
-      <EntitiesLayer data={placed?.fc ?? null} />
+      <EntitiesLayer data={placed?.fc ?? null} labels="names" />
       <aside className="sheet glass" aria-label="Connect a source">
         <Grab />
         <SheetHead back={{ to: '/', label: 'Overview', onClick: () => navigate('/') }} right={<span className="t12" style={{ paddingRight: 12 }}>Step 1 of 3</span>} />
@@ -240,10 +244,10 @@ function ConnectionPanel({ conn, sources, compact = false }: { conn: Connection;
   const failing = mine.find((s) => s.status === 'error');
 
   const primary = pending ? (
-    <button type="button" className="b pri" style={{ flex: 1 }} onClick={() => navigate(`/sources/${pending.id}/confirm`)}>Review what we found</button>
+    <button type="button" className="b pri" onClick={() => navigate(`/sources/${pending.id}/confirm`)}>Review what we found</button>
   ) : null;
   const addBtn = editor && live && (google || !browsing) ? (
-    <button type="button" className={`b ${primary ? 'sec2' : 'pri'}`} style={{ flex: primary ? undefined : 1 }} disabled={busy} onClick={() => (google ? pick.mutate() : setBrowsing(true))}>
+    <button type="button" className={`b ${primary ? 'sec2' : 'pri'}`} style={{ flex: 1, minWidth: 0 }} disabled={busy} onClick={() => (google ? pick.mutate() : setBrowsing(true))}>
       {busy && <span className="spin" />}
       {google ? (mine.length ? 'Add a sheet' : 'Pick a sheet') : 'Choose a table'}
     </button>
@@ -295,20 +299,24 @@ function ConnectionPanel({ conn, sources, compact = false }: { conn: Connection;
 
       {browsing && !google && <Browse conn={conn} onPick={(base, table) => { setBrowsing(false); addSource.mutate({ external_id: base, external_table_id: table }); }} onCancel={() => setBrowsing(false)} />}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
         {primary}
-        {addBtn}
         {!live && conn.status !== 'pending' && canAdmin(role) && (
-          <button type="button" className="b pri" style={{ flex: 1 }} disabled={reconnect.isPending} onClick={() => reconnect.mutate()}>
+          <button type="button" className="b pri" disabled={reconnect.isPending} onClick={() => reconnect.mutate()}>
             {reconnect.isPending && <span className="spin" />}Reconnect
           </button>
         )}
+        {(addBtn || (canAdmin(role) && !compact)) && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {addBtn}
+            {canAdmin(role) && !compact && (
+              <button type="button" className="b plain" style={{ flex: addBtn ? 'none' : 1, padding: '0 14px', fontSize: 14, color: '#5F646C' }} onClick={() => setConfirmDisconnect(true)}>
+                Disconnect…
+              </button>
+            )}
+          </div>
+        )}
       </div>
-      {canAdmin(role) && !compact && (
-        <button type="button" className="b plain" style={{ alignSelf: 'flex-start', marginTop: -8, marginLeft: -12, height: 44, fontSize: 13, color: '#5F646C' }} onClick={() => setConfirmDisconnect(true)}>
-          Disconnect…
-        </button>
-      )}
 
       {confirmDisconnect && (
         <>

@@ -41,6 +41,8 @@ describe('screens', () => {
     boot('/');
     expect(await screen.findByRole('heading', { name: 'Nothing on this map is yours yet' })).toBeInTheDocument();
     expect(await screen.findByText('9 of 10 feeds live')).toBeInTheDocument();
+    // the down feed is named for hover and keyboard focus
+    expect(screen.getByRole('tooltip', { hidden: true })).toHaveTextContent('NewsData: paused by its rate limit (daily limit reached)');
     expect(screen.getByText(/what 10 global feeds see/)).toBeInTheDocument();
     expect(screen.getByText('Google Sheets or Airtable')).toBeInTheDocument();
     // Register and Scenarios wait for a source; one blue button.

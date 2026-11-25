@@ -149,9 +149,10 @@ export function Confirm({ id }: { id: string }) {
 
   return (
     <>
-      <EntitiesLayer id="preview" data={placed?.fc ?? null} ring />
-      <aside className="sheet w460 tall glass" aria-label="Check how we read your sheet">
+      <EntitiesLayer id="preview" data={placed?.fc ?? null} ring labels="names" />
+      <aside className="sheet w460 tall split glass" aria-label="Check how we read your sheet">
         <Grab />
+        <div className="sbody">
         <SheetHead back={{ to: '/connect', label: 'Sources', onClick: () => navigate('/connect') }} right={<span className="t12" style={{ paddingRight: 12 }}>Step 2 of 3</span>} />
         {source.isPending || mapping.isPending ? (
           <SkeletonRows n={6} h={48} />
@@ -223,7 +224,15 @@ export function Confirm({ id }: { id: string }) {
                     );
                   })}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 'auto' }}>
+              </>
+            )}
+          </>
+        )}
+        </div>
+        {source.isSuccess && mapping.isSuccess && (
+          <div className="sfoot">
+            {!waiting && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <span className="t12">
                     {suggestion?.model === 'heuristic' ? 'Matched from the headers.' : suggestion?.model ? 'Suggested by AI.' : ''} Ignored columns are never read again.
                   </span>
@@ -233,10 +242,9 @@ export function Confirm({ id }: { id: string }) {
                     </button>
                   )}
                 </div>
-              </>
             )}
             <div className="fold">{card}</div>
-          </>
+          </div>
         )}
       </aside>
       {base && <section className="side glass" aria-label="What happens when you confirm">{card}</section>}
