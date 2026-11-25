@@ -36,8 +36,9 @@ A workspace pass, each step in its own short transaction with `app.workspace_id`
    whose hash or mapping changed are written; rows that disappeared are deleted with
    their risks. SSE `source.sync_started` / `source.synced` / `source.sync_failed`.
 4. **Scoring** when entities changed, the feeds moved on or the API asked:
-   `load_entities → load_feeds → assess → write_risks` in one transaction (the steps of
-   `engine.run_workspace`, called one by one to keep the assessments for advice). Then
+   `engine.run_workspace` in one transaction (it takes the engine's per-workspace lock, so
+   two passes over one workspace queue; its `RunResult` carries the assessments and
+   entities that the advice and watch-term steps use). Then
    `RunResult.changes` → alerts (`risk_new`, `risk_escalated`, `sanctions_match`) and SSE
    `risk.*` / `alert.created`; opted-in watch terms go to `feeds.watch_terms`.
 5. **Advice** when `engine.needs_new_advice` says so: `engine.advice_messages` → Groq

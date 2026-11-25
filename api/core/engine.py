@@ -1,10 +1,10 @@
-"""The only door to the risk engine (``engine/``, session C).
+"""The only door to the risk engine (``engine/``).
 
 The engine is imported lazily and used only through the interface in
-``docs/contracts/risk-engine.md``. Until it is merged, ``load()`` returns
-``None`` and callers degrade (no scoring runs, scenarios fail with a clear
-error, the disruptions layer shows port disruptions only). Tests install a
-double in ``sys.modules["engine"]``. Nothing here scores anything.
+``docs/contracts/risk-engine.md``. If the package is missing from an install,
+``load()`` returns ``None`` and callers degrade (no scoring runs, scenarios fail
+with a clear error, the disruptions layer shows port disruptions only). The API
+and worker images both ship it (CI checks the import). Nothing here scores anything.
 """
 
 from __future__ import annotations

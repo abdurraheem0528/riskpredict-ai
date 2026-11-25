@@ -176,3 +176,8 @@ class RunResult:
     scored_entities: int
     changes: tuple[RiskChange, ...] = ()
     counts: Mapping[str, int] = EMPTY  # created, rescored, unchanged, resolved, reopened
+    # Filled by run_workspace (empty from write_risks), so the worker can word advice and
+    # pick watch terms without loading or scoring again: the assessments written, and
+    # the entities they were scored from.
+    assessments: tuple[Assessment, ...] = ()
+    entities: tuple[Entity, ...] = ()

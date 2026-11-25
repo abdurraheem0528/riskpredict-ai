@@ -13,6 +13,7 @@ import pytest
 
 pytest.importorskip("fastapi")  # the repository-wide CI job does not install the API
 
+import engine  # noqa: E402
 import httpx  # noqa: E402
 from apiservice_fixtures import *  # noqa: E402,F401,F403  (fixtures)
 from apiservice_helpers import groq_reply, hdr, sign_up  # noqa: E402
@@ -168,7 +169,7 @@ def test_consent_declined_marks_the_connection(client, owner_db, fake_http):
     assert client.get("/v1/connections/google/callback", params={"state": "garbage"}).status_code == 400
 
 
-def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings, engine_double):
+def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings):
     from worker.main import Worker
 
     g = Google(fake_http)
@@ -210,9 +211,12 @@ def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings, engin
     assert ok.status_code == 200 and ok.json()["status"] == "confirmed" and ok.json()["version"] == 2
     assert client.rp.hints.take() == {ws: ["connection", "sync"]}
 
-    # A public feed event in Japan (test fixture) gives the engine double something to match.
-    owner_db.execute("INSERT INTO feeds.events (source, raw_id, type, title, countries) VALUES"
-                     " ('usgs', 'us1', 'hazard.earthquake', 'M6.1 near Osaka', '{JPN}')")  # fmt: skip
+    # A public feed event in Japan (test fixture) for the real engine to match by country: L = s 1.0
+    # × r 1.0 × c 0.6 (supplier country match) = 0.6; I = 0.9 (natural_hazard) × 0.5 (default
+    # criticality; no FX rates, so the JPY spend share is unknown) = 0.45; score 27.0 (§5–§6).
+    owner_db.execute("INSERT INTO feeds.events (source, raw_id, type, title, countries, severity) VALUES"
+                     " ('usgs', 'us1', 'hazard.earthquake', 'M6.1 near Osaka', '{JPN}', 1.0)")  # fmt: skip
+    assert client.patch(f"/v1/workspaces/{ws}", headers=hdr(me), json={"alert_min_score": 25}).status_code == 200
     api = RecordingApi()
     worker = Worker(settings, api=api)
     worker.db.open()
@@ -224,10 +228,11 @@ def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings, engin
         assert ents[0]["lineage"]["row_key"] == "S1" and ents[0]["lineage"]["row_number"] == 2
         assert ents[0]["lineage"]["url"].endswith("#gid=0&range=A2")
         assert "source.synced" in api.names() and "risk.created" in api.names() and "alert.created" in api.names()
-        assert engine_double.calls[:4] == ["load_entities", "load_feeds", "assess", "write_risks"]
         risks = client.get("/v1/risks", headers=hdr(me)).json()["items"]
-        assert len(risks) == 1 and risks[0]["score"] == 72.0 and risks[0]["entity"]["name"] == "Acme KK"
+        assert len(risks) == 1 and risks[0]["score"] == 27.0 and risks[0]["entity"]["name"] == "Acme KK"
         detail = client.get(f"/v1/risks/{risks[0]['id']}", headers=hdr(me)).json()
+        assert detail["engine_version"] == engine.ENGINE_VERSION
+        assert detail["evidence"][0]["match_type"] == "country" and detail["evidence"][0]["match_value"] == "JPN"
         assert detail["advice"]["source"] == "groq" and detail["advice"]["model"] == "groq:test-advice-model"
         assert detail["evidence"][0]["still_in_feeds"] is True
         alerts = client.get("/v1/alerts", headers=hdr(me)).json()
@@ -288,7 +293,7 @@ def test_groq_down_falls_back_to_heuristics(client, owner_db, fake_http):
     assert body["spec"]["entity_kind"] == "supplier"
 
 
-def test_advice_that_fails_validation_uses_the_template(client, owner_db, fake_http, settings, engine_double):
+def test_advice_that_fails_validation_uses_the_template(client, owner_db, fake_http, settings):
     from worker import scoring
     from worker.main import Worker
 
@@ -298,8 +303,8 @@ def test_advice_that_fails_validation_uses_the_template(client, owner_db, fake_h
     groq(fake_http, advice="Expect a 45% delay; read www.example.com.")
     me = sign_up(client)
     ws = me["workspace_id"]
-    owner_db.execute("INSERT INTO feeds.events (source, raw_id, type, title, countries) VALUES"
-                     " ('gdacs', 'EQ-1', 'hazard.earthquake', 'Quake', '{JPN}')")  # fmt: skip
+    owner_db.execute("INSERT INTO feeds.events (source, raw_id, type, title, countries, severity) VALUES"
+                     " ('gdacs', 'EQ-1', 'hazard.earthquake', 'Quake', '{JPN}', 1.0)")  # fmt: skip
     from test_api_isolation import seed_workspace
 
     seed_workspace(owner_db, ws, "t")
@@ -312,16 +317,19 @@ def test_advice_that_fails_validation_uses_the_template(client, owner_db, fake_h
         worker.db.close()
     row = owner_db.execute("SELECT advice, advice_source, score FROM biz.risks").fetchone()
     assert row["advice_source"] == "template" and "45" not in row["advice"]
-    assert row["score"] == pytest.approx(72.0)
+    # The supplier is positioned, the quake is not: L = 1.0 × 1.0 × 0.6 (country), I = 0.9 × 0.5.
+    assert row["score"] == pytest.approx(27.0)
+    assert row["advice"].startswith("Contact Secret supplier t to confirm")  # the engine's template
 
 
-def test_scenarios_use_the_engine_or_fail_cleanly(client, owner_db, monkeypatch, engine_double):
+
+def test_scenarios_use_the_engine_or_fail_cleanly(client, owner_db, monkeypatch):
     me = sign_up(client)
     body = {"name": "Suez closed", "inputs": {"shocks": [{"type": "event", "category": "logistics", "severity": 0.9,
                                                          "chokepoints": ["suez"]}]}}  # fmt: skip
     r = client.post("/v1/scenarios", headers=hdr(me), json=body)
     assert r.status_code == 201, r.text
-    assert r.json()["status"] == "completed" and r.json()["results"]["engine_version"] == engine_double.ENGINE_VERSION
+    assert r.json()["status"] == "completed" and r.json()["results"]["engine_version"] == engine.ENGINE_VERSION
     assert client.post("/v1/scenarios", headers=hdr(me), json={"name": "empty", "inputs": {}}).status_code == 422
     monkeypatch.setitem(__import__("sys").modules, "engine", None)  # as if C had not merged
     r = client.post("/v1/scenarios", headers=hdr(me), json=body)

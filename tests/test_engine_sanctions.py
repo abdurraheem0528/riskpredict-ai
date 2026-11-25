@@ -161,3 +161,74 @@ def test_name_index_search_order_is_stable():
     for i, n in enumerate(["Acme Trading", "Acme Tradin", "ACME TRADING", "Zeta"]):
         idx.add(n, i)
     assert [r for r, _, _ in idx.search("acme trading", 0.92)] == [0, 2, 1]
+
+
+# --- full lists: feeds.sanctions_entries (migration 030) ------------------------------------------
+
+
+def entry(entity_id="36001", name="ACME TRADING L.L.C.", *, dataset="sdn", aliases=(), countries=(), programs=("SDGT",),
+          first_seen_h=24.0 * 400, listed_on=None):  # fmt: skip
+    """A ``feeds.sanctions_entries`` row in the column order engine.db reads it (test data)."""
+    from datetime import timedelta
+
+    from engine_fixtures import NOW
+
+    return ("ofac_sdn", dataset, entity_id, "Entity", name, list(aliases), list(countries), list(programs),
+            ["SDN List"], listed_on, NOW - timedelta(hours=first_seen_h))  # fmt: skip
+
+
+def test_full_list_entry_is_a_standing_listing():
+    from datetime import date
+
+    from engine.db import entry_event
+
+    ev = entry_event(entry(countries=["ARE"], listed_on=date(2019, 3, 1)))
+    assert (ev.source, ev.raw_id, ev.type) == ("ofac_sdn", "sdn:36001", "sanction.listed")
+    assert ev.key == "event:ofac_sdn:sdn:36001"
+    assert ev.title == "OFAC SDN list: ACME TRADING L.L.C. [SDGT]" and ev.published_at is None
+    assert ev.attrs["entity_id"] == "36001" and ev.attrs["full_list"] is True and ev.attrs["listed_on"] == "2019-03-01"
+    sup = ent("acme", "supplier", name="Acme Trading LLC", countries=["ARE"])
+    [a] = screen([sup], [ev])
+    e = a.evidence[0]
+    assert a.title == "Sanctions listing may match Acme Trading LLC"
+    # Listed 400 days ago and still on the list: no decay.
+    assert (e.event_source, e.event_raw_id, e.recency, e.signal) == ("ofac_sdn", "sdn:36001", 1.0, 1.0)
+    assert e.snapshot["sanctions_entity_id"] == "36001" and e.snapshot["programs"] == ["SDGT"]
+    # Same driver as a delta designation of the same name: one risk with both as evidence.
+    [both] = screen([sup], [ev, ofac("36001:designation:2026-11-20", "ACME TRADING L.L.C.", entity_id="36001")])
+    assert both.fingerprint == a.fingerprint and len(both.evidence) == 2
+
+
+def test_full_list_aliases_in_other_scripts_and_translations_match():
+    from engine.db import entry_event
+
+    aliases = ["Nordwind Holding AG", "НОРДВИНД ХОЛДИНГ"]
+    ev = entry_event(entry(name="NORTHWIND HOLDINGS", aliases=aliases))
+    [a] = screen([ent("n", "customer", name="Nordwind Holding")], [ev])
+    assert a.evidence[0].snapshot["matched_on"] == "alias" and a.evidence[0].match_value == "NORTHWIND HOLDINGS"
+    assert screen([ent("x", "supplier", name="Southwind Holdings")], [ev]) == []
+
+
+def test_removal_delta_cancels_an_entry_until_it_is_listed_again():
+    from engine.db import entry_event
+
+    sup = ent("s", "supplier", name="Acme Trading")
+    listed = entry_event(entry("77", "ACME TRADING", first_seen_h=24 * 30))
+    rem = event("ofac", "77:removal:2026-11-20", "sanction.removal", age_h=24 * 4, attrs={"entity_id": "77"})
+    assert screen([sup], [listed, rem]) == []  # removed after we first saw the entry
+    relisted = entry_event(entry("77", "ACME TRADING", first_seen_h=24))  # deleted by a full read, then back
+    assert len(screen([sup], [relisted, rem])) == 1
+
+
+def test_sanctions_name_index_is_reused_only_for_the_same_rows():
+    from engine import core
+    from engine.db import entry_event
+
+    rows = [entry_event(entry(str(i), f"Listed Company Number {i}")) for i in range(50)]
+    rows.append(entry_event(entry("99", "ACME TRADING")))
+    sup = ent("s", "supplier", name="Acme Trading")
+    first = screen([sup], rows)
+    index = core._SANCTIONS_INDEX["index"]
+    assert screen([sup], rows) == first and core._SANCTIONS_INDEX["index"] is index  # same objects: reused
+    assert screen([sup], rows[:-1]) == [] and core._SANCTIONS_INDEX["index"] is not index  # changed: rebuilt
+    assert screen([sup], list(rows)) == first  # equal results after a rebuild

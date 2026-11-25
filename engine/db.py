@@ -9,10 +9,11 @@ stores a foreign key to ``feeds`` (decision 10): evidence keeps a snapshot.
 Query budget per workspace run (all bounded, all on indexes):
 
 * ``load_entities``: 1 query (``biz.entities``, RLS-filtered).
-* ``load_feeds``: events + newest tag (1), sanctions rows (1 cheap count, plus
-  1 full read only when the sanctions rows changed since the last read in this
-  process), anomalies (1), series (1: fx history for the workspace's
-  currencies + latest EPSS per matched CVE), source health (1).
+* ``load_feeds``: events + newest tag (1), sanctions (1 cheap stamp query over
+  ``sanction.*`` events and ``feeds.sanctions_entries``, plus 2 full reads only
+  when either changed since the last read in this process), anomalies (1),
+  series (1: fx history for the workspace's currencies + latest EPSS per
+  matched CVE), source health (1).
 * ``write_risks``: 1–2 reads, then batched writes (at most ``BATCH`` rows per
   statement) for inserts, updates, history, evidence and the evidence trim.
 """
@@ -203,11 +204,24 @@ ORDER BY coalesce(e.published_at, e.first_seen_at) DESC, e.source, e.raw_id
 LIMIT %(limit)s
 """
 
-SANCTIONS_STAMP_SQL = "SELECT count(*), max(updated_at) FROM feeds.events WHERE type LIKE 'sanction.%'"
+# One round trip: has anything in either sanctions source changed since the last read?
+SANCTIONS_STAMP_SQL = """
+SELECT ev.n, ev.at, se.n, se.at
+FROM (SELECT count(*) AS n, max(updated_at) AS at FROM feeds.events WHERE type LIKE 'sanction.%') ev,
+     (SELECT count(*) AS n, max(updated_at) AS at FROM feeds.sanctions_entries) se
+"""
 SANCTIONS_SQL = f"""
 SELECT {EVENT_COLS} FROM feeds.events e
 WHERE e.type LIKE 'sanction.%%'
 ORDER BY e.source, e.raw_id
+LIMIT %(limit)s
+"""
+# The full lists (migration 030), current state. Weak aliases are not read: OFAC itself
+# flags them as too low quality to screen on.
+SANCTIONS_ENTRIES_SQL = """
+SELECT source, dataset, entity_id, entity_type, name, aliases, countries, programs, lists, listed_on, first_seen_at
+FROM feeds.sanctions_entries
+ORDER BY source, dataset, entity_id
 LIMIT %(limit)s
 """
 
@@ -250,11 +264,34 @@ def _event_from_row(r, tag_row=None) -> FeedEvent:
     )  # fmt: skip
 
 
-def _sanctions_rows(conn, limit: int) -> tuple[FeedEvent, ...]:
-    stamp = tuple(_cur(conn).execute(SANCTIONS_STAMP_SQL).fetchone())
+def entry_event(r) -> FeedEvent:
+    """A ``feeds.sanctions_entries`` row as a standing listing (``sanction.listed``, §5.5).
+
+    ``raw_id`` is ``<dataset>:<entity_id>`` (evidence key ``event:ofac_sdn:sdn:12345``).
+    ``first_seen_at`` is when the entry (re)appeared, so a ``sanction.removal`` delta
+    published after it cancels it until the next full read deletes the row, and a
+    re-listing after a removal counts again.
+    """
+    source, dataset, entity_id, entity_type, name, aliases, countries, programs, lists, listed_on, first_seen = r
+    label = "SDN" if dataset == "sdn" else dataset
+    title = f"OFAC {label} list: {name}"
+    if programs:
+        title += f" [{', '.join(programs)}]"
+    return FeedEvent(
+        source=source, raw_id=f"{dataset}:{entity_id}", type="sanction.listed", title=title,
+        published_at=None, first_seen_at=first_seen, countries=tuple(countries or ()),
+        attrs={"entity_id": entity_id, "entity_type": entity_type, "name": name, "aliases": list(aliases or ()),
+               "programs": list(programs or ()), "lists": list(lists or ()), "dataset": dataset,
+               "listed_on": listed_on.isoformat() if listed_on else None, "full_list": True},
+    )  # fmt: skip
+
+
+def _sanctions_rows(conn, limit: int, entries_limit: int) -> tuple[FeedEvent, ...]:
+    stamp = (tuple(_cur(conn).execute(SANCTIONS_STAMP_SQL).fetchone()), limit, entries_limit)
     if _SANCTIONS_CACHE.get("stamp") == stamp:
         return _SANCTIONS_CACHE["rows"]
     rows = tuple(_event_from_row(r) for r in _cur(conn).execute(SANCTIONS_SQL, {"limit": limit}))
+    rows += tuple(entry_event(r) for r in _cur(conn).execute(SANCTIONS_ENTRIES_SQL, {"limit": entries_limit}))
     _SANCTIONS_CACHE.clear()
     _SANCTIONS_CACHE.update(stamp=stamp, rows=rows)
     return rows
@@ -297,7 +334,7 @@ def load_feeds(conn, entities: Sequence[Entity], *, now: datetime, config: Engin
         for r in _cur(conn).execute(EVENTS_SQL, params):
             events.append(_event_from_row(r[:16], r[16:]))
     if has_names:
-        events.extend(_sanctions_rows(conn, config.max_events * 10))
+        events.extend(_sanctions_rows(conn, config.max_events * 10, config.max_sanctions_entries))
 
     currencies = sorted({c for e in entities if has_key(e, "currency") for c in e.currencies})
     spend = {e.spend_currency for e in entities if e.spend_currency}
@@ -542,4 +579,6 @@ def run_workspace(conn, workspace_id: UUID, *, now: datetime | None = None,
     feeds = load_feeds(conn, entities, now=now, config=config)
     assessments = assess(entities, feeds, base_currency=base_currency(conn), config=config)
     res = write_risks(conn, workspace_id, assessments, now=now, config=config)
-    return RunResult(res.engine_version, len(entities), res.changes, {**res.counts, "invalid_keys": invalid})
+    kept = tuple(a for a in assessments if a.score >= config.min_score)
+    return RunResult(res.engine_version, len(entities), res.changes, {**res.counts, "invalid_keys": invalid},
+                     assessments=kept, entities=tuple(entities))  # fmt: skip

@@ -1,10 +1,11 @@
 """Risk-engine runs per workspace, then alerts, SSE events and advice.
 
-The engine (``engine/``, session C) is called only through the interface in
-``docs/contracts/risk-engine.md``: ``load_entities → load_feeds → assess →
-write_risks`` inside one transaction that has ``app.workspace_id`` set (this is
-what ``run_workspace`` does; the steps are called one by one so the worker keeps
-the assessments for the advice step). Nothing here computes a score.
+The engine (``engine/``) is called only through the interface in
+``docs/contracts/risk-engine.md``: ``run_workspace`` inside one transaction that
+has ``app.workspace_id`` set (§9). It takes the engine's per-workspace advisory
+lock, so two passes over one workspace queue instead of racing, and its
+``RunResult`` carries the assessments and entities the advice and watch-term
+steps need. Nothing here computes a score.
 
 Groq only words advice (contracts decision 9). Its reply is checked: at most
 1,200 characters, no links, and no digits that were not in the prompt. Otherwise,
@@ -38,19 +39,6 @@ class RunSummary:
     alerts: int
     advice_groq: int
     advice_template: int
-
-
-def _ts(v: Any) -> str:
-    if isinstance(v, datetime):
-        return ser.ts(v if v.tzinfo else v.replace(tzinfo=timezone.utc)) or ""
-    return str(v)
-
-
-def evidence_key(ev: Any) -> str:
-    g = (lambda n: ev.get(n)) if isinstance(ev, dict) else (lambda n: getattr(ev, n, None))
-    if g("kind") == "event":
-        return f"event:{g('event_source')}:{g('event_raw_id')}"
-    return f"anomaly:{g('anomaly_series')}|{g('anomaly_key')}|{_ts(g('anomaly_ts'))}|{g('anomaly_method')}"
 
 
 def valid_advice(text: str, messages: list[dict]) -> bool:
@@ -87,7 +75,7 @@ def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSumm
     now = now or datetime.now(timezone.utc)
     with ctx.db.workspace_tx(ws) as conn:
         wsrow = conn.execute(
-            "SELECT base_currency, alert_min_score, share_watch_terms FROM biz.workspaces WHERE id = %s", (ws,)
+            "SELECT alert_min_score, share_watch_terms FROM biz.workspaces WHERE id = %s", (ws,)
         ).fetchone()
         if wsrow is None:
             return None
@@ -99,10 +87,9 @@ def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSumm
         ).fetchall():
             old_keys.setdefault(r["risk_id"], set()).add(ser.evidence_key(r))
 
-        entities = eng.load_entities(conn)
-        feeds = eng.load_feeds(conn, entities, now=now)
-        assessments = eng.assess(entities, feeds, base_currency=wsrow["base_currency"])
-        result = eng.write_risks(conn, ws, assessments, now=now)
+        result = eng.run_workspace(conn, ws, now=now)
+        entities = list(result.entities)
+        assessments = list(result.assessments)
 
         if wsrow["share_watch_terms"]:
             terms = list(eng.watch_terms_for(entities))
@@ -146,7 +133,7 @@ def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSumm
                 continue
             prev = before.get(c.risk_id)
             old_score = prev["score"] if prev and prev["has_advice"] else None
-            new_keys = {evidence_key(ev) for ev in list(a.evidence)[:5]}
+            new_keys = {ev.evidence_key for ev in a.evidence[:5]}
             if eng.needs_new_advice(old_score, a.score, old_keys.get(c.risk_id, set()), new_keys):
                 todo.append((c.risk_id, a, entity))
         # Risks that exist but never got advice (e.g. Groq was down last time).

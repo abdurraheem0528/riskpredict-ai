@@ -100,7 +100,14 @@ RiskChange:   risk_id: UUID; fingerprint: str; change: 'created' | 'rescored' | 
               old_score: float | None; new_score: float | None; category: str
 RunResult:    engine_version: str; scored_entities: int; changes: tuple[RiskChange, ...]
               counts: Mapping[str, int]            # created, rescored, unchanged, resolved, reopened
+              # since engine 1.1.0, filled by run_workspace only (empty from write_risks):
+              assessments: tuple[Assessment, ...]  # the assessments written (score ≥ min_score)
+              entities: tuple[Entity, ...]         # the entities they were scored from
 ```
+
+The worker calls `run_workspace` (§9) and takes the assessments and entities for the
+advice and watch-term steps from its `RunResult`, so it never loads or scores twice and
+always runs under the per-workspace lock (§13).
 
 `ScenarioInputs` is the `ScenarioInputs` schema in `openapi.yaml`, parsed into
 dataclasses.
@@ -221,7 +228,7 @@ country match is used.
 | `currency` | an `fx.rate` anomaly on the entity's currency against the workspace `base_currency`. With base EUR this is the stored pair `EUR/<CCY>`; otherwise the engine builds the cross rate from the two EUR pairs and runs `jobs.analyse.anomalies.detect` on it in memory (cross anomalies are not stored in `feeds`). Without a `base_currency`, `EUR/<CCY>` is used | direct 1.0, cross 0.9 |
 | `commodity` | the HS code's chapter (first 2 digits) is in the engine's chapter → keyword table, or `entity.commodities` contains (casefold) a `tag.entities.commodities[].text` or `event.commodities` value | 0.6 × tag confidence (chapter); 0.8 × tag confidence (exact text) |
 | `software` | purl `pkg:<type>/<namespace>/<name>@v` → `<OSV ecosystem>:<name>`, with pypi→`PyPI` (PEP 503-normalised name), npm→`npm`, maven→`Maven` (`group:artifact`), golang→`Go`, cargo→`crates.io`, nuget→`NuGet`, gem→`RubyGems`, composer→`Packagist`; exact match with `event.software`. CPE `cpe:2.3:a:<vendor>:<product>:…` → `<vendor>:<product>`, compared casefold with `_` and spaces removed against KEV's `vendorProject:product` | OSV 1.0; KEV 0.9. Versions are not compared (the feeds hold no affected ranges) |
-| `sanctions_name` | suppliers and customers only. Normalise both names (NFKD, strip accents, casefold, `&`→`and`, drop punctuation, drop legal-form tokens: ltd, limited, llc, inc, corp, corporation, co, company, gmbh, ag, sa, sas, srl, spa, bv, nv, plc, jsc, pjsc, ooo, oao, zao, llp, lp, pte, pvt, kk, as, ab, oy), then `sim = rapidfuzz.fuzz.token_sort_ratio(a, b) / 100` against `attrs.name` of `sanction.designation`/`sanction.update` events. Match if `sim ≥ 0.92` | `0.7 + 0.3 × (sim − 0.92)/0.08`; then +0.1 if the countries overlap, −0.2 if both have countries and they are disjoint; clamp to 0–1, and drop if below 0.5 |
+| `sanctions_name` | suppliers and customers only. Normalise both names (NFKD, strip accents, casefold, `&`→`and`, drop punctuation, drop legal-form tokens: ltd, limited, llc, inc, corp, corporation, co, company, gmbh, ag, sa, sas, srl, spa, bv, nv, plc, jsc, pjsc, ooo, oao, zao, llp, lp, pte, pvt, kk, as, ab, oy), then `sim = rapidfuzz.fuzz.token_sort_ratio(a, b) / 100` against `attrs.name` (and `attrs.aliases`) of `sanction.designation`/`sanction.update` events, and against `name` and `aliases` of every `feeds.sanctions_entries` row (§5.8). Match if `sim ≥ 0.92` | `0.7 + 0.3 × (sim − 0.92)/0.08`; then +0.1 if the countries overlap, −0.2 if both have countries and they are disjoint; clamp to 0–1, and drop if below 0.5 |
 | `company_name` | suppliers and customers only: same normaliser, `sim ≥ 0.95` against `tag.entities.companies[].text` of tagged news; or a `gdelt.articles` anomaly whose key equals `watch_terms_for` output for this entity | 0.7 × the company's tag confidence; anomaly 0.8 |
 
 Name matching is the only fuzzy match. Every other key is an exact code comparison.
@@ -340,6 +347,40 @@ These make §5.1–§5.6 precise where they left a choice open. None changes a c
 * **Map fields:** `countries`/`ports` are the matched codes when the risk has country
   or port evidence, otherwise the entity's own.
 
+### 5.8 Full sanctions lists (engine 1.1.0)
+
+`feeds.sanctions_entries` (migration 030, `feeds-schema.md`) holds every entity
+currently on OFAC's SDN and consolidated lists. The engine screens suppliers and
+customers against it exactly like `sanction.*` events (§5.2 `sanctions_name`, same
+threshold, confidence and country adjustment), as if each row were an event:
+
+| Event field | From the row |
+|---|---|
+| `source`, `raw_id` | `source` (`ofac_sdn`), `<dataset>:<entity_id>`, e.g. evidence key `event:ofac_sdn:sdn:36001` |
+| `type` | `sanction.listed`: a standing listing, `s = 1.0` and `r = 1` while the row exists (§5.5) |
+| `title` | `OFAC SDN list: <name> [<programs>]` (`OFAC consolidated list: …` for that dataset) |
+| `published_at`, `first_seen_at` | `NULL`, the row's `first_seen_at` |
+| `countries` | `countries` |
+| `attrs` | `entity_id`, `entity_type`, `name`, `aliases`, `programs`, `lists`, `dataset`, `listed_on`, `full_list: true` |
+
+* **Names compared:** `name` and every entry of `aliases` (all scripts and
+  translations). `weak_aliases` are not read: OFAC flags them as too low quality to
+  screen on.
+* **Removals:** a `sanction.removal` delta event for the same `entity_id` published after
+  the row's `first_seen_at` cancels it (the delta arrives hourly, the full list daily).
+  The next complete read deletes the row; if the entity is listed again, the new row's
+  `first_seen_at` is later than the removal and it counts again.
+* **One risk per listed name:** the driver is the normalised primary name, so a delta
+  designation and the full-list row of the same entity are two evidence items of one
+  risk. When a delisted row is deleted its evidence goes and the risk is resolved;
+  `still_in_feeds` in the API then reads false.
+* **Load bound and caching:** at most `max_sanctions_entries` = 50,000 rows are read
+  (the lists are ~18k), in `(source, dataset, entity_id)` order. The rows are read once
+  per worker process and re-read only when `(count, max(updated_at))` of either the
+  `sanction.*` events or `sanctions_entries` changes (one stamp query per run). The name
+  index built from them is reused while the same rows are in use. Both caches give
+  results identical to a fresh read.
+
 ## 6. Impact
 
 ```
@@ -405,7 +446,7 @@ Groq output never changes `likelihood`, `impact`, `score`, `status` or the evide
 * After a source sync changed entities, and on demand from the API.
 * Per workspace, as listed by `biz.worker_workspace_ids()`. Each workspace runs in its
   own transaction: `set_config('app.workspace_id', …, true)`, then `run_workspace`,
-  then commit.
+  then commit. Advice and watch terms use `RunResult.assessments` / `.entities` (§2).
 * `RunResult.changes` → alerts. `created` with score ≥ `workspaces.alert_min_score` →
   `risk_new`. A rescore that crosses the threshold upwards → `risk_escalated`. Any
   `created` sanctions risk → `sanctions_match` (critical). Each also becomes an SSE
@@ -461,11 +502,9 @@ the inputs applied. It writes nothing; the API stores the result in `biz.scenari
 
 ## 11. Open items
 
-* `ofac` stores only the latest delta file. Complete sanctions screening needs a
-  full-list connector for session E (OFAC SDN + consolidated list, with aliases). It
-  should store one event per listed entity, with `attrs.name`, `attrs.aliases` and
-  `attrs.entity_id`, and type `sanction.listed` (or `attrs.full_list: true`) so it does
-  not decay (§5.5). The matcher already reads every `sanction.*` row of any source and
-  compares aliases, so nothing in the engine changes when those rows arrive.
+* Done in engine 1.1.0: the full OFAC lists arrived as their own table,
+  `feeds.sanctions_entries`, rather than as `sanction.listed` events, and are screened
+  as described in §5.8. Entity types, birth dates and identifiers are still not compared,
+  so a match is a lead for compliance to review, not a verdict.
 * PortWatch's per-chokepoint daily layer needs an ArcGIS token, so chokepoints are
   matched by radius and tagged text only, until E finds a keyless source.

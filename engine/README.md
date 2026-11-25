@@ -67,7 +67,9 @@ pair counts once, with its best match.
 stripped, casefold, `&` → `and`, dots and apostrophes removed inside words, other
 punctuation turned into spaces, and legal forms (`ltd`, `llc`, `gmbh`, `sa`, `ooo`, …)
 dropped. They are then compared with `rapidfuzz.fuzz.token_sort_ratio`, against the
-primary name and every alias of every `sanction.*` row present, whatever its source.
+primary name and every alias of every `sanction.*` row present, whatever its source,
+and of every row of the full OFAC lists in `feeds.sanctions_entries` (contract §5.8;
+weak a.k.a.s are not screened).
 A pair matches at `sim ≥ 0.92`. Confidence is then adjusted by +0.1 when the countries
 overlap and −0.2 when both sides list countries and they are disjoint, and a match
 below 0.5 is dropped. What that means in practice:
@@ -83,7 +85,10 @@ below 0.5 is dropped. What that means in practice:
 | AB Ltd | AB | – | never screened (normalised name under 3 characters) |
 
 A `sanction.removal` for the same OFAC `entity_id` cancels the designations dated
-before it. Full-list rows (`sanction.listed` or `attrs.full_list: true`) do not decay.
+before it. Full-list rows (`sanction.listed` or `attrs.full_list: true`, and every
+`sanctions_entries` row) do not decay. A `sanctions_entries` row counts from its
+`first_seen_at`, so a removal delta published after it cancels it until the daily
+full read deletes the row; the title then reads "Sanctions listing may match …".
 
 ### 2. Signal `s`: how severe the item is (§5.4)
 
@@ -201,8 +206,9 @@ How the load stays bounded:
 * Only rows that can match are read: the lookback windows are applied in SQL, and the
   filters use the workspace's countries, ports and keys.
 * FX history is read only for the workspace's currencies, and EPSS only for matched CVEs.
-* The sanctions rows are read once per worker process and re-read only when
-  `(count, max(updated_at))` changes.
+* The sanctions rows (`sanction.*` events and up to 50,000 `sanctions_entries` rows)
+  are read once per worker process and re-read only when `(count, max(updated_at))` of
+  either changes; the name index built from them is reused while they are unchanged.
 * Cross-rate detection and name normalisation are cached per process. Both are pure,
   so caching gives identical results.
 * There are no long-lived connections: everything runs inside the caller's transaction.
@@ -213,13 +219,11 @@ volume grows with the evidence count.
 
 ## Known gaps
 
-* **Sanctions coverage.** Until session E's full SDN list lands, OFAC rows are the
-  hourly delta only: a supplier designated months ago is not found. Delta rows are
-  also pruned after 90 days, which resolves their risks. The matcher already reads any
-  `sanction.*` rows and their aliases; full-list rows should use `sanction.listed` (or
-  `attrs.full_list: true`) so they do not decay. Entity types (individual, vessel) are
-  not used, and date of birth, addresses and identifiers are not compared, so a match
-  is a lead for compliance to review, not a verdict.
+* **Sanctions coverage.** The full SDN and consolidated lists (`feeds.sanctions_entries`)
+  are screened, so a supplier designated years ago is found; a risk resolves when its
+  entity leaves the list. Entity types (individual, vessel) are not used, and date of
+  birth, addresses and identifiers are not compared, so a match is a lead for
+  compliance to review, not a verdict.
 * **No version ranges for CVEs.** The feeds carry no affected-version ranges, so an
   entity on a patched version still matches. NVD is not a source yet: if E adds it as
   `nvd`, it is matched like KEV (CPE) and scored like OSV.

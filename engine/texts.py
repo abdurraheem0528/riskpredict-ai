@@ -185,7 +185,7 @@ def title(category: str, entity: Entity, item) -> str:
     news_label = TAG_LABELS.get(tag_type or "", CATEGORY_LABELS[category])
 
     if category == "sanctions" and mt == "sanctions_name":
-        verb = "update" if ev is not None and ev.type == "sanction.update" else "designation"
+        verb = {"sanction.update": "update", "sanction.listed": "listing"}.get(ev.type if ev else "", "designation")
         return _cut(f"Sanctions {verb} may match {name}")
     if category == "cyber" and mt == "software":
         product = item.detail.get("software_display") or mv

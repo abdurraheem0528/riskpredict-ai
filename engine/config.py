@@ -138,6 +138,7 @@ class EngineConfig:
     # --- load bounds (Neon free tier) -------------------------------------------------
     max_events: int = 20000  # newest first; a run never reads more event rows than this
     max_anomalies: int = 5000
+    max_sanctions_entries: int = 50000  # feeds.sanctions_entries rows (the full OFAC lists are ~18k)
 
     def half_life(self, key: str) -> float:
         return float(self.half_life_hours[key])

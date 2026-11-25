@@ -72,6 +72,8 @@ TEST_DATABASE_URL=postgresql://test:test@localhost:5432/api_test python -m pytes
 
 Google, Composio and Groq are replaced only inside the tests (`api.core.http.transport`);
 `test_no_mocks_outside_tests` checks that nothing under `api/` or `worker/` mocks them.
-Most tests use the engine double in `tests/apiservice/engine_double.py`, so they pin the
-API's behaviour independently of scoring rules; `test_api_real_engine.py` runs the worker,
-scenarios and the chokepoint layer against the real `engine/`.
+Every test runs against the real `engine/` (there is no engine double):
+`test_end_to_end.py` goes from a workspace and its entities, through feed rows (including the
+full sanctions list) and the worker's database pass, to risks, evidence, alerts and GeoJSON
+read back through the API; `test_api_real_engine.py` covers the worker, scenarios and the
+chokepoint layer.

@@ -190,7 +190,7 @@ def test_map_events_and_bbox(client, feeds):
     assert client.get("/v1/map/events").status_code == 401
 
 
-def test_disruptions_use_the_engine_chokepoints(client, feeds, engine_double):
+def test_disruptions_use_the_engine_chokepoints(client, feeds):
     me = sign_up(client)
     fc = client.get("/v1/map/disruptions", headers=hdr(me["access_token"])).json()
     by_id = {f["id"]: f["properties"] for f in fc["features"]}
