@@ -5,27 +5,37 @@ a postgres:16 service for this). The ``feeds`` schema in it is dropped and
 recreated by every test.
 """
 
+import io
 import os
 import re
+import zipfile
 from datetime import date, datetime, timedelta, timezone
 
+import httpx
 import psycopg
 import pytest
-from conftest import fixture_json, reset_database
+from conftest import fixture_bytes, fixture_json, reset_database
 
-from jobs import db, migrate
-from jobs.connectors import gdacs, usgs
-from jobs.models import Event, FetchResult, SanctionEntry, Status
-from jobs.watch_defaults import DEFAULT_TERMS
+from jobs import db, migrate, run
+from jobs.connectors import comtrade, gdacs, ofac_sdn, usgs
+from jobs.http import make_client
+from jobs.models import Event, FetchResult, SanctionEntry, SeriesPoint, Status
+from jobs.watch_defaults import DEFAULT_TERMS, GDELT_THEME_QUERIES
 
 DSN = os.environ.get("TEST_DATABASE_URL")
 NOW = datetime(2026, 11, 23, 20, tzinfo=timezone.utc)
 
 
-def test_seed_migration_matches_python_defaults():
-    sql = (migrate.MIGRATIONS_DIR / "002_seed_watch_terms.sql").read_text()
-    rows = re.findall(r"\('((?:[^']|'')*)', '((?:[^']|'')*)', '((?:[^']|'')*)'\)", sql)
-    seeded = [(k, t.replace("''", "'"), s) for k, t, s in rows]
+SEED_FILES = ("002_seed_watch_terms.sql", "041_gdelt_theme_watch_terms.sql")
+
+
+def test_seed_migrations_match_python_defaults():
+    seeded = []
+    for name in SEED_FILES:
+        sql = (migrate.MIGRATIONS_DIR / name).read_text()
+        rows = re.findall(r"\('((?:[^']|'')*)', '((?:[^']|'')*)', '((?:[^']|'')*)'(?:, '(default)')?\)", sql)
+        seeded += [(k, t.replace("''", "'"), s) for k, t, s, _ in rows]
+        assert "ON CONFLICT (kind, scope, term) DO NOTHING" in sql
     assert seeded == [(t.kind, t.term, t.scope) for t in DEFAULT_TERMS]
 
 
@@ -42,6 +52,7 @@ def dsn():
     known = [
         "001_feeds_schema", "002_seed_watch_terms", "003_analysis", "004_maintenance",
         "005_roles", "006_biz_schema", "007_biz_lookups", "030_sanctions_entries",
+        "040_comtrade_world_totals", "041_gdelt_theme_watch_terms",
     ]  # fmt: skip
     assert [v for v in applied if v in known] == known
     return DSN
@@ -166,3 +177,77 @@ def test_sanctions_table_is_readable_by_the_app_role(dsn):
         "has_table_privilege('rp_feeds', 'feeds.sanctions_entries', 'DELETE')",
     )
     assert rows == [(True, False, True)]
+
+
+@needs_db
+def test_theme_watch_terms_are_defaults_and_seeded_once(dsn):
+    rows = query(dsn, "SELECT term, origin, enabled FROM feeds.watch_terms WHERE term LIKE '%%theme:%%'")
+    assert sorted(r[0] for r in rows) == sorted(GDELT_THEME_QUERIES)
+    assert {(o, e) for _, o, e in rows} == {("default", True)}
+    # Running the file again (as on a database that already has the rows) adds nothing.
+    with psycopg.connect(dsn, autocommit=True) as conn:
+        conn.execute((migrate.MIGRATIONS_DIR / "041_gdelt_theme_watch_terms.sql").read_text())
+    assert query(dsn, "SELECT count(*) FROM feeds.watch_terms")[0][0] == len(DEFAULT_TERMS)
+    terms, _, _ = db.load_state(dsn)
+    assert [t.term for t in terms] == [t.term for t in DEFAULT_TERMS]  # phrases are matched first
+
+
+@needs_db
+def test_comtrade_cleanup_removes_old_rows_and_refills_next_run(tmp_path):
+    """040 on a database holding plus-mode and partner-level rows from before the fix."""
+    reset_database(DSN)
+    early = tmp_path / "early"
+    early.mkdir()
+    for path in migrate.migration_files():
+        if path.stem < "040":
+            (early / path.name).write_text(path.read_text())
+    migrate.apply(DSN, early)
+    y2024 = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    old = [
+        SeriesPoint("comtrade", "comtrade.import_value", "JPN:8542", y2024, 6.0e8, "USD"),  # sea freight only
+        SeriesPoint("comtrade", "comtrade.import_value", "JPN:8542:CHN", y2024, 1.5e9, "USD"),
+        SeriesPoint("frankfurter", "fx.rate", "EUR/USD", NOW, 1.05, "USD per EUR"),
+    ]
+    db.write_results(DSN, [FetchResult("comtrade", Status.PARTIAL, series=old[:2], error="cap"),
+                           FetchResult("frankfurter", Status.OK, series=old[2:])], NOW)  # fmt: skip
+    assert migrate.apply(DSN) == ["040_comtrade_world_totals", "041_gdelt_theme_watch_terms"]
+    assert query(DSN, "SELECT source, key FROM feeds.series") == [("frankfurter", "EUR/USD")]
+    _, last_success, _ = db.load_state(DSN)
+    assert last_success["comtrade"] is None and last_success["frankfurter"] == NOW
+    assert run.is_due("comtrade", last_success["comtrade"], NOW)  # the fetch right after refills it
+
+    world = comtrade.parse(fixture_json("comtrade_world_classic.json"))
+    assert db.write_results(DSN, [FetchResult("comtrade", Status.OK, series=world)], NOW) == {"comtrade": 4}
+    keys = [r[0] for r in query(DSN, "SELECT key FROM feeds.series WHERE source = 'comtrade' ORDER BY key")]
+    assert keys == ["IND:2709", "IND:8542", "JPN:2709", "JPN:8542"]  # World totals, <ISO3>:<HS> only
+
+
+def _ofac_handler(request):
+    name = request.url.path.rsplit("/", 1)[-1].replace(".ZIP", ".XML")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr(name, fixture_bytes("ofac_enhanced_shape.xml"))
+    return httpx.Response(200, content=buf.getvalue())
+
+
+@needs_db
+def test_ofac_sdn_run_writes_entries_and_shows_the_count(dsn, monkeypatch, capsys):
+    monkeypatch.setenv("DATABASE_URL_FEEDS", dsn)
+    monkeypatch.setattr(run, "make_client", lambda: make_client(transport=httpx.MockTransport(_ofac_handler)))
+    monkeypatch.setattr(ofac_sdn, "MIN_ENTRIES", {"sdn": 1, "consolidated": 1})  # the fixture is small
+
+    assert run.main(["--sources", "ofac_sdn"]) == 0
+    line = next(r for r in capsys.readouterr().out.splitlines() if r.startswith("ofac_sdn"))
+    stored = query(dsn, "SELECT count(*) FROM feeds.sanctions_entries")[0][0]
+    assert stored > 0
+    assert line.split()[1:6] == ["ok", "0", "0", str(stored), line.split()[5]]
+    assert f"entries={stored} " in line and f"upserted={stored} delisted=0" in line
+    health = query(dsn, "SELECT records_last_run, records_changed, notes FROM feeds.source_health")[0]
+    assert health[0] == health[1] == stored and health[2]["sanctions_upserted"] == stored
+
+    # Next day, same lists: every entry is read, none is rewritten (same row versions).
+    before = query(dsn, "SELECT entity_id, xmin::text, updated_at FROM feeds.sanctions_entries ORDER BY 1")
+    assert run.main(["--sources", "ofac_sdn", "--force"]) == 0
+    line = next(r for r in capsys.readouterr().out.splitlines() if r.startswith("ofac_sdn"))
+    assert line.split()[4] == "0" and f"entries={stored} " in line and "upserted=0 delisted=0" in line
+    assert query(dsn, "SELECT entity_id, xmin::text, updated_at FROM feeds.sanctions_entries ORDER BY 1") == before

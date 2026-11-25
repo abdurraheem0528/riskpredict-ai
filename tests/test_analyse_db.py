@@ -165,7 +165,7 @@ def test_news_counts_use_complete_days_only(dsn):
     ] + [Event(source="gdelt", raw_id="today", type="news", title="t", published_at=NOW, attrs={"query": "q1"})]
     store_events(dsn, *events)
     rows, terms = store.load_news_counts(dsn, NOW)
-    assert len(terms) == 8  # seeded default GDELT queries
+    assert len(terms) == 18  # seeded default GDELT queries: 8 phrase terms (002), 10 theme terms (041)
     # 00:00 on the 22nd is one article on the 22nd; 23:00 and 22:00 are two on the 21st.
     assert sorted((d.day, n) for t, d, n in rows if t == "q1") == [(21, 2), (22, 1)]
     assert all(d < day for _, d, _ in rows)  # today's partial count is left out

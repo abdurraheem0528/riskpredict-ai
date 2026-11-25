@@ -94,7 +94,7 @@ FIXTURE_FOR = {
     "api.stlouisfed.org": "fred_observations_doc.json",
     "api.eia.gov": "eia_spot_prices.json",
     "services.nvd.nist.gov": "nvd_cve_log4shell.json",
-    "comtradeapi.un.org": "comtrade_preview.json",
+    "comtradeapi.un.org": "comtrade_world_classic.json",
     "otx.alienvault.com": "otx_pulses_shape.json",
     "newsdata.io": "newsdata_latest_shape.json",
     "api.currentsapi.services": "currents_search_doc.json",
@@ -263,23 +263,78 @@ def test_eia_real_response():
 
 def test_comtrade_real_response():
     notes = {}
-    points = comtrade.parse(fixture_json("comtrade_preview.json"), notes)
+    points = comtrade.parse(fixture_json("comtrade_world_classic.json"), notes)
     assert [(p.series, p.key, p.value) for p in points] == [
-        ("comtrade.import_value", "JPN:8542:CHN", 1561601430.041),
-        ("comtrade.import_value", "IND:8542:CHN", 10540142199.944),
+        ("comtrade.import_value", "JPN:2709", 71811869887.915),
+        ("comtrade.import_value", "JPN:8542", 23161378835.289),
+        ("comtrade.import_value", "IND:2709", 141532322252.516),
+        ("comtrade.import_value", "IND:8542", 23445487573.734),
     ]
     assert points[0].ts == datetime(2024, 1, 1, tzinfo=timezone.utc) and points[0].unit == "USD"
-    world = fixture_json("comtrade_preview.json")
-    for row in world["data"]:
-        row["partnerCode"], row["partnerISO"] = 0, "W00"
-    assert comtrade.parse(world)[0].key == "JPN:8542"
+    assert points[0].attrs["description"].startswith("Petroleum oils") and notes == {}
+    world = fixture_json("comtrade_world_classic.json")
     world["data"][0]["reporterISO"] = "E19"  # an aggregate, no ISO 3166 code
-    assert len(comtrade.parse(world, notes)) == 1 and notes["dropped_aggregate_reporter"] == 1
+    assert len(comtrade.parse(world, notes)) == 3 and notes["dropped_aggregate_reporter"] == 1
+    # A partner = China reply: bilateral rows are not World totals and are never stored.
+    notes = {}
+    assert comtrade.parse(fixture_json("comtrade_preview.json"), notes) == []
+    assert notes["dropped_breakdown"] == 2
     with pytest.raises(SourceError):
         comtrade.parse({"error": "Rate limit is exceeded", "data": None})
+
+
+def test_comtrade_asks_for_world_totals_only():
     q = query_of(httpx.Request("GET", comtrade.query(ctx())))
-    assert q["period"] == "2025,2024" and q["partnerCode"] == "0" and q["includeDesc"] == "true"
-    assert all(c.isdigit() for c in q["cmdCode"].split(","))
+    assert q["period"] == "2025,2024" and q["includeDesc"] == "true"
+    # Partner World, and every Comtrade+ breakdown pinned to its total (else "plus" mode
+    # returns one row per second partner, customs procedure and transport mode).
+    assert (q["partnerCode"], q["partner2Code"], q["customsCode"], q["motCode"]) == ("0", "0", "C00", "0")
+    assert q["breakdownMode"] == "classic" and q["flowCode"] == "M,X"
+    assert all(c.isdigit() for c in q["cmdCode"].split(",")) and len(q["cmdCode"].split(",")) == 12
+    assert "reporterCode" not in q  # every reporter, still one call
+    # At most ~250 reporters x 12 codes x 2 flows x 2 years: far under the 100,000 cap.
+    assert 250 * len(comtrade.HS_CODES) * len(comtrade.FLOWS) * len(comtrade.periods(ctx())) < comtrade.MAX_RECORDS / 8
+
+
+def _plus_mode_reply():
+    """A "plus" reply: the World total plus its transport-mode, customs and 2nd-partner parts."""
+    total = fixture_json("comtrade_world_classic.json")["data"][1]  # JPN imports of 8542
+    total["primaryValue"] = 1000.0
+    parts = [
+        {**total, "motCode": 2100, "primaryValue": 600.0},  # sea
+        {**total, "motCode": 1000, "primaryValue": 400.0},  # air
+        {**total, "customsCode": "C01", "primaryValue": 900.0},
+        {**total, "partner2Code": 156, "partner2ISO": "CHN", "primaryValue": 50.0},
+        {**total, "partnerCode": 156, "partnerISO": "CHN", "primaryValue": 300.0},
+    ]
+    return {"count": 1 + len(parts), "data": [*parts[:2], total, *parts[2:], dict(total, primaryValue=1.0)]}
+
+
+def test_comtrade_keeps_only_the_world_total():
+    notes = {}
+    points = comtrade.parse(_plus_mode_reply(), notes)
+    assert [(p.key, p.value) for p in points] == [("JPN:8542", 1000.0)]
+    assert notes["dropped_breakdown"] == 5 and notes["duplicate_keys"] == 1
+
+
+def test_comtrade_run_reports_partial_only_at_the_cap(monkeypatch):
+    monkeypatch.setenv("COMTRADE_API_KEY", FAKE_KEY)
+    calls = []
+
+    def handler(count):
+        def reply(request):
+            calls.append(query_of(request))
+            return httpx.Response(200, json={**_plus_mode_reply(), "count": count})
+
+        return reply
+
+    result = comtrade.ComtradeConnector().run(client_for(handler(6)), ctx())
+    assert result.status == Status.OK and result.error is None and len(result.series) == 1
+    assert result.notes["records_in_response"] == 6 and result.notes["budget_used"] == 1
+    capped = comtrade.ComtradeConnector().run(client_for(handler(comtrade.MAX_RECORDS)), ctx())
+    assert capped.status == Status.PARTIAL and "100000 record maximum" in capped.error
+    assert "5 were not World totals" in capped.error
+    assert len(calls) == 2  # one call per run
 
 
 def test_comtrade_respects_the_daily_budget(monkeypatch):

@@ -94,7 +94,7 @@ expose to the browser.
 
 | Source | What is stored | Every |
 |---|---|---|
-| GDELT 2.0 | news articles matching watch terms (`feeds.watch_terms`, kind `gdelt_query`), from the 15-minute GKG files; one DOC API call as fallback | 15 min |
+| GDELT 2.0 | news articles matching watch terms (`feeds.watch_terms`, kind `gdelt_query`: phrases and GKG `theme:` codes, ~15 articles per 15-minute file with the defaults), from the 15-minute GKG files; one DOC API call as fallback | 15 min |
 | CISA KEV | known exploited vulnerabilities | 1 h |
 | FIRST EPSS | daily exploit-probability scores ≥ `EPSS_MIN_SCORE` (default 0.5) | 6 h |
 | OSV.dev | vulnerabilities for watched packages (kind `osv_package`) | 6 h |
@@ -120,7 +120,7 @@ allows it; FRED and EIA only take a query parameter, so URLs are never printed a
 | FRED | `FRED_API_KEY` | 120 requests/min | 8 requests every 6 h (32/day) | `fred.<id>` series: fed funds, 10y–2y, HY spread, VIX, broad USD, CPI, unemployment, industrial production |
 | NVD CVE 2.0 | `NVD_API_KEY` (optional) | 5 req/30 s keyless, 50 with key; poll ≤ every 2 h | every 2 h, 1–5 pages, 6.5 s apart keyless (~12–60/day) | CVEs modified since the last run with CVSS ≥ 7.0: severity, CPE vendor:product, purls, KEV flag |
 | EIA v2 | `EIA_API_KEY` | unpublished; stay < ~9,000/h and < 5/s; 5,000 rows/response | 2 requests every 6 h (8/day) | `eia.spot_price`: WTI, Brent, Henry Hub |
-| UN Comtrade | `COMTRADE_API_KEY` | 500 calls/day, 1/s, 100k records/call | 1 call/day (cap 400/day) | `comtrade.import_value` / `export_value` by country and HS code (12 critical codes), last 2 years |
+| UN Comtrade | `COMTRADE_API_KEY` | 500 calls/day, 1/s, 100k records/call | 1 call/day (cap 400/day), World totals only (≤ ~9,600 records) | `comtrade.import_value` / `export_value` by country and HS code (12 critical codes), trade with the World, last 2 years |
 | AlienVault OTX | `OTX_API_KEY` | 10,000 requests/h | every 1 h, ≤ 5 pages (≤ 120/day) | `cyber.threat_pulse` events (TLP white/green only): targeted countries, ATT&CK ids, CVEs, malware families |
 | Tiingo | `TIINGO_API_KEY` | 50/h, 1,000/day, 500 symbols/month, 1 GB/month | 20 requests every 12 h (40/day, 20 symbols) | `tiingo.close` for 12 market ETFs (incl. BDRY freight), `tiingo.fx_close` for 8 non-ECB currencies |
 | NewsData.io | `NEWSDATA_API_KEY` | 200 credits/day, 30 per 15 min, 10 articles/call, 12 h delay | ≤ 8 queries every 2 h (≤ 96/day, cap 160) | `news` events for the watch terms |

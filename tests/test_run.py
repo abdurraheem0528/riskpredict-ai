@@ -79,6 +79,9 @@ def test_dry_run_all_sources_prints_counts_only(offline, capsys, monkeypatch):
     for name in CONNECTORS:
         assert f"\n{name} " in out
     assert "error" not in out and "dry run, nothing written" in out
+    # Sanctions entries are neither events nor series: the note says how many were read.
+    ofac_line = next(line for line in out.splitlines() if line.startswith("ofac_sdn "))
+    assert "entries=" in ofac_line and " sdn=" in ofac_line and "upserted" not in ofac_line
     # Record contents must never reach the (public) log.
     for leaked in (
         "H N B TRADING", "Tobi Village", "Jinja2 sandbox", "newsonjapan", "CVE-2026-76466", "Mozambique",

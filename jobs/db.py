@@ -216,7 +216,11 @@ def _sanction_row(e: SanctionEntry) -> tuple:
 def write_result(conn: psycopg.Connection, result: FetchResult, now: datetime) -> int:
     """Upsert one source's records and its health row in a single transaction.
 
-    Returns the number of rows inserted or changed.
+    Returns the number of rows inserted or changed. For sanctions lists, which
+    live in ``feeds.sanctions_entries`` rather than events or series, it also sets
+    ``result.notes`` ``sanctions_upserted`` (entries inserted or changed) and
+    ``sanctions_delisted`` (entries deleted), stored with the health row and
+    shown in the run table.
     """
     changed = 0
     with conn.transaction(), conn.cursor() as cur:
@@ -229,15 +233,20 @@ def write_result(conn: psycopg.Connection, result: FetchResult, now: datetime) -
             cur.executemany(UPSERT_SERIES, [_series_row(p) for p in points])
             changed += max(cur.rowcount, 0)
         entries = dedupe_sanctions(result.sanctions)
+        upserted = delisted = 0
         if entries:
+            # Unchanged entries match the ON CONFLICT ... WHERE and are not rewritten.
             cur.executemany(UPSERT_SANCTION, [_sanction_row(e) for e in entries])
-            changed += max(cur.rowcount, 0)
+            upserted = max(cur.rowcount, 0)
         for dataset in result.replace_datasets:
             ids = [e.entity_id for e in entries if e.dataset == dataset]
             if not ids:  # never empty a list because a file came back empty
                 continue
             cur.execute(DELETE_DELISTED, (result.source, dataset, ids))
-            changed += max(cur.rowcount, 0)
+            delisted += max(cur.rowcount, 0)
+        if entries or result.replace_datasets:
+            result.notes.update(sanctions_upserted=upserted, sanctions_delisted=delisted)
+        changed += upserted + delisted
         cur.execute(
             UPSERT_HEALTH,
             {

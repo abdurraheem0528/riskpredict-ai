@@ -11,11 +11,11 @@ import pytest
 from conftest import fixture_bytes
 
 from jobs import codes
-from jobs.connectors import gdelt
+from jobs.connectors import gdelt, news
 from jobs.connectors.base import RunContext, WatchTerm
 from jobs.http import make_client
 from jobs.models import Status
-from jobs.watch_defaults import DEFAULT_TERMS
+from jobs.watch_defaults import DEFAULT_TERMS, GDELT_THEME_QUERIES
 
 NOW = datetime(2026, 11, 16, 16, 40, tzinfo=timezone.utc)
 LATEST = 20261116163000  # newest window in gdelt_lastupdate.txt
@@ -28,10 +28,10 @@ TERMS = [
 ]
 
 
-def gkg_zip(name="20190301001500.gkg.csv") -> bytes:
+def gkg_zip(name="20190301001500.gkg.csv", fixture="gdelt_gkg_trimmed.csv") -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(name, fixture_bytes("gdelt_gkg_trimmed.csv"))
+        zf.writestr(name, fixture_bytes(fixture))
     return buf.getvalue()
 
 
@@ -49,6 +49,7 @@ class Feed:
     def __init__(self, lastupdate=200, files=200, doc=200):
         self.lastupdate, self.files, self.doc = lastupdate, files, doc
         self.urls: list[str] = []
+        self.zip = gkg_zip
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url)
@@ -62,7 +63,7 @@ class Feed:
                 raise self.lastupdate
             return httpx.Response(self.lastupdate, content=fixture_bytes("gdelt_lastupdate.txt"))
         status = self.files(url) if callable(self.files) else self.files
-        return httpx.Response(status, content=gkg_zip() if status == 200 else b"")
+        return httpx.Response(status, content=self.zip() if status == 200 else b"")
 
     @property
     def file_urls(self):
@@ -121,6 +122,75 @@ def test_default_watch_terms_do_not_match_unrelated_rows():
     assert gdelt.read_gkg_zip(gkg_zip(), matchers(defaults), {}) == []
 
 
+THEME_TERMS = [t for t in DEFAULT_TERMS if t.kind == "gdelt_query" and "theme:" in t.term]
+
+
+def test_default_theme_terms_on_real_rows():
+    """Seven real GKG rows (Apr 2019, AWS mirror): one per theme term below, a phrase hit, a miss."""
+    notes = {}
+    zipped = gkg_zip("20190410120000.gkg.csv", "gdelt_gkg_themes.csv")
+    defaults = [t for t in DEFAULT_TERMS if t.kind == "gdelt_query"]
+    events = {e.attrs["gkg_id"]: e for e in gdelt.read_gkg_zip(zipped, matchers(defaults), notes)}
+    assert notes["rows_scanned"] == 7 and notes["matched_on_themes"] == 5
+    expected = {
+        "20190410180000-43": (0, ["CYBER_ATTACK", "SOC_RANSOM", "WB_2457_CYBER_CRIME"]),
+        "20190410180000-2132": (1, ["MARITIME_INCIDENT", "MARITIME_PIRACY"]),
+        "20190410120000-1727": (2, ["WB_167_PORTS", "STRIKE"]),  # Nigerian workers' strike
+        "20190410121500-1923": (5, ["NATURAL_DISASTER_CYCLONE", "WB_167_PORTS"]),  # Cyclone Idai, Beira
+        "20190410120000-1257": (6, ["ARMEDCONFLICT", "MARITIME_INCIDENT", "CRISISLEX_C04_LOGISTICS_TRANSPORT"]),
+    }
+    for gkg_id, (i, themes) in expected.items():
+        ev = events[gkg_id]
+        assert ev.attrs["query"] == GDELT_THEME_QUERIES[i] and ev.attrs["themes"] == themes
+        assert ev.type == "news" and ev.countries  # typed by GLiNER2 later, like any article
+    phrase = events["20190411030000-215"]  # Yahoo data-breach settlement: a phrase default
+    assert phrase.attrs["query"].startswith('("ransomware attack"') and "themes" not in phrase.attrs
+    assert "20190410121500-148" not in events and len(events) == 6
+
+
+def test_theme_codes_are_in_gdelts_published_list():
+    """Every ``theme:`` code in the defaults is in LOOKUP-GKGTHEMES.TXT (the used lines are saved)."""
+    listed = {}
+    for line in fixture_bytes("gdelt_gkg_themes_used.txt").decode().splitlines():
+        code, count = line.split("\t")
+        listed[code] = int(count)
+    used = {t.value for term in THEME_TERMS for g in gdelt.parse_query(term.term).groups for t in g}
+    assert used == set(listed) and len(listed) == 33 and all(n > 0 for n in listed.values())
+    assert len(THEME_TERMS) == len(GDELT_THEME_QUERIES) == 10
+    for term in THEME_TERMS:
+        m = gdelt.parse_query(term.term)
+        assert m.supported and all(t.kind == "theme" for g in m.groups for t in g)
+        assert len(m.groups) >= 2  # never one broad theme on its own
+        assert not news.supported(term.term)  # NewsData / Currents skip them
+
+
+def test_theme_terms_and_or_negate():
+    hay = gdelt.normalise("Port workers walk out")
+    themes = frozenset({"WB_167_PORTS", "STRIKE", "TAX_FNCACT_WORKERS"})
+
+    def m(q):
+        return gdelt.parse_query(q)
+
+    assert m("theme:WB_167_PORTS (theme:STRIKE OR theme:CLOSURE)").matches(hay, themes)
+    assert not m("theme:WB_167_PORTS (theme:BLOCKADE OR theme:CLOSURE)").matches(hay, themes)
+    assert m("theme:wb_167_ports theme:strike").matches(hay, themes)  # codes are case-insensitive
+    assert not m("theme:STRIKE -theme:TAX_FNCACT_WORKERS").matches(hay, themes)
+    assert not m("theme:STRIKE").matches(hay, frozenset({"STRIKES"}))  # exact codes, no prefixes
+    q = m("theme:STRIKE (theme:CLOSURE OR theme:TAX_FNCACT_WORKERS) -theme:BLOCKADE")
+    assert gdelt.matched_themes(q, themes) == ["STRIKE", "TAX_FNCACT_WORKERS"]
+
+
+def test_volume_stays_under_the_run_cap(monkeypatch):
+    """A run keeps at most MAX_EVENTS articles, whatever the terms match."""
+    monkeypatch.setattr(gdelt, "MAX_EVENTS", 3)
+    feed = Feed()
+    feed.zip = lambda: gkg_zip("20190410120000.gkg.csv", "gdelt_gkg_themes.csv")
+    defaults = [t for t in DEFAULT_TERMS if t.kind == "gdelt_query"]
+    result = run(feed, terms=defaults)
+    # 3 windows x 6 matches = 18, but each URL is one row: 6 unique, cut to 3.
+    assert len(result.events) == 3 and result.notes["dropped_over_cap"] == 3 and result.notes["matched"] == 3
+
+
 def test_query_syntax():
     hay = gdelt.normalise("Dockworkers strike closes Port of Antwerp | port-of-antwerp-strike | ECON STRIKE")
     themes = frozenset({"STRIKE", "MARITIME"})
@@ -148,7 +218,7 @@ def test_page_title_and_language():
 def test_doc_query_ors_every_term():
     defaults = [t for t in DEFAULT_TERMS if t.kind == "gdelt_query"]
     q, skipped = gdelt.doc_api_query(matchers(defaults + [WatchTerm("gdelt_query", "theme:CYBER_ATTACK")]))
-    assert skipped == 0
+    assert skipped == len(GDELT_THEME_QUERIES)  # AND-ed theme terms cannot be ORed into one DOC query
     assert q.startswith('("port strike" OR "dockworkers strike" OR ') and q.endswith(" OR theme:CYBER_ATTACK)")
     assert q.count(" OR ") == 23  # 23 phrases from the 8 default terms, plus the theme
     assert gdelt.doc_api_query(matchers([WatchTerm("gdelt_query", "a (b OR c)")])) == (None, 1)

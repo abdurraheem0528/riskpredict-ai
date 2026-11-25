@@ -18,10 +18,24 @@ Matching follows the DOC API query syntax our watch terms use: a space means
 AND, ``( ... OR ... )`` means any of, ``"..."`` is an exact phrase, ``-`` negates
 and ``theme:CODE`` matches a GKG theme. Phrases and words match whole words,
 case-insensitively, in the article title, its URL, the organisation and
-location names GDELT extracted, and the theme names (``ECON_DEVALUATION`` reads
-as "econ devaluation"). Other DOC operators (``sourcecountry:``...) cannot be
-checked against the files, so a term using them matches nothing there and is
-counted in ``notes.terms_unsupported``.
+location names GDELT extracted, and the theme names (``ECON_CURRENCY_RESERVES``
+reads as "econ currency reserves"). ``theme:CODE`` matches the exact GKG theme
+code (any case), and can be combined like words: ``theme:A (theme:B OR
+theme:C)`` needs A and one of B or C. Other DOC operators (``sourcecountry:``...)
+cannot be checked against the files, so a term using them matches nothing there
+and is counted in ``notes.terms_unsupported``.
+
+An article is stored once, for the first term it matches (terms in
+``feeds.watch_terms`` id order: the phrase defaults of migration 002 before the
+theme defaults of 041). ``attrs.query`` is that term; for a term with ``theme:``
+codes, ``attrs.themes`` lists the codes the article carried. The event type is
+still ``news``: GLiNER2 types it from the title like any other article, so an
+article whose title is off-topic is tagged ``other`` and is never evidence
+except through a company name (``risk-engine.md``). The default theme terms
+match ~15 articles per 15-minute file (see ``jobs/watch_defaults.py``), so
+:data:`MAX_EVENTS` only bounds an exceptional news day. The DOC fallback can
+only send terms that are one OR-group, so it skips the AND-ed theme terms
+(``notes.doc_terms_skipped``).
 
 The URL is the record id, so an article seen in two windows, or by both paths,
 is one row. ``countries`` are the countries of the locations GDELT found in the
@@ -263,11 +277,22 @@ def doc_api_query(matchers: list[Matcher]) -> tuple[str | None, int]:
     return (parts[0] if len(parts) == 1 else "(" + " OR ".join(parts) + ")"), skipped
 
 
-def first_match(matchers: list[Matcher], hay: str, themes: frozenset[str] = frozenset()) -> str | None:
+def first_matcher(matchers: list[Matcher], hay: str, themes: frozenset[str] = frozenset()) -> Matcher | None:
     for m in matchers:
         if m.matches(hay, themes):
-            return m.term
+            return m
     return None
+
+
+def first_match(matchers: list[Matcher], hay: str, themes: frozenset[str] = frozenset()) -> str | None:
+    m = first_matcher(matchers, hay, themes)
+    return m.term if m else None
+
+
+def matched_themes(m: Matcher, themes: frozenset[str]) -> list[str]:
+    """The term's (non-negated) theme codes that the article carries, in term order."""
+    out = [t.value for g in m.groups for t in g if t.kind == "theme" and not t.negated and t.value in themes]
+    return list(dict.fromkeys(out))
 
 
 # --- GKG 2.1 files ----------------------------------------------------------------
@@ -384,11 +409,15 @@ def parse_gkg_rows(rows, matchers: list[Matcher], notes: dict[str, int]) -> list
         title = page_title(row[GKG_EXTRAS])
         theme_set = frozenset(themes)
         hay = _haystack(title, url, orgs, [name for name, _ in locs], themes)
-        term = first_match(matchers, hay, theme_set)
-        if term is None:
+        matcher = first_matcher(matchers, hay, theme_set)
+        if matcher is None:
             continue
+        term = matcher.term
+        hit_themes = matched_themes(matcher, theme_set)
+        if hit_themes:
+            notes["matched_on_themes"] = notes.get("matched_on_themes", 0) + 1
 
-        def build(row=row, url=url, title=title, term=term, locs=locs):
+        def build(row=row, url=url, title=title, term=term, locs=locs, hit_themes=hit_themes):
             countries: dict[str, None] = {}
             for _, fips in locs:
                 iso = codes.fips_alpha3(fips)
@@ -397,6 +426,7 @@ def parse_gkg_rows(rows, matchers: list[Matcher], notes: dict[str, int]) -> list
             tone = row[GKG_TONE].split(",")[0].strip()
             attrs = {
                 "query": term,
+                "themes": hit_themes or None,
                 "domain": row[GKG_DOMAIN] or None,
                 "language": language_of(row[GKG_TRANSLATION]),
                 "tone": round(float(tone), 2) if tone else None,
