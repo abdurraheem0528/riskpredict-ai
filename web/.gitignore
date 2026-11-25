@@ -4,3 +4,6 @@ test-results
 playwright-report
 screenshots
 *.local
+
+# the root .gitignore ignores Python lib/ folders; this one is source
+!src/lib/
