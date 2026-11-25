@@ -1451,7 +1451,7 @@ export interface components {
             recency: number;
             contribution: number;
             snapshot: components["schemas"]["EvidenceSnapshot"];
-            /** @description false once feed retention removed the original row */
+            /** @description false once feed retention removed the original row, or (full sanctions lists) the entity left the list */
             still_in_feeds: boolean;
             /** Format: date-time */
             last_linked_at: string;

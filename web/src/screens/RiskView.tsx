@@ -264,7 +264,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
             <span className="t12" style={{ gridColumn: '1 / -1' }}>
               {e.event ? feedName(e.event.source) : 'Anomaly'} · {MATCH_TEXT[e.match_type]}: {e.match_type === 'chokepoint' ? chokeName(e.match_value) : matchValue(e)}
               {e.snapshot.published_at ? ` · ${fmtDate(e.snapshot.published_at)}` : ''}
-              {!e.still_in_feeds ? ' · no longer in the feed' : ''}
+              {!e.still_in_feeds ? (e.match_type === 'sanctions_name' ? ' · no longer on the list' : ' · no longer in the feed') : ''}
             </span>
           </div>
         ))}
