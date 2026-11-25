@@ -63,21 +63,31 @@ class Worker:
                 if conn.execute("SELECT 1 FROM biz.workspaces WHERE id = %s", (ws,)).fetchone() is None:
                     self._forget(ws)
                     return
-            sync.process_webhooks(ctx, ws)
+            # Each step is isolated: a Drive or Composio problem must not stop the syncs.
+            self._step("webhooks", sync.process_webhooks, ctx, ws)
             conns = sync._connections(ctx, ws)
-            sync.check_pending_composio(ctx, ws, conns)
-            sync.ensure_watches(ctx, ws, conns)
+            self._step("composio status", sync.check_pending_composio, ctx, ws, conns)
+            self._step("drive watch", sync.ensure_watches, ctx, ws, conns)
             changed = False
             for src in sync.due_sources(ctx, ws):
-                changed |= sync.sync_source(ctx, ws, src["id"]).changed
+                result = self._step("source sync", sync.sync_source, ctx, ws, src["id"])
+                changed |= bool(result and result.changed)
                 ctx.flush()
             if changed or score or "engine" in reasons:
-                scoring.run_workspace(ctx, ws)
+                self._step("engine run", scoring.run_workspace, ctx, ws)
             self._refresh_cache(ws)
         except Exception as exc:  # one workspace must not stop the others
             log.warning("workspace pass failed (%s)", type(exc).__name__)
         finally:
             ctx.flush()
+
+    @staticmethod
+    def _step(name: str, fn, *args):
+        try:
+            return fn(*args)
+        except Exception as exc:  # logged by type only: messages can carry row values
+            log.warning("%s failed (%s)", name, type(exc).__name__)
+            return None
 
     def _forget(self, ws: UUID) -> None:
         for sid in [k for k, v in self.cache.items() if v[0] == ws]:

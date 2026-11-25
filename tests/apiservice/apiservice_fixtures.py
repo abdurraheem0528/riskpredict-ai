@@ -126,9 +126,9 @@ class FakeHttp:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.calls.append(request)
         url = f"{request.url.host}{request.url.path}"
-        for method, prefix, handler in self.routes:
-            if request.method == method and url.startswith(prefix):
-                return handler(request)
+        hits = [r for r in self.routes if request.method == r[0] and url.startswith(r[1])]
+        if hits:  # the longest (most specific) prefix wins; among equals, the latest registered
+            return max(hits, key=lambda r: len(r[1]))[2](request)
         return httpx.Response(599, json={"error": f"no test route for {request.method} {url}"})
 
     def sent_to(self, prefix: str) -> list[httpx.Request]:
