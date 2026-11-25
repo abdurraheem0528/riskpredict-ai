@@ -1,10 +1,13 @@
-# api/ and worker/ (session B): tests against a throwaway Postgres 16 (migrated with the
-# repository's runner, python -m jobs.migrate), and both Docker images. Google, Composio
-# and Groq are never called: the tests replace them (tests/apiservice), and the image
-# checks run with --network none.
+# api/ and worker/: tests against a throwaway Postgres 16 (migrated with the repository's
+# runner, python -m jobs.migrate) with the real engine/ installed, including the end-to-end
+# test (tests/apiservice/test_end_to_end.py), and both Docker images (each must contain the
+# engine). Google, Composio and Groq are never called: the tests replace them
+# (tests/apiservice), and the image checks run with --network none.
 name: ci-api
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -61,7 +64,7 @@ jobs:
         run: docker build -f worker/Dockerfile -t riskpredict-worker:ci .
       - name: Import inside the images (no network)
         run: |
-          docker run --rm --network none riskpredict-api:ci python -c "import api.main"
-          docker run --rm --network none riskpredict-worker:ci python -c "import sys, worker.main; assert 'fastapi' not in sys.modules"
+          docker run --rm --network none riskpredict-api:ci python -c "import api.main, engine; assert engine.chokepoints()"
+          docker run --rm --network none riskpredict-worker:ci python -c "import sys, worker.main, engine; assert 'fastapi' not in sys.modules; print(engine.ENGINE_VERSION)"
       - name: Compose file is valid
         run: docker compose --profile app config --quiet

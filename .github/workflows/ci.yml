@@ -1,10 +1,12 @@
-# Tests on every pull request: parsers against saved real responses, analysis
+# Tests on every pull request and push to main: parsers against saved real responses, analysis
 # logic (tagging model mocked), the migrations, writers and biz row-level security
 # against a throwaway Postgres 16, and the API contract (docs/contracts). No network fetches and no model download (except the one USGS
 # dry run in fetch-only, which checks the fetch job's install works end to end).
 name: ci
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 

@@ -159,6 +159,12 @@ EVIDENCE_SELECT = """
 SELECT ev.*,
        CASE WHEN ev.kind = 'event' THEN EXISTS (SELECT 1 FROM feeds.events f
                                                 WHERE f.source = ev.event_source AND f.raw_id = ev.event_raw_id)
+                                         -- full sanctions lists: raw_id '<dataset>:<entity_id>' (§5.8)
+                                         OR EXISTS (SELECT 1 FROM feeds.sanctions_entries s
+                                                    WHERE s.source = ev.event_source
+                                                      AND s.dataset = split_part(ev.event_raw_id, ':', 1)
+                                                      AND s.entity_id = substr(ev.event_raw_id,
+                                                                               strpos(ev.event_raw_id, ':') + 1))
             ELSE EXISTS (SELECT 1 FROM feeds.anomalies a WHERE a.series = ev.anomaly_series AND a.key = ev.anomaly_key
                          AND a.ts = ev.anomaly_ts AND a.method = ev.anomaly_method) END AS still_in_feeds
 FROM biz.risk_evidence ev WHERE ev.risk_id = %s ORDER BY ev.contribution DESC, ev.id

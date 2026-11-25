@@ -38,10 +38,12 @@ def dsn():
     applied = migrate.apply(DSN)
     # Every file in infra/migrations, in order; later sessions add their own (010+).
     assert applied == [p.stem for p in migrate.migration_files()]
-    assert applied[:7] == [
+    # The ones every session relies on, in order; other files (010, ...) may sit between them.
+    known = [
         "001_feeds_schema", "002_seed_watch_terms", "003_analysis", "004_maintenance",
         "005_roles", "006_biz_schema", "007_biz_lookups", "030_sanctions_entries",
     ]  # fmt: skip
+    assert [v for v in applied if v in known] == known
     return DSN
 
 

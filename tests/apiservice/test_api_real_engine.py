@@ -1,4 +1,4 @@
-"""The API and worker with session C's real ``engine/`` (no test double)."""
+"""The API and worker with the real ``engine/``."""
 
 from __future__ import annotations
 

@@ -102,6 +102,21 @@ def put_events(*events):
                 )  # fmt: skip
 
 
+def put_entries(*rows):
+    """Full-list rows as the ofac_sdn connector writes them (test data; names made up)."""
+    with psycopg.connect(DSN) as conn:
+        for r in rows:
+            r = {"dataset": "sdn", "entity_type": "Entity", "aliases": [], "weak_aliases": [], "countries": [],
+                 "programs": ["SDGT"], "lists": ["SDN List"], **r}  # fmt: skip
+            conn.execute(
+                "INSERT INTO feeds.sanctions_entries (source, dataset, entity_id, entity_type, name, aliases,"
+                " weak_aliases, countries, programs, lists, first_seen_at, updated_at)"
+                " VALUES ('ofac_sdn', %(dataset)s, %(entity_id)s, %(entity_type)s, %(name)s, %(aliases)s,"
+                " %(weak_aliases)s, %(countries)s, %(programs)s, %(lists)s, %(seen)s, %(seen)s)",
+                {"seen": NOW - timedelta(days=200), **r},
+            )
+
+
 def make_workspace(dsn: str, label: str, entities: list[dict], base_currency: str | None = "EUR") -> dict:
     ws, user, conn_id, src, mapping = (uuid.uuid4() for _ in range(5))
     with tx(dsn, user=user) as c:
@@ -385,3 +400,41 @@ def test_base_currency_cross_rates_from_stored_series(app):
     assert c.fingerprint.endswith("|financial|currency:USD/TRY")
     ev = dump(a["ws"])["evidence"]
     assert {e[4] for e in ev} == {"USD/TRY"} and {e[1] for e in ev} == {"anomaly"}
+
+
+def test_full_sanctions_lists_are_screened(app):
+    put_entries(
+        {"entity_id": "36001", "name": "NORTHWIND HOLDINGS", "aliases": ["Nordwind Holding AG"], "countries": ["ARE"]},
+        {"entity_id": "36002", "name": "UNRELATED MARITIME", "weak_aliases": ["Zeta Components"]},
+        {"entity_id": "36003", "name": "OTHER LISTED NAME", "dataset": "consolidated", "lists": ["SSI List"]},
+    )
+    a = make_workspace(app, "a", [
+        {"kind": "customer", "name": "Nordwind Holding", "countries": ["ARE"]},
+        {"kind": "supplier", "name": "Zeta Components GmbH", "countries": ["DEU"]},
+    ])  # fmt: skip
+    res = run(app, a["ws"])
+    assert res.counts["created"] == 1  # a weak a.k.a. is never screened
+    d = dump(a["ws"])
+    [risk] = d["risks"]
+    assert risk[6] == "Sanctions listing may match Nordwind Holding" and risk[9] == ["ARE"]
+    [ev] = d["evidence"]
+    assert (ev[1], ev[2], ev[3], ev[5]) == ("event", "ofac_sdn", "sdn:36001", "sanctions_name")
+    assert ev[8]["matched_name"] == "Nordwind Holding AG" and ev[8]["type"] == "sanction.listed"
+    # Read once per change; delisting (the connector deletes the row) re-reads and resolves the risk.
+    rows = edb._SANCTIONS_CACHE["rows"]
+    assert len(rows) == 3 and run(app, a["ws"]).changes == () and edb._SANCTIONS_CACHE["rows"] is rows
+    with psycopg.connect(DSN) as c:
+        c.execute("DELETE FROM feeds.sanctions_entries WHERE entity_id = '36001'")
+    res = run(app, a["ws"])
+    assert [c.change for c in res.changes] == ["resolved"] and len(edb._SANCTIONS_CACHE["rows"]) == 2
+
+
+def test_full_list_read_is_bounded(app):
+    names = ["Alpha Shipping", "Bravo Metals", "Charlie Foods", "Delta Chemicals", "Echo Logistics"]
+    put_entries(*({"entity_id": str(i), "name": n} for i, n in enumerate(names)))
+    a = make_workspace(app, "a", [{"kind": "supplier", "name": "Echo Logistics Ltd"}])
+    small = engine.EngineConfig(max_sanctions_entries=2)
+    with tx(app, workspace=a["ws"]) as c:
+        feeds = engine.load_feeds(c, engine.load_entities(c), now=NOW, config=small)
+    assert [e.raw_id for e in feeds.events] == ["sdn:0", "sdn:1"]
+    assert run(app, a["ws"]).counts["created"] == 1  # the default bound reads all of them

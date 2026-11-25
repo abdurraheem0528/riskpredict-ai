@@ -26,7 +26,7 @@ from engine.geo import EARTH_RADIUS_KM, geo_confidence, haversine_km, radius_km
 from engine.models import Anomaly, Assessment, Entity, Evidence, FeedEvent, FeedSnapshot
 from engine.reference import chokepoint_by_alias, chokepoint_id, chokepoints, hs_chapter_keywords, keyword_in
 
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.1.0"
 
 # §5.1: which keys each entity kind is matched on.
 KIND_KEYS: Mapping[str, frozenset[str]] = {
@@ -386,17 +386,12 @@ class _Assessor:
                                         f"commodity:HS {ch}", detail={"matched_text": text})  # fmt: skip
 
     def _sanctions(self, events: list[tuple[FeedEvent, float]]) -> None:
-        """Fuzzy name screening of suppliers and customers against every sanctions row present."""
+        """Fuzzy name screening of suppliers and customers against every sanctions row present
+        (``sanction.*`` events and the full-list ``feeds.sanctions_entries``)."""
         cfg = self.cfg
         if not events or not len(self.idx.named):
             return
-        index = names.NameIndex(cfg.legal_forms, cfg.name_min_length)
-        for i, (ev, _) in enumerate(events):
-            primary = ev.attrs.get("name")
-            if isinstance(primary, str):
-                index.add(primary, (i, "name"))
-            for alias in names.dedupe(names.alias_names(ev.attrs.get("aliases"))):
-                index.add(alias, (i, "alias"))
+        index = _sanctions_index([ev for ev, _ in events], cfg.legal_forms, cfg.name_min_length)
         if not len(index):
             return
         for e in self.idx.entities:
@@ -576,6 +571,33 @@ class _Assessor:
             lon=entity.lon if entity.has_position else None,
             evidence=evidence,
         )
+
+
+# The last sanctions name index built, with the exact event objects it was built from. The
+# worker reuses one cached tuple of sanctions rows (engine.db) for every workspace, so the
+# ~18k full-list entries and their aliases are indexed once per list change, not per run.
+_SANCTIONS_INDEX: dict[str, Any] = {}
+
+
+def _sanctions_index(events: list[FeedEvent], legal_forms: frozenset[str], min_length: int) -> names.NameIndex:
+    """Primary names and aliases of ``events``; refs are ``(position in events, 'name' | 'alias')``.
+
+    Cached by object identity: the cache keeps the events alive, so equal ids mean the very
+    same (frozen) events in the same order, and the index is exactly what a rebuild gives.
+    """
+    key = (tuple(map(id, events)), legal_forms, min_length)
+    if _SANCTIONS_INDEX.get("key") == key:
+        return _SANCTIONS_INDEX["index"]
+    index = names.NameIndex(legal_forms, min_length)
+    for i, ev in enumerate(events):
+        primary = ev.attrs.get("name")
+        if isinstance(primary, str):
+            index.add(primary, (i, "name"))
+        for alias in names.dedupe(names.alias_names(ev.attrs.get("aliases"))):
+            index.add(alias, (i, "alias"))
+    _SANCTIONS_INDEX.clear()
+    _SANCTIONS_INDEX.update(key=key, events=events, index=index)
+    return index
 
 
 @lru_cache(maxsize=512)

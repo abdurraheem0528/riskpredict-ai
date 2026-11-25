@@ -2147,7 +2147,7 @@ components:
         recency: {type: number, minimum: 0, maximum: 1}
         contribution: {type: number, minimum: 0, maximum: 1}
         snapshot: {$ref: "#/components/schemas/EvidenceSnapshot"}
-        still_in_feeds: {type: boolean, description: false once feed retention removed the original row}
+        still_in_feeds: {type: boolean, description: "false once feed retention removed the original row, or (full sanctions lists) the entity left the list"}
         last_linked_at: {type: string, format: date-time}
     EvidenceSnapshot:
       type: object

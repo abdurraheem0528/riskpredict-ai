@@ -17,7 +17,6 @@ import base64
 import importlib.util
 import os
 import secrets
-import sys
 from pathlib import Path
 from typing import Callable
 
@@ -74,7 +73,8 @@ def owner_db(app_dsn):
     """Superuser connection for arranging fixtures and inspecting results."""
     with psycopg.connect(DSN, autocommit=True, row_factory=psycopg.rows.dict_row) as conn:
         conn.execute("TRUNCATE biz.workspaces, biz.users CASCADE")
-        conn.execute("TRUNCATE feeds.events, feeds.series, feeds.anomalies, feeds.source_health, feeds.analysis_status CASCADE")
+        conn.execute("TRUNCATE feeds.events, feeds.series, feeds.anomalies, feeds.source_health, feeds.analysis_status,"
+                     " feeds.sanctions_entries CASCADE")
         conn.execute("DELETE FROM feeds.watch_terms WHERE origin = 'workspace'")
         yield conn
 
@@ -157,13 +157,4 @@ def client(settings, owner_db, fake_http):
         yield c
 
 
-@pytest.fixture
-def engine_double(monkeypatch):
-    import engine_double as double
-
-    monkeypatch.setitem(sys.modules, "engine", double)
-    double.reset()
-    return double
-
-
-__all__ = ["app_dsn", "owner_db", "settings", "fake_http", "client", "engine_double", "FakeHttp", "DSN"]
+__all__ = ["app_dsn", "owner_db", "settings", "fake_http", "client", "FakeHttp", "DSN"]
