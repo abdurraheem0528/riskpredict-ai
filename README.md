@@ -26,7 +26,7 @@ business's own connected tools and shows the result on a map-first dashboard.
 | `api/` – FastAPI for business data | Northflank Sandbox | **session B** ([`api/README.md`](api/README.md)) |
 | `worker/` – sync, watch renewal, scoring runs, advice | Northflank Sandbox | **session B** ([`worker/README.md`](worker/README.md)) |
 | `engine/` – risk engine library | imported by worker and api | **step 3** |
-| `web/` – dashboard | Cloudflare Pages | next (session D) |
+| `web/` – dashboard | Cloudflare Pages | **session D** ([`web/README.md`](web/README.md)) |
 
 Ground rules: everything uses free tiers and free, open-source code; the platform never
 contains made-up data (demo data lives separately); nothing runs on the owner's computer;
@@ -88,7 +88,7 @@ expose to the browser.
 | `ADVICE_PER_RUN` | | | optional | | Groq advice calls per engine run (default 20) |
 | `EXPECTED_SCHEMA_VERSION` / `DB_MAX_CONNECTIONS` | | optional | | | Startup schema check (default `007_biz_lookups`); pool size (default 5) |
 | `PORT` / `FORWARDED_ALLOW_IPS` | | optional | | | Listen port (8000); proxies whose `X-Forwarded-For` is trusted for rate limits |
-| `VITE_API_BASE_URL` | | | | ✓ (public) | The API base URL baked into the dashboard build |
+| `VITE_API_URL` | | | | ✓ (public) | The API base URL baked into the dashboard build (the older name `VITE_API_BASE_URL` also works) |
 
 ## Public sources (step 1, no API keys)
 

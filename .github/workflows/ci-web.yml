@@ -1,0 +1,90 @@
+# The dashboard (web/): types from the contract, lint, unit tests, a production build,
+# the check that no design sample content or test fixture reaches the bundle, and
+# Playwright screenshots of every screen at 1360×900, 900 and 375 wide against the MSW
+# fixtures in web/tests (uploaded as the `web-screenshots` artifact).
+name: ci-web
+
+on:
+  pull_request:
+    paths:
+      - web/**
+      - docs/contracts/openapi.yaml
+      - .github/workflows/ci-web.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: web
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: API types match docs/contracts/openapi.yaml
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/api/schema.d.ts || { echo "Run 'npm run gen:api' in web/ and commit src/api/schema.d.ts"; exit 1; }
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests (Vitest, MSW)
+        run: npm test
+      - name: Production build
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.example.invalid
+      - name: No design sample content or fixtures in the bundle; sizes
+        run: npm run check:bundle
+
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Build against the fixture API host
+        run: npm run build
+        env:
+          VITE_API_URL: http://api.test
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Screens at 1360×900, 900 and 375 wide
+        run: npm run e2e
+        env:
+          CI: "true"
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-screenshots
+          path: web/screenshots/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-playwright-report
+          path: web/playwright-report/
+          retention-days: 7
