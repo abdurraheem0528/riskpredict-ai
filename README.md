@@ -25,7 +25,7 @@ business's own connected tools and shows the result on a map-first dashboard.
 | `docs/contracts/` – API, engine and feed contracts | – | **step 3** |
 | `api/` – FastAPI for business data | Northflank Sandbox | next (session B) |
 | `worker/` – sync, watch renewal, scoring runs, advice | Northflank Sandbox | next (session B) |
-| `engine/` – risk engine library | imported by worker and api | next (session C) |
+| `engine/` – risk engine library | imported by worker and api | **step 3** |
 | `web/` – dashboard | Cloudflare Pages | next (session D) |
 
 Ground rules: everything uses free tiers and free, open-source code; the platform never
@@ -167,6 +167,26 @@ python -m jobs.analyse.bench                          # model size, peak RAM, ti
 ```
 
 Without the model libraries, tagging reports `skipped` and spike detection still runs.
+
+## Risk engine (step 3)
+
+`engine/` is the Python library that turns a workspace's entities and the public feeds
+into scored risks. The worker calls `engine.run_workspace(conn, workspace_id)` inside a
+transaction that already has `app.workspace_id` set, and the API calls
+`engine.run_scenario(...)` for what-if runs. It is deterministic: exact code matches
+(country, port, UN/LOCODE, currency, HS chapter, purl/CPE), fuzzy matching for names
+only (sanctions, company news), and `score = 100 × likelihood × impact` from fixed
+constants. There is no LLM and no randomness.
+
+```bash
+pip install -r jobs/requirements-dev.txt -r engine/requirements.txt
+python -m pytest tests/test_engine_*.py                     # DB tests need TEST_DATABASE_URL
+TEST_DATABASE_URL=postgresql://... python tests/bench_engine.py   # throwaway DB only: timing
+```
+
+Every rule, with an example, the known gaps and the runtime per workspace (about 2–6 s
+for a typical workspace): [`engine/README.md`](engine/README.md). The interface:
+[`docs/contracts/risk-engine.md`](docs/contracts/risk-engine.md).
 
 ## Running
 

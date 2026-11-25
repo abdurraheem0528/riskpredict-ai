@@ -30,6 +30,12 @@ from engine import (
     RunResult, RiskChange, ScenarioInputs,
     assess, load_entities, load_feeds, write_risks, run_workspace, run_scenario,
     watch_terms_for, advice_messages, template_advice, needs_new_advice,
+    # also exported (engine 1.0.0):
+    HazardShock, FxShock, SanctionsShock, EntityOverride,   # the parsed ScenarioInputs parts
+    ScenarioError,          # ValueError; bad scenario inputs, message safe as a Problem `detail` (422)
+    EngineContextError,     # app.workspace_id missing or not the workspace passed in
+    scenario_results,       # the pure part of run_scenario (no I/O)
+    chokepoints, chokepoint_id,  # §5.3 table for the API's disruptions layer; id/name/alias → id
 )
 
 # --- pure core: no I/O, deterministic for the same inputs -----------------------
@@ -43,7 +49,7 @@ def load_entities(conn) -> list[Entity]: ...
 def load_feeds(conn, entities: Sequence[Entity], *, now: datetime,
                config: EngineConfig = DEFAULT_CONFIG) -> FeedSnapshot: ...
 def write_risks(conn, workspace_id: UUID, assessments: Sequence[Assessment], *,
-                now: datetime) -> RunResult: ...
+                now: datetime, config: EngineConfig = DEFAULT_CONFIG) -> RunResult: ...
 
 # --- what the worker calls --------------------------------------------------------
 def run_workspace(conn, workspace_id: UUID, *, now: datetime | None = None,
@@ -51,9 +57,10 @@ def run_workspace(conn, workspace_id: UUID, *, now: datetime | None = None,
     """load_entities → load_feeds → assess → write_risks, inside the caller's transaction."""
 
 # --- what the API calls for POST /v1/scenarios (writes nothing) --------------------
-def run_scenario(conn, workspace_id: UUID, inputs: ScenarioInputs, *,
-                 now: datetime | None = None) -> dict:  # ScenarioResults (openapi.yaml)
-    ...
+def run_scenario(conn, workspace_id: UUID, inputs: ScenarioInputs | Mapping, *,
+                 now: datetime | None = None,
+                 config: EngineConfig = DEFAULT_CONFIG) -> dict:  # ScenarioResults (openapi.yaml), §12
+    """`inputs` may be the request JSON as a dict; it is validated (ScenarioError)."""
 
 # --- helpers for the worker ---------------------------------------------------------
 def watch_terms_for(entities: Sequence[Entity]) -> list[tuple[str, str, str]]: ...  # (kind, term, scope), §7
@@ -238,14 +245,18 @@ Name matching is the only fuzzy match. Every other key is an exact code comparis
 | `gdacs`, `usgs`, `portwatch` | `event.severity` (0.5 if NULL) |
 | `eonet` | 0.5 for wildfire, volcano, severe_storm, flood; else 0.3 |
 | `cisa_kev` | `max(0.9, epss)` |
-| `osv` | `max(severity or 0.5, epss)`; ignored if `attrs.withdrawn` is set |
+| `osv` (and `nvd`, when E adds it) | `max(severity or 0.5, epss)`; ignored if `attrs.withdrawn` is set |
 | `ofac` | `sanction.designation` 1.0; `sanction.update` 0.8 |
 | tagged news (`gdelt`) | `0.25 + 0.5 × type_confidence` (type `other`: 0.15) |
 | `robust_z` anomaly | `clamp(0.5 + (\|z\| − 3.5) / 9, 0.5, 1.0)` (3.5 → 0.5, 8 → 1.0) |
 | `isolation_forest` anomaly | `0.8 × clamp(score, 0, 1)` |
+| `scenario` (§12) | the shock's `severity` |
+| any other source | `event.severity` (0.5 if NULL); tagged text events as news |
 
 `epss` is the latest `feeds.series` value of `epss.score` for the event's CVE (the KEV
-`raw_id`, or a `CVE-` id in OSV's `attrs.aliases`), 0 if absent.
+`raw_id`, or a `CVE-` id in OSV's `attrs.aliases`), 0 if absent. `load_feeds` puts it in
+`FeedSnapshot.series` under `('epss.score', <CVE>)` (latest point only), next to the
+`fx.rate` history.
 
 ### 5.5 Recency `r`
 
@@ -254,13 +265,19 @@ Name matching is the only fuzzy match. Every other key is an exact code comparis
 future counts as age 0 (it is ongoing). Items older than 4 half-lives (at most 365
 days) are ignored.
 
+**Standing sanctions listings do not decay.** A full-list entry (type
+`sanction.listed`, or a `sanction.designation`/`sanction.update` with
+`attrs.full_list: true`) has `r = 1` while its row exists: a listing is in force until it
+is removed, and the full-list connector deletes or replaces rows that leave the list.
+Delta-file events keep the 720 h half-life.
+
 | Category | Half-life |
 |---|---|
 | natural_hazard | 72 h |
 | logistics | 168 h (7 d) |
 | geopolitical, labour, trade_policy, other | 120 h (5 d) |
 | sanctions | 720 h (30 d) |
-| cyber | KEV 720 h; OSV 2,160 h (90 d) |
+| cyber | KEV and tagged news 720 h; OSV (and NVD) advisories 2,160 h (90 d) |
 | financial | fx 120 h; `wb.*` 4,380 h (≈ 6 months) |
 
 ### 5.6 Likelihood
@@ -273,6 +290,55 @@ likelihood = min(0.99, 1 − Π (1 − p_i))
 ```
 
 The two anomaly methods on the same point are separate items, so agreement raises L.
+The items are the (at most) `config.max_evidence` = 50 strongest of the fingerprint, by
+`p` then evidence key; L is computed from exactly these, so the stored evidence and
+`factors.likelihood.items` reproduce it.
+
+### 5.7 Clarifications (engine 1.0.0)
+
+These make §5.1–§5.6 precise where they left a choice open. None changes a constant.
+
+* **One match per (entity, item).** An item that matches an entity on several keys
+  (e.g. a port disruption at the supplier's port *and* within its radius) counts once,
+  with its best match: highest `p`, then `c`, then the order port, geo_radius,
+  chokepoint, software, sanctions_name, company_name, currency, commodity, country.
+  The fingerprint then follows that match.
+* **Position beats country only when the event has a position.** For `natural_hazard`
+  and `logistics`, a positioned entity is not country-matched to an event that has
+  `lat`/`lon`. Country-keyed items without a position (a GDACS row without
+  coordinates, `portwatch.*` and `wb.*` anomalies) still match it by country.
+* **Which items can match on which keys.** Sanctions rows match only by
+  `sanctions_name`, vulnerabilities only by `software`: never by country.
+  Hazards and port disruptions match by port, radius, chokepoint and country. Tagged
+  text (news) matches by country, company name, commodity and chokepoint place name;
+  tag `other` only by company name. An untagged news row is never evidence.
+* **News countries.** GDELT file articles now carry `event.countries` (from the
+  article's locations). These count like `tag.entities.countries`: × 0.6.
+* **`match_value` per type:** `geo_radius` → `"<d> km"` (driver `geo_radius:near`);
+  `currency` → the pair, e.g. `EUR/TRY` or `USD/TRY`; `commodity` → `HS <chapter>` or
+  the matched text; `software` → the normalised comparable key (`PyPI:jinja2`,
+  `microsoft:exchangeserver`); `sanctions_name` → the listed primary name (driver uses
+  its normalised form, so `ACME TRADING L.L.C.` and `Acme Trading LLC` are one risk);
+  `company_name` → the entity's normalised name.
+* **Name normaliser:** after NFKD, `æ ø œ ł đ ð þ ı` are transliterated; apostrophes
+  and dots are removed inside words (`S.A.` → `sa`), other punctuation becomes a space;
+  if every token is a legal form they are all kept. Names shorter than 3 characters
+  after normalisation (spaces ignored) are never fuzzy-matched. Aliases are read from
+  `attrs.aliases` as a list of strings or of objects with `name`/`full_name`/`text`.
+* **Removals:** a `sanction.removal` with `attrs.entity_id` X drops every positive
+  sanctions event of X dated at or before it; a later re-designation counts again.
+* **Software:** a KEV/NVD row is compared only as CPE `vendor:product`, an OSV row
+  only as `<ecosystem>:<package>` (PyPI names PEP 503-normalised on both sides).
+* **Commodity keywords** match the tagged text as whole word(s), casefold; the
+  table adds plurals (`soybeans`, `semiconductors`, `chips`).
+* **Routes' `attrs.chokepoints`** may hold ids, names or aliases; they are resolved
+  with `chokepoint_id`. `bab_el_mandeb` has the alias `red sea`, the name news uses for
+  that passage.
+* **Supplier spend shares** are computed with EUR as the pivot currency. A share does
+  not depend on which common currency is used, so this equals converting to
+  `base_currency`, and also works when the workspace has none.
+* **Map fields:** `countries`/`ports` are the matched codes when the risk has country
+  or port evidence, otherwise the entity's own.
 
 ## 6. Impact
 
@@ -354,11 +420,52 @@ Groq output never changes `likelihood`, `impact`, `score`, `status` or the evide
   rows written. Also check that it finds nothing for another workspace.
 * **Determinism:** the same inputs give the same assessments, in the same order.
 
+## 12. Scenarios (`run_scenario`)
+
+A scenario runs the same `assess` twice on one feed snapshot: as is (baseline) and with
+the inputs applied. It writes nothing; the API stores the result in `biz.scenarios`.
+
+* `HazardShock` → a hypothetical event (`source = 'scenario'`, `type =
+  'scenario.<category>'`, published `now`, signal = `severity`). It matches by port,
+  country, chokepoint ids (`c = 1`) and position (`R = radius_km`, default 100 km); as
+  for real events, a positioned entity skips the country match only when the shock
+  itself has `lat`/`lon`. "Port NLRTM closed" is
+  `{"type": "event", "category": "logistics", "severity": 1, "ports": ["NLRTM"]}`.
+* `FxShock` → a hypothetical `robust_z` anomaly on `<base>/<currency>` at `now`,
+  `z = ln(1 + pct/100) / spread`, where `spread` is the robust spread
+  (1.4826 × MAD) of the pair's daily log returns over the last 90 days, the way stored
+  anomalies are scored. `|z| < 3.5` adds nothing. No recent history → `ScenarioError`.
+* `SanctionsShock` → a hypothetical `sanction.designation` with the entity's own name
+  and countries, screened like any OFAC row.
+* `entity_overrides` change or drop entities before scoring; dropping a supplier also
+  changes the other suppliers' spend shares.
+* `changes` lists fingerprints whose score differs (by at least 0.1), largest absolute
+  delta first, at most 200, with `risk_id` when a stored risk has that fingerprint.
+  `portfolio_score = 100 × (1 − Π(1 − score_i/100))` over each side's assessments.
+
+## 13. Write details (engine 1.0.0)
+
+* Risk ids are `uuid5(<fixed namespace>, "<workspace_id>|<fingerprint>")`, so a
+  `RiskChange.risk_id` is known before the insert.
+* `run_workspace` takes `pg_advisory_xact_lock` on the workspace, so two runs of one
+  workspace queue rather than race. It also checks that `app.workspace_id` equals the
+  `workspace_id` argument (`EngineContextError` otherwise).
+* A `resolved` change has `new_score = None`. A dismissed risk that stays dismissed is
+  still rescored (numbers, `last_seen_at`, history `rescored` on a move of ≥ 1.0).
+* The evidence trim keeps the rows linked in this run first, then the highest
+  contributions. Rows that are no longer linked stay (with their old `last_linked_at`)
+  until the trim removes them, so "never linked before" (§3, rule 3) has a memory.
+* Updates are skipped when nothing differs, so a re-run with the same data and the same
+  `now` changes no row. `RunResult.counts` also has `invalid_keys`: entity key values
+  `jobs.codes` could not normalise (dropped, not guessed).
+
 ## 11. Open items
 
 * `ofac` stores only the latest delta file. Complete sanctions screening needs a
   full-list connector for session E (OFAC SDN + consolidated list, with aliases). It
-  should store one event per listed entity, with `attrs.name` and `attrs.aliases`.
-  The matcher above should then also compare aliases.
+  should store one event per listed entity, with `attrs.name`, `attrs.aliases` and
+  `attrs.entity_id`, and type `sanction.listed` (or `attrs.full_list: true`) so it does
+  not decay (§5.5). The matcher already reads every `sanction.*` row of any source and
+  compares aliases, so nothing in the engine changes when those rows arrive.
 * PortWatch's per-chokepoint daily layer needs an ArcGIS token, so chokepoints are
   matched by radius and tagged text only, until E finds a keyless source.
