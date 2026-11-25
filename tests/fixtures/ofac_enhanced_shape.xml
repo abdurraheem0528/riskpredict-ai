@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!-- CONSTRUCTED test file, not OFAC data: element layout follows ENHANCED_XML.xsd
+     (sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ENHANCED_XML.xsd);
+     every name and id is fictional. See tests/fixtures/README.md. -->
+<sanctionsData xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ENHANCED_XML">
+  <publicationInfo>
+    <dataAsOf>2026-11-20T00:00:00</dataAsOf>
+    <filters />
+  </publicationInfo>
+  <referenceValues>
+    <referenceValue refId="1">
+      <type>COUNTRY</type>
+      <value>Exampleland</value>
+    </referenceValue>
+  </referenceValues>
+  <featureTypes>
+    <featureType featureTypeId="10">
+      <type>Nationality Country</type>
+    </featureType>
+  </featureTypes>
+  <entities>
+    <entity id="900001">
+      <generalInfo>
+        <identityId>800001</identityId>
+        <entityType refId="601">Entity</entityType>
+      </generalInfo>
+      <sanctionsLists>
+        <sanctionsList id="1" refId="1550" datePublished="2019-05-02">SDN List</sanctionsList>
+      </sanctionsLists>
+      <sanctionsPrograms>
+        <sanctionsProgram id="2" refId="211">SDGT</sanctionsProgram>
+        <sanctionsProgram id="3" refId="91167">IFSR</sanctionsProgram>
+      </sanctionsPrograms>
+      <sanctionsTypes>
+        <sanctionsType id="4" refId="1705">Block</sanctionsType>
+      </sanctionsTypes>
+      <legalAuthorities />
+      <names>
+        <name id="10">
+          <isPrimary>false</isPrimary>
+          <aliasType refId="1400">A.K.A.</aliasType>
+          <isLowQuality>false</isLowQuality>
+          <translations>
+            <translation id="11">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <formattedLastName>FICTIONAL GLOBAL SHIPPING LTD</formattedLastName>
+              <formattedFullName>FICTIONAL GLOBAL SHIPPING LTD</formattedFullName>
+              <nameParts>
+                <namePart id="12">
+                  <type refId="1525">Entity Name</type>
+                  <value>FICTIONAL GLOBAL SHIPPING LTD</value>
+                </namePart>
+              </nameParts>
+            </translation>
+          </translations>
+        </name>
+        <name id="20">
+          <isPrimary>true</isPrimary>
+          <isLowQuality>false</isLowQuality>
+          <translations>
+            <translation id="21">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <formattedLastName>EXAMPLE TRADING COMPANY LLC</formattedLastName>
+              <formattedFullName>EXAMPLE TRADING COMPANY LLC</formattedFullName>
+              <nameParts>
+                <namePart id="22">
+                  <type refId="1525">Entity Name</type>
+                  <value>EXAMPLE TRADING COMPANY LLC</value>
+                </namePart>
+              </nameParts>
+            </translation>
+            <translation id="23">
+              <isPrimary>false</isPrimary>
+              <script refId="20100">Arabic</script>
+              <formattedLastName>شركة مثال للتجارة</formattedLastName>
+              <formattedFullName>شركة مثال للتجارة</formattedFullName>
+              <nameParts>
+                <namePart id="24">
+                  <type refId="1525">Entity Name</type>
+                  <value>شركة مثال للتجارة</value>
+                </namePart>
+              </nameParts>
+            </translation>
+          </translations>
+        </name>
+        <name id="30">
+          <isPrimary>false</isPrimary>
+          <aliasType refId="1400">A.K.A.</aliasType>
+          <isLowQuality>true</isLowQuality>
+          <translations>
+            <translation id="31">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <formattedLastName>EXTRA</formattedLastName>
+              <formattedFullName>EXTRA</formattedFullName>
+              <nameParts>
+                <namePart id="32">
+                  <type refId="1525">Entity Name</type>
+                  <value>EXTRA</value>
+                </namePart>
+              </nameParts>
+            </translation>
+          </translations>
+        </name>
+      </names>
+      <addresses>
+        <address id="40">
+          <country refId="11210">United Arab Emirates</country>
+          <translations>
+            <translation id="41">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <addressParts>
+                <addressPart id="42">
+                  <type refId="1454">CITY</type>
+                  <value>Dubai</value>
+                </addressPart>
+              </addressParts>
+            </translation>
+          </translations>
+        </address>
+        <address id="43">
+          <country refId="1">Exampleland</country>
+        </address>
+      </addresses>
+      <features>
+        <feature id="50">
+          <type featureTypeId="646">Organization Established Date</type>
+          <versionId>51</versionId>
+          <value>01 Jan 2001</value>
+          <isPrimary>true</isPrimary>
+        </feature>
+      </features>
+      <identityDocuments>
+        <identityDocument id="60">
+          <type refId="91504">Registration Number</type>
+          <name nameId="20" nameTranslationId="21">EXAMPLE TRADING COMPANY LLC</name>
+          <documentNumber>000000-EXAMPLE</documentNumber>
+          <isValid>true</isValid>
+        </identityDocument>
+      </identityDocuments>
+      <relationships />
+    </entity>
+    <entity id="900002">
+      <generalInfo>
+        <identityId>800002</identityId>
+        <entityType refId="600">Individual</entityType>
+      </generalInfo>
+      <sanctionsLists>
+        <sanctionsList id="5" refId="1550" datePublished="2024-03-15">SDN List</sanctionsList>
+      </sanctionsLists>
+      <sanctionsPrograms>
+        <sanctionsProgram id="6" refId="91901">RUSSIA-EO14024</sanctionsProgram>
+      </sanctionsPrograms>
+      <sanctionsTypes />
+      <legalAuthorities />
+      <names>
+        <name id="70">
+          <isPrimary>true</isPrimary>
+          <isLowQuality>false</isLowQuality>
+          <translations>
+            <translation id="71">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <formattedFirstName>Testperson</formattedFirstName>
+              <formattedLastName>SAMPLEOV</formattedLastName>
+              <formattedFullName>SAMPLEOV, Testperson</formattedFullName>
+              <nameParts />
+            </translation>
+            <translation id="72">
+              <isPrimary>false</isPrimary>
+              <script refId="20200">Cyrillic</script>
+              <formattedLastName>САМПЛЕОВ</formattedLastName>
+              <formattedFullName>САМПЛЕОВ, Тестперсон</formattedFullName>
+              <nameParts />
+            </translation>
+          </translations>
+        </name>
+      </names>
+      <features>
+        <feature id="80">
+          <type featureTypeId="8">Birthdate</type>
+          <versionId>81</versionId>
+          <value>01 Jan 1970</value>
+          <isPrimary>true</isPrimary>
+        </feature>
+        <feature id="82">
+          <type featureTypeId="10">Nationality Country</type>
+          <versionId>83</versionId>
+          <value>Russia</value>
+          <valueRefId>11122</valueRefId>
+          <isPrimary>true</isPrimary>
+        </feature>
+      </features>
+    </entity>
+    <entity id="900003">
+      <generalInfo>
+        <identityId>800003</identityId>
+        <entityType refId="602">Vessel</entityType>
+      </generalInfo>
+      <sanctionsLists>
+        <sanctionsList id="7" refId="1550" datePublished="2025-10-01">SDN List</sanctionsList>
+      </sanctionsLists>
+      <sanctionsPrograms>
+        <sanctionsProgram id="8" refId="91902">IRAN-EO13902</sanctionsProgram>
+      </sanctionsPrograms>
+      <sanctionsTypes />
+      <legalAuthorities />
+      <names>
+        <name id="90">
+          <isPrimary>true</isPrimary>
+          <isLowQuality>false</isLowQuality>
+          <translations>
+            <translation id="91">
+              <isPrimary>true</isPrimary>
+              <script refId="20122">Latin</script>
+              <formattedLastName>EXAMPLE STAR</formattedLastName>
+              <formattedFullName>EXAMPLE STAR</formattedFullName>
+              <nameParts />
+            </translation>
+          </translations>
+        </name>
+      </names>
+      <features>
+        <feature id="92">
+          <type featureTypeId="3">Vessel Flag</type>
+          <versionId>93</versionId>
+          <value>Panama</value>
+          <isPrimary>true</isPrimary>
+        </feature>
+      </features>
+    </entity>
+  </entities>
+</sanctionsData>

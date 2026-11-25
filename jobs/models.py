@@ -11,7 +11,7 @@ import enum
 import math
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from jobs import codes
@@ -140,6 +140,52 @@ class SeriesPoint:
         object.__setattr__(self, "value", value)
 
 
+@dataclass(frozen=True, slots=True)
+class SanctionEntry:
+    """One entity on a full sanctions list (``feeds.sanctions_entries``).
+
+    Unlike an :class:`Event`, this is current state, not a happening: the
+    whole list is replaced each time it is read in full. ``name`` is the
+    primary name; ``aliases`` are the other names OFAC publishes (all scripts),
+    ``weak_aliases`` the ones it flags as low quality. ``countries`` are
+    ISO 3166-1 alpha-3, from addresses, nationality, citizenship and flag.
+    """
+
+    source: str
+    dataset: str
+    entity_id: str
+    name: str
+    entity_type: str | None = None
+    aliases: tuple[str, ...] = ()
+    weak_aliases: tuple[str, ...] = ()
+    countries: tuple[str, ...] = ()
+    programs: tuple[str, ...] = ()
+    lists: tuple[str, ...] = ()
+    listed_on: date | None = None
+
+    def __post_init__(self) -> None:
+        set_ = object.__setattr__
+        if not self.source or not self.dataset or not self.entity_id:
+            raise ValueError("source, dataset and entity_id are required")
+        name = (self.name or "").strip()
+        if not name:
+            raise ValueError("name is required")
+        set_(self, "name", name)
+        set_(self, "entity_id", str(self.entity_id))
+        aliases = tuple(a for a in _clean_tuple(self.aliases) if a != name)
+        set_(self, "aliases", aliases)
+        set_(self, "weak_aliases", tuple(a for a in _clean_tuple(self.weak_aliases) if a != name and a not in aliases))
+        countries = _clean_tuple(self.countries)
+        for c in countries:
+            if not codes.is_country(c):
+                raise ValueError(f"not an ISO 3166-1 alpha-3 code: {c!r}")
+        set_(self, "countries", tuple(sorted(countries)))
+        set_(self, "programs", _clean_tuple(self.programs))
+        set_(self, "lists", _clean_tuple(self.lists))
+        if self.listed_on is not None and not isinstance(self.listed_on, date):
+            raise TypeError("listed_on must be a date")
+
+
 class Status(str, enum.Enum):
     OK = "ok"  # fetched and got records
     EMPTY = "empty"  # fetched fine, source had nothing for us
@@ -160,7 +206,11 @@ class FetchResult:
     error: str | None = None
     duration_ms: int = 0
     notes: dict[str, int] = field(default_factory=dict)
+    sanctions: list[SanctionEntry] = field(default_factory=list)
+    # Sanctions datasets read completely this run: their stored rows are
+    # replaced (entries no longer listed are deleted). Others are only upserted.
+    replace_datasets: tuple[str, ...] = ()
 
     @property
     def record_count(self) -> int:
-        return len(self.events) + len(self.series)
+        return len(self.events) + len(self.series) + len(self.sanctions)

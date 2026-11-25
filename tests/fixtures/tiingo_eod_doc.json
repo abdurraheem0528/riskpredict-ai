@@ -1,0 +1,17 @@
+[
+  {
+    "date": "2019-01-02T00:00:00.000Z",
+    "close": 157.92,
+    "high": 158.85,
+    "low": 154.23,
+    "open": 154.89,
+    "volume": 37039737,
+    "adjClose": 157.92,
+    "adjHigh": 158.85,
+    "adjLow": 154.23,
+    "adjOpen": 154.89,
+    "adjVolume": 37039737,
+    "divCash": 0.0,
+    "splitFactor": 1.0
+  }
+]

@@ -2,7 +2,17 @@
 # (news tagging with GLiNER2 on CPU, spike detection on the stored series).
 # Skips cleanly (exit 0, with a notice) until the DATABASE_URL_FEEDS secret exists.
 # This repository is public: the CLI prints only per-source / per-step status and
-# counts, never record contents, and the secret is passed only to the steps that need it.
+# counts, never record contents or keys, and each secret is passed only to the steps
+# that need it.
+#
+# Secrets (repository settings -> Secrets and variables -> Actions):
+#   DATABASE_URL_FEEDS   fetch, analyse, prune (an rp_feeds login; see docs/database-roles.md)
+#   DATABASE_URL_OWNER   "Apply migrations" only (the table owner). Optional: while it is
+#                        unset, migrations fall back to DATABASE_URL_FEEDS, as before.
+#   FRED_API_KEY, NVD_API_KEY, EIA_API_KEY, COMTRADE_API_KEY, OTX_API_KEY,
+#   TIINGO_API_KEY, NEWSDATA_API_KEY, CURRENTS_API_KEY
+#                        all optional: a source without its key reports "skipped (no key)"
+#                        (nvd runs keyless at NVD's lower rate).
 name: feeds
 
 on:
@@ -65,16 +75,25 @@ jobs:
         if: steps.secret.outputs.configured == 'true'
         run: pip install -r jobs/requirements.txt
 
+      # Migrations need the table owner (CREATE on the schemas, roles, functions).
       - name: Apply migrations
         if: steps.secret.outputs.configured == 'true'
         env:
-          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_OWNER || secrets.DATABASE_URL_FEEDS }}
         run: python -m jobs.migrate
 
       - name: Fetch feeds
         if: steps.secret.outputs.configured == 'true'
         env:
           DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+          OTX_API_KEY: ${{ secrets.OTX_API_KEY }}
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          NEWSDATA_API_KEY: ${{ secrets.NEWSDATA_API_KEY }}
+          CURRENTS_API_KEY: ${{ secrets.CURRENTS_API_KEY }}
           SOURCES: ${{ inputs.sources || 'all' }}
           FORCE: ${{ inputs.force && '--force' || '' }}
         run: python -m jobs.run --sources "$SOURCES" $FORCE
@@ -140,7 +159,7 @@ jobs:
 
       - name: Apply migrations
         env:
-          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_FEEDS }}
+          DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_OWNER || secrets.DATABASE_URL_FEEDS }}
         run: python -m jobs.migrate
 
       - name: Analyse

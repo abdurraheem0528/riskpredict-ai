@@ -65,29 +65,75 @@ Then build the connection strings from the Neon host and database name:
 
 | Secret / env var | Role | Used by |
 |---|---|---|
-| `DATABASE_URL_MIGRATE` | `neondb_owner` | `python -m jobs.migrate` only, and this script |
-| `DATABASE_URL_FEEDS` | `riskpredict_jobs` (member of `rp_feeds`) | fetch and analyse jobs |
+| `DATABASE_URL_OWNER` (GitHub secret) | `neondb_owner` | the "Apply migrations" steps of `feeds.yml` only |
+| `DATABASE_URL_MIGRATE` (local env var) | `neondb_owner` | this script, run by hand (same string as `DATABASE_URL_OWNER`; `--dsn-env` picks another variable). To migrate by hand, run `python -m jobs.migrate` with `DATABASE_URL_FEEDS` set to the owner string |
+| `DATABASE_URL_FEEDS` | `riskpredict_jobs` (member of `rp_feeds`) | fetch, prune and analyse jobs |
 | `DATABASE_URL_APP` | `riskpredict_app` (member of `rp_app`) | `api` and `worker` |
 
 Use the **pooled** Neon host (`-pooler`) for `DATABASE_URL_APP`; the API sets its
 session context per transaction, which works through PgBouncer's transaction mode.
 
-### Rolling it out (order matters)
+### Switching the jobs to the `rp_feeds` login (order matters)
 
-`python -m jobs.migrate` reads `DATABASE_URL_FEEDS` and needs owner rights (it creates
-schemas, roles and functions), and a member of `rp_feeds` cannot run it: Postgres
-checks `CREATE` on the schema even for `CREATE TABLE IF NOT EXISTS`. So:
+`python -m jobs.migrate` needs owner rights (it creates schemas, roles and
+functions), and a member of `rp_feeds` cannot run it: Postgres checks `CREATE` on
+the schema even for `CREATE TABLE IF NOT EXISTS`. So `feeds.yml` gives the two
+"Apply migrations" steps their own secret, **`DATABASE_URL_OWNER`**, and every other
+step (fetch, prune, analyse) keeps **`DATABASE_URL_FEEDS`**:
 
-1. Merge; the next `feeds.yml` run (still using the owner as `DATABASE_URL_FEEDS`)
-   applies migrations 005+.
-2. Run the script above to create `riskpredict_jobs` and `riskpredict_app`.
-3. Add the `DATABASE_URL_MIGRATE` repository secret (owner), then change the two
-   "Apply migrations" steps in `feeds.yml` to
-   `env: DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_MIGRATE }}`. No Python change is
-   needed.
-4. Only then set `DATABASE_URL_FEEDS` to the `riskpredict_jobs` connection string.
+```yaml
+DATABASE_URL_FEEDS: ${{ secrets.DATABASE_URL_OWNER || secrets.DATABASE_URL_FEEDS }}  # migrate steps only
+```
 
-Until step 4 the jobs keep working exactly as today.
+While `DATABASE_URL_OWNER` is unset the migrate steps fall back to
+`DATABASE_URL_FEEDS`, so today's setup (the owner string in `DATABASE_URL_FEEDS`)
+keeps working unchanged. To switch over:
+
+1. **Merge, and let one `feeds.yml` run finish.** It still uses the owner via
+   `DATABASE_URL_FEEDS`, so it applies any pending migrations (005 and later, e.g.
+   `030_sanctions_entries`). Check the "Apply migrations" step log ends in
+   `applied: ...` or `applied: none`.
+2. **Create the login role** from your own machine, with the owner connection string
+   in an environment variable (it is never typed on the command line). The script's
+   default variable is `DATABASE_URL_MIGRATE`; `--dsn-env` points it at another one:
+
+   ```bash
+   read -rs DATABASE_URL_OWNER && export DATABASE_URL_OWNER
+   ```
+
+   ```bash
+   read -rs RP_PASSWORD_RISKPREDICT_JOBS && export RP_PASSWORD_RISKPREDICT_JOBS
+   ```
+
+   ```bash
+   python infra/scripts/create_login_roles.py --dsn-env DATABASE_URL_OWNER --role riskpredict_jobs:rp_feeds
+   ```
+
+   It prints only the role name, what it did and the checks (no `SUPERUSER`,
+   `BYPASSRLS` or `CREATEROLE`; member of `rp_feeds` only; owns no tables).
+3. **Add the owner secret first:** repository *Settings → Secrets and variables →
+   Actions → New repository secret*, name `DATABASE_URL_OWNER`, value the
+   `neondb_owner` connection string (the one `DATABASE_URL_FEEDS` holds today).
+4. **Then replace `DATABASE_URL_FEEDS`** with the `riskpredict_jobs` string: same
+   Neon host and database, `postgresql://riskpredict_jobs:<password>@<host>/<db>?sslmode=require`.
+   Use the direct (non-`-pooler`) host; the jobs open short connections and don't
+   need PgBouncer.
+5. **Verify.** Run `feeds.yml` by hand (*Actions → feeds → Run workflow*, sources
+   `usgs`, force on). Expect: "Apply migrations" prints `applied: none` (it ran as
+   the owner), "Fetch feeds" shows `usgs ok`, "Prune old rows" prints the database
+   size, and the `analyse` job succeeds. Then confirm the role from your machine:
+
+   ```bash
+   python infra/scripts/create_login_roles.py --dsn-env DATABASE_URL_OWNER --role riskpredict_jobs:rp_feeds --check
+   ```
+
+   If "Fetch feeds" fails with `database: could not read state (InsufficientPrivilege)`,
+   the login is not in `rp_feeds`; if "Apply migrations" fails the same way, the
+   `DATABASE_URL_OWNER` secret is missing or misspelt (the fallback then used the
+   `rp_feeds` login).
+
+To undo, delete `DATABASE_URL_OWNER` and put the owner string back into
+`DATABASE_URL_FEEDS`.
 
 ### Self-hosting (`docker compose`)
 

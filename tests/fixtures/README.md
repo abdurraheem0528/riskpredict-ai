@@ -28,5 +28,40 @@ were dropped, and the records that remain are byte-for-byte unchanged.
 | `worldbank_error.json` | same API with an unknown indicator code | no |
 | `ofac_delta_trimmed.xml` | `sanctionslistservice.ofac.treas.gov/changes/latest` (2026-11-23 delta) | yes: 3 of 30 entities |
 
+## Keyed sources and the full OFAC lists (round 2)
+
+The sandbox these were built in could not reach the providers (its proxy refused
+every provider host, including treasury.gov), and no API keys were available.
+So each fixture below is marked by where it came from:
+
+* **real**: a real response, fetched on 2026-11-24 through a web-fetch service
+  that returned the provider's JSON unchanged (it re-serialises whitespace only).
+* **documented**: the example response printed in the provider's own docs,
+  copied as published.
+* **constructed**: written for the tests from the provider's documented field
+  list or schema, because neither a keyless call nor a documented example exists.
+  Content is placeholder text (`example.com`, "Example pulse", fictional names
+  and ids). Nothing in these files describes a real company, person or threat.
+
+| File | Origin | Request / source |
+|---|---|---|
+| `nvd_cve_log4shell.json` | real (keyless) | `services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2021-44228` (has CVSS, CPE configurations, KEV fields) |
+| `nvd_cves_pub_window.json` | real (keyless) | `…/cves/2.0?pubStartDate=2026-11-17T00:00:00.000Z&pubEndDate=2026-11-18T00:00:00.000Z&resultsPerPage=3` (CNA scores, CVSS v4, a purl, no CPEs yet) |
+| `eia_spot_prices.json` | real (EIA's public `DEMO_KEY`) | `api.eia.gov/v2/petroleum/pri/spt/data/?frequency=daily&data[0]=value&facets[series][]=RWTC&sort[0][column]=period&sort[0][direction]=desc&length=3` |
+| `comtrade_preview.json` | real (keyless preview API) | `comtradeapi.un.org/public/v1/preview/C/A/HS?reporterCode=392,699&period=2024&partnerCode=156&cmdCode=8542,2709&flowCode=M&includeDesc=true`; the preview returns the same record layout as the keyed `data/v1/get` |
+| `fred_observations_doc.json` | documented, trimmed | the JSON example on `fred.stlouisfed.org/docs/api/fred/series_observations.html` (series GNPCA); its first 5 of 84 observations, header unchanged |
+| `tiingo_eod_doc.json` | documented | the EOD prices example in `tiingo.com/llms-full.txt` ("REST - End-of-Day Prices") |
+| `currents_search_doc.json` | documented | the `/search` 200 example in `currentsapi.services/json/swagger.json` |
+| `newsdata_latest_shape.json` | constructed | field names and types from `newsdata.io/openapi.json` (`ArticleListExample`) and `/documentation/response-object`, including the plan-gated "ONLY AVAILABLE IN PAID PLANS" strings |
+| `otx_pulses_shape.json` | constructed | `/api/v1/pulses/subscribed` envelope (`count`, `next`, `results`) and pulse fields from `otx.alienvault.com/api` and the OTX-Python-SDK notebook |
+| `ofac_enhanced_shape.xml` | constructed | element layout from `sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ENHANCED_XML.xsd`; fictional names. The full-list parser is **also** tested on the real `ofac_delta_trimmed.xml`, which uses the same enhanced layout |
+
+Tiingo's FX prices endpoint is tested with an inline row in
+`tests/test_keyed_sources.py`: the docs list its fields but print no example values.
+
+When the keys are in place, replace the constructed and documented files with real
+responses (keep them small, never commit a URL or header that contains a key) and
+update the expected values in `tests/test_keyed_sources.py`.
+
 To refresh a fixture, fetch it again the same way and update the expected
 values in `tests/`.

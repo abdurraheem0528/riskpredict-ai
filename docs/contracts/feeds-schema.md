@@ -1,4 +1,4 @@
-# `feeds` schema (as on `main`, migrations 001–003)
+# `feeds` schema (as on `main`, migrations 001–004 and 030)
 
 The public-data side, written only by the GitHub Actions jobs (`rp_feeds`) and read by
 the API, worker and risk engine (`rp_app`, SELECT only). Nothing here belongs to a
@@ -57,11 +57,20 @@ Indexes: `published_at DESC`; `(type, published_at DESC)`; GIN on `countries`, `
 | `cisa_kev` | 1 h | `cyber.exploited_vulnerability` | CVE id | software `"<vendorProject>:<product>"` (e.g. `Microsoft:Windows`) | – | `cve`, `due_date`, `known_ransomware_use`, `cwes`, `catalog_version` |
 | `osv` | 6 h | `cyber.vulnerability` | OSV id (GHSA-…, PYSEC-…) | software `"<OSV ecosystem>:<package>"` (e.g. `PyPI:requests`, `Maven:org.apache.logging.log4j:log4j-core`) — only for packages in `watch_terms` | CVSS v3 (else v4) base score / 10 | `aliases` (CVE ids), `modified`, `withdrawn`, `severity_label` |
 | `ofac` | 1 h | `sanction.designation` / `sanction.update` / `sanction.removal` | `<entity id>:<action>:<date>` | countries (addresses, nationality, citizenship, vessel flag) | – | `entity_id`, `action`, `entity_type`, `name` (primary full name), `programs`, `lists`, `publication_type` |
+| `nvd` | 2 h | `cyber.vulnerability` | CVE id | software `"<vendor>:<product>"`: the CNA's `affected` vendor/product as published (e.g. `Apache Software Foundation:Apache Log4j2`), then the vulnerable CPE 2.3 criteria (`cpe:2.3:a:apache:log4j:…` → `apache:log4j`), applications before OS/hardware, ≤ 40 | CVSS base score / 10 (NVD's own score first; v3.1 > v3.0 > v4.0 > v2). Only CVEs with score ≥ `NVD_MIN_CVSS` (7.0) are stored | `cvss_score`, `cvss_version`, `cvss_vector`, `cvss_source` (`nvd`/`cna`), `base_severity`, `vuln_status`, `last_modified`, `cwes`, `cpes` (version-less `cpe:2.3:<part>:<vendor>:<product>`), `purls`, `cisa_kev` (true if in KEV), `metric` |
+| `otx` | 1 h | `cyber.threat_pulse` | OTX pulse id | countries (`targeted_countries`); no software | – | `modified`, `author`, `tlp` (only `white`/`clear`/`green` pulses are stored), `adversary`, `tags`, `industries`, `malware_families`, `attack_ids` (MITRE ATT&CK ids), `cves` (CVE indicators), `references`, `indicator_count`, `revision`. Indicators themselves are not stored |
+| `newsdata` | 2 h | `news` | sha256(url)[:32] | none (publisher country is in attrs) | – | `query` (the watch term), `article_id`, `domain`, `source_id`, `language`, `publisher_country`, `category`, `sentiment`, `ai_tag` |
+| `currents` | 2 h | `news` | sha256(url)[:32] | none | – | `query`, `article_id`, `domain`, `language`, `category` |
 
-**OFAC caveat:** `ofac` stores only the **latest change set** (the delta file). It is
-not the full SDN list, so sanctions matching against it only sees entities designated,
-updated or removed recently. A full-list connector is needed for complete screening;
-see the open items in `risk-engine.md`.
+`nvd`, `otx`, `newsdata` and `currents` (and `fred`, `eia`, `comtrade`, `tiingo`
+below) need a free API key, `<SOURCE>_API_KEY`. Without it the source writes a
+`source_health` row with `status = 'skipped'` and `last_error = 'no key'`, and stores
+nothing; `nvd` alone also runs keyless, at NVD's lower rate. Free articles from
+NewsData are delayed 12 hours by the provider.
+
+**OFAC:** `ofac` stores only the **latest change set** (the delta file). The full
+lists are in [`feeds.sanctions_entries`](#feedssanctions_entries--full-sanctions-lists)
+(source `ofac_sdn`), which is what name screening should read.
 
 ## `feeds.series` — numeric time series
 
@@ -81,6 +90,11 @@ Primary key `(series, key, ts, source)`. Columns: `value` (double), `unit`, `att
 | `wb.LP.LPI.OVRL.XQ` | ISO3 | `worldbank` | 1 Jan | `score 1-5` | logistics performance |
 | `wb.NV.IND.MANF.ZS` | ISO3 | `worldbank` | 1 Jan | `% of GDP` | manufacturing |
 | `epss.score` | CVE id | `epss` | score date | `probability` | only scores ≥ `EPSS_MIN_SCORE` (0.5) are stored; `attrs.percentile`, `attrs.model_version` |
+| `fred.<SERIES_ID>` | `USA` | `fred` | observation date, 00:00 UTC | per series, e.g. `% (effective federal funds rate)` | every 6 h, last 400 days. Series: `DFF`, `T10Y2Y`, `BAMLH0A0HYM2` (HY spread), `VIXCLS`, `DTWEXBGS` (broad USD index), `CPIAUCSL`, `UNRATE`, `INDPRO`. FRED's missing value `"."` is skipped |
+| `eia.spot_price` | EIA series id: `RWTC` (WTI Cushing), `RBRTE` (Brent), `RNGWHHD` (Henry Hub gas) | `eia` | trading day | as EIA gives it: `$/BBL`, `$/MMBTU` | every 6 h; `attrs.description`, `attrs.product` |
+| `comtrade.import_value`, `comtrade.export_value` | `<reporter ISO3>:<HS>` (trade with the world), e.g. `JPN:8542`; `<ISO3>:<HS>:<partner ISO3>` for a bilateral row | `comtrade` | 1 Jan of the year | `USD` (CIF imports, FOB exports, as reported) | daily, last two complete years, HS `27 2709 2711 10 31 30 72 74 76 2805 8542 8507`; aggregate reporters (EU, "nes") dropped. `attrs.description`, `net_weight_kg`, `weight_estimated`, `reported`, `classification`. No spike detection (2 points per key) |
+| `tiingo.close` | ETF ticker: `SPY EEM VGK EWJ FXI SOXX BDRY USO UNG CPER DBA GLD` | `tiingo` | trading day | `USD` | every 12 h, last 120 days; unadjusted close, `attrs.adjClose`, `volume`, `divCash`, `splitFactor`. `BDRY` is a dry-bulk freight-rate ETF |
+| `tiingo.fx_close` | `USD/<CCY>` for `RUB ARS NGN EGP PKR VND KZT UAH` | `tiingo` | day, 00:00 UTC | `<CCY> per USD` | daily close; currencies the ECB does not publish (so **not** in `fx.rate`). A pair Tiingo does not cover is counted in `notes.symbols_unavailable` |
 
 Index: `(source, ts DESC)`.
 
@@ -88,7 +102,7 @@ Index: `(source, ts DESC)`.
 
 Primary key `(source, raw_id, model)`, FK to `feeds.events` (cascade). One row per
 tagged event per model. Sources tagged: `gdelt` (English titles), `gdacs`, `eonet`,
-`ofac`.
+`ofac`, `newsdata` and `currents` (both queried in English).
 
 | Column | Notes |
 |---|---|
@@ -135,15 +149,50 @@ Primary key `(series, key, ts, method)`.
 
 Rules: `fx.rate` 90 d window, ≥ 40 points; `portwatch.*` 90 d, ≥ 30; `gdelt.articles`
 30 d, ≥ 14; `wb.*` 10 y, ≥ 8 (so annual indicators report insufficient history for
-now); `epss.score` is never scored. Spike detection runs at most every 6 h.
+now); `epss.score` and `comtrade.*` are never scored; every other series (`fred.*`,
+`eia.*`, `tiingo.*`) uses the default rule, 90 d, ≥ 30 points (monthly FRED series
+therefore report insufficient history). Spike detection runs at most every 6 h.
 Index: `ts DESC`.
+
+## `feeds.sanctions_entries` — full sanctions lists
+
+Migration `030`. Every entity currently on OFAC's **SDN list** and **consolidated
+(non-SDN) list**, from the Sanctions List Service's enhanced XML
+(`SDN_ENHANCED.ZIP`, `CONS_ENHANCED.ZIP`), read at most once a day by the keyless
+source `ofac_sdn`. This is current state, not history: each complete read upserts
+every entry and **deletes entries no longer listed** (delisting), so the table stays
+at the size of the lists (~18k rows, a few MB). A download that fails or comes back
+implausibly small (< 5,000 SDN / < 50 consolidated entries) is upserted but deletes
+nothing, and the run reports `partial`.
+
+Primary key `(source, dataset, entity_id)`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `source` | text | `ofac_sdn` |
+| `dataset` | text | `sdn` or `consolidated` |
+| `entity_id` | text | OFAC entity id; the same id as `attrs.entity_id` of `ofac` events, so a `sanction.removal` event can be tied to an entry |
+| `entity_type` | text | `Individual`, `Entity`, `Vessel`, `Aircraft` (nullable) |
+| `name` | text | primary name, primary (Latin) translation, e.g. `KALHOR, Ali` (individuals are `LAST, First`) |
+| `aliases` | text[] | every other name OFAC gives (a.k.a., f.k.a., n.k.a.) and every translation of each name, in any script (Arabic, Cyrillic, …), bidi marks removed |
+| `weak_aliases` | text[] | names OFAC flags `isLowQuality` ("weak a.k.a."); match these with more care or not at all |
+| `countries` | text[] | ISO alpha-3 from addresses, nationality, citizenship and vessel flag; names `jobs.codes` cannot map are left out (counted in `source_health.notes.unmatched_country_names`) |
+| `programs` | text[] | sanctions programmes, e.g. `SDGT`, `RUSSIA-EO14024` |
+| `lists` | text[] | e.g. `SDN List`, `SSI List`, `NS-MBS List` |
+| `listed_on` | date | earliest list publication date OFAC gives for the entry (nullable) |
+| `first_seen_at`, `updated_at` | timestamptz | `updated_at` changes only when a column changes |
+
+No birth dates, ID numbers, addresses or remarks are stored. Indexes: GIN on
+`countries`, b-tree on `entity_id`. `rp_app` may SELECT (default privileges).
+For fuzzy matching load `name`, `aliases` (and optionally `weak_aliases`) with
+`countries`, and apply the normaliser in `risk-engine.md` §5.2 to each.
 
 ## `feeds.watch_terms` — what query-driven sources ask about
 
 | Column | Notes |
 |---|---|
 | `id` | identity |
-| `kind` | `gdelt_query` (a GDELT DOC query string) or `osv_package` (`term` = package, `scope` = OSV ecosystem: `PyPI`, `npm`, `Maven`, `Go`, `crates.io`, `NuGet`, `RubyGems`, `Packagist`…) |
+| `kind` | `gdelt_query` (a GDELT DOC query string; also sent, as a boolean query, to `newsdata` and `currents`, up to 8 terms per run, rotating) or `osv_package` (`term` = package, `scope` = OSV ecosystem: `PyPI`, `npm`, `Maven`, `Go`, `crates.io`, `NuGet`, `RubyGems`, `Packagist`…) |
 | `term`, `scope` | unique together with `kind` |
 | `enabled` | |
 | `origin` | `default` (migration 002) or, from the worker, `workspace` |
