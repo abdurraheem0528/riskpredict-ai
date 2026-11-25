@@ -18,12 +18,12 @@ import pycountry
 def _norm(name: str) -> str:
     s = unicodedata.normalize("NFKD", name)
     s = "".join(ch for ch in s if not unicodedata.combining(ch))
-    s = s.casefold().replace("’", "'").replace("`", "'")
+    s = s.casefold().replace("’", "'").replace("`", "'").replace("&", " and ")
     s = re.sub(r"[.\s]+", " ", s)
     return s.strip(" ,")
 
 
-# Names seen in the live feeds (OFAC, GDACS, PortWatch, USGS, World Bank) that
+# Names seen in the live feeds (OFAC incl. the full SDN list, GDACS, PortWatch, USGS, World Bank) that
 # pycountry does not resolve on its own. Only unambiguous mappings are listed.
 _ALIASES: dict[str, str] = {
     _norm(k): v
@@ -57,6 +57,8 @@ _ALIASES: dict[str, str] = {
         "East Timor": "TLS",
         "Taiwan Province of China": "TWN",
         "St Vincent and the Grenadines": "VCT",
+        "St Vincent and Grenadines": "VCT",
+        "Sint Maarten": "SXM",
         "St Kitts and Nevis": "KNA",
         "St Lucia": "LCA",
         "Micronesia": "FSM",

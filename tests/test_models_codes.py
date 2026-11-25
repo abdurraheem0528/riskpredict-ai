@@ -62,7 +62,15 @@ def test_series_point_rejects_nan():
         ("United Arab Emirates", "ARE"),
         ("IDN", "IDN"),
         ("ID", "IDN"),
-        ("Kosovo", None),
+        # spellings in the full OFAC SDN list (2026-11-25)
+        ("Antigua & Barbuda", "ATG"),
+        ("Sao Tome & Principe", "STP"),
+        ("St. Kitts & Nevis", "KNA"),
+        ("St. Vincent and Grenadines", "VCT"),
+        ("Sint Maarten", "SXM"),
+        ("Kosovo", None),  # no ISO 3166-1 code
+        ("Unknown", None),
+        ("Mozambique (False)", None),  # OFAC marks a falsely used vessel flag
         ("Region: Somewhere", None),
         ("", None),
     ],
