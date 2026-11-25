@@ -270,11 +270,62 @@ def test_nothing_new_is_empty_and_keeps_the_window():
     assert result.notes["gkg_window"] == LATEST
 
 
-def test_missing_older_window_is_partial():
+def doc_calls(feed):
+    return [u for u in feed.urls if "api.gdeltproject.org" in u]
+
+
+def test_window_skipped_by_gdelt_is_passed_over():
+    """One of three windows is a 404: the others are read and the stored window moves on."""
     feed = Feed(files=lambda url: 404 if "161500" in url else 200)
     result = run(feed)
-    assert result.status == Status.PARTIAL and result.error == "HTTP 404 from data.gdeltproject.org"
-    assert len(result.events) == 4 and result.notes["windows_failed"] == 1
+    assert len(feed.file_urls) == 3 and doc_calls(feed) == []
+    assert result.status == Status.OK and result.error is None
+    assert len(result.events) == 4 and result.notes["windows_read"] == 2
+    assert result.notes["missing_windows"] == 1 and result.notes["windows_failed"] == 0
+    assert result.notes["gkg_window"] == LATEST
+
+
+def test_skipped_window_is_passed_over_even_when_the_newest_fails():
+    feed = Feed(files=lambda url: 404 if "161500" in url else 503 if "163000" in url else 200)
+    result = run(feed)
+    assert result.status == Status.PARTIAL and result.error == "HTTP 503 from data.gdeltproject.org"
+    assert result.notes["gkg_window"] == 20261116161500  # past the skipped one; 163000 retried
+    assert doc_calls(feed) == []
+
+
+def test_listed_file_missing_is_retried_next_run():
+    """The file lastupdate.txt names is a 404: read the rest, but don't move past it."""
+    feed = Feed(files=lambda url: 404 if "163000" in url else 200)
+    result = run(feed, state={"gdelt": {"gkg_window": 20261116154500}})
+    assert result.status == Status.PARTIAL and doc_calls(feed) == []
+    assert result.error == f"newest GKG file {LATEST} not on the server yet (HTTP 404); retried next run"
+    assert result.notes["latest_missing"] == 1 and result.notes["windows_read"] == 2
+    assert result.notes["gkg_window"] == 20261116161500
+
+    again = Feed()
+    run(again, state={"gdelt": {"gkg_window": result.notes["gkg_window"]}})
+    assert again.file_urls == ["http://data.gdeltproject.org/gdeltv2/20261116163000.gkg.csv.zip"]
+
+
+def test_every_window_missing_is_empty_without_a_doc_call():
+    feed = Feed(files=404)
+    result = run(feed, state={"gdelt": {"gkg_window": 20261116154500}})
+    assert len(feed.file_urls) == 3 and doc_calls(feed) == []
+    assert result.status == Status.EMPTY and result.events == []
+    assert result.error == (
+        "file feed: no GKG window to read: newest GKG file 20261116163000 not on the server yet "
+        "(HTTP 404); retried next run; 2 earlier GKG window(s) skipped by GDELT (HTTP 404)"
+    )
+    assert result.notes["missing_windows"] == 2 and result.notes["latest_missing"] == 1
+    assert result.notes["gkg_window"] == 20261116161500  # past the skipped ones, not the listed one
+
+
+def test_window_downloads_failing_is_an_error_without_a_doc_call():
+    feed = Feed(files=503)
+    result = run(feed)
+    assert result.status == Status.ERROR and doc_calls(feed) == []
+    assert result.error == "file feed: HTTP 503 from data.gdeltproject.org"
+    assert "gkg_window" not in result.notes
 
 
 def test_size_cap(monkeypatch):
