@@ -1,0 +1,18 @@
+{
+  "_about": "HS chapter (first two digits) to commodity keywords (risk-engine.md §5.3). A keyword matches a tagged commodity text when it appears in it as whole word(s), casefold.",
+  "chapters": {
+    "09": ["coffee", "tea"],
+    "10": ["wheat", "rice", "maize", "corn", "grain"],
+    "12": ["soy", "soybean", "soybeans"],
+    "17": ["sugar"],
+    "18": ["cocoa"],
+    "27": ["oil", "crude", "gas", "lng", "coal"],
+    "31": ["fertiliser", "fertilizer", "potash"],
+    "40": ["rubber"],
+    "52": ["cotton"],
+    "72": ["steel", "iron"],
+    "74": ["copper"],
+    "76": ["aluminium", "aluminum"],
+    "85": ["semiconductor", "semiconductors", "chip", "chips", "electronics"]
+  }
+}

@@ -1,0 +1,49 @@
+# The risk engine (engine/): unit tests for every match rule and the scoring maths, and DB
+# tests against a throwaway Postgres 16 as an rp_app login under forced RLS (writes,
+# idempotent re-runs, closing aged-out risks). The main `ci` workflow does not install
+# rapidfuzz, so these tests skip there and run here. No network fetches.
+name: ci-engine
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: engine_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d engine_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://test:test@localhost:5432/engine_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            jobs/requirements*.txt
+            engine/requirements.txt
+      - run: pip install -r jobs/requirements-dev.txt -r engine/requirements.txt
+      - name: Engine imports without a database or network
+        run: python -c "import engine; print(engine.ENGINE_VERSION, len(engine.chokepoints()), 'chokepoints')"
+      - name: Engine tests (and the rest of the suite, with the engine's dependencies installed)
+        run: python -m pytest -v

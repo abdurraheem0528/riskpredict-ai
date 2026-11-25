@@ -1,0 +1,5 @@
+# Risk engine (engine/). Free and open source only; nothing here calls the network.
+# numpy, scikit-learn (cross-rate spike detection via jobs.analyse.anomalies), psycopg and
+# pycountry (via jobs.codes) come from the analysis requirements, so the pins stay in one place.
+-r ../jobs/requirements-analyse.txt
+rapidfuzz==3.14.6   # MIT; name similarity for sanctions and company matching
