@@ -6,3 +6,5 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+/** Hash of public/map/{centroids,ports}.json, set by vite.config.ts. */
+declare const __MAP_DATA_VERSION__: string;

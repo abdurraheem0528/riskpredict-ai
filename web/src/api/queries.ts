@@ -169,10 +169,14 @@ export function useSeries(series: string | null, key: string | null) {
   });
 }
 
+/** Alerts, newest first, 20 a page; `fetchNextPage` follows the cursor ("Show all"). */
 export function useAlerts(ws: string) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [ws, 'alerts'],
-    queryFn: () => unwrap(api.GET('/v1/alerts', { params: { header: wsh(ws), query: { limit: 20 } } })),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      unwrap(api.GET('/v1/alerts', { params: { header: wsh(ws), query: { limit: 20, ...(pageParam ? { cursor: pageParam } : {}) } } })),
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
 }
 
@@ -214,6 +218,7 @@ export function applyStreamEvent<K extends StreamEventName>(qc: QueryClient, ws:
       inv(ws, 'mapRisks');
       inv(ws, 'mapEntities');
       inv(ws, 'risk', risk.id);
+      inv(ws, 'alerts'); // an alert shows its risk's status, and is read once the risk resolves
       break;
     }
     case 'alert.created':

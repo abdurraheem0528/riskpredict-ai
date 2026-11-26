@@ -983,7 +983,7 @@ paths:
       tags: [map]
       operationId: mapEntities
       summary: The workspace's entities as map features
-      description: Entities with `lat`/`lon` are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Not paginated; at most 5,000 features (then `truncated` is true).
+      description: Entities with `lat`/`lon` (their own, else their city's) are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Not paginated; at most 5,000 features (then `truncated` is true).
       parameters:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
         - {name: kind, in: query, schema: {$ref: "#/components/schemas/EntityKind"}}
@@ -1892,9 +1892,10 @@ components:
           type: array
           description: purl or CPE 2.3
           items: {type: string}
-        lat: {type: [number, "null"]}
+        lat: {type: [number, "null"], description: "The row's latitude; without one, the city's (GeoNames cities15000, matched within the row's countries); null when neither is known (the dashboard then places it by port or country)"}
         lon: {type: [number, "null"]}
         city: {type: [string, "null"]}
+        place: {type: [string, "null"], description: "Where it is, in words: the city and country (`Hsinchu, Taiwan`) when it has a city, else the first port's display name and up to two countries (`Kaohsiung, Taiwan`, `Japan and China +1`)"}
         address: {type: [string, "null"]}
         exposure:
           type: object
@@ -1943,6 +1944,7 @@ components:
             id: {type: string, format: uuid}
             kind: {$ref: "#/components/schemas/EntityKind"}
             name: {type: string}
+            city: {type: [string, "null"], description: The entity's city}
         category: {$ref: "#/components/schemas/RiskCategory"}
         title: {type: string}
         likelihood: {type: number, minimum: 0, maximum: 1}
@@ -1957,6 +1959,7 @@ components:
           items: {$ref: "#/components/schemas/Locode"}
         lat: {type: [number, "null"]}
         lon: {type: [number, "null"]}
+        place: {type: [string, "null"], description: "The entity's `place` when it has a city (`Hsinchu, Taiwan`), else the risk's first port and countries in words (`Kaohsiung, Taiwan`)"}
         evidence_count: {type: integer, minimum: 0}
         first_seen_at: {type: string, format: date-time}
         last_seen_at: {type: string, format: date-time}
@@ -2030,6 +2033,7 @@ components:
             method: {type: string, enum: [noisy_or]}
             value: {type: number}
             capped_from: {type: number, description: "Present when a market-only risk was capped (risk-engine.md §5.9): the likelihood before the cap"}
+            decay: {type: number, description: "Engine 1.3.0+: each further item (strongest first) counts this times the one before (risk-engine.md §5.6); absent means 1"}
             items:
               type: array
               items:
@@ -2041,6 +2045,7 @@ components:
                   recency: {type: number}
                   match_confidence: {type: number}
                   contribution: {type: number}
+                  weight: {type: number, description: "Engine 1.3.0+: decay^(rank−1), the share of this item's contribution that counts"}
         impact:
           type: object
           required: [value, criticality, criticality_weight, exposure_share, exposure_norm, category_multiplier]
@@ -2154,6 +2159,7 @@ components:
         unit: {type: [string, "null"]}
         inferred_from: {type: [string, "null"], description: "Chokepoint evidence of a supplier, site or port: what the chokepoint was inferred from (see `RiskFactors.explain`)"}
         supported_by: {type: [object, "null"], description: "The commodity match that strengthened this item's match, as in `RiskFactors.explain`"}
+        central: {type: [string, "null"], enum: [title, first_place, null], description: "Engine 1.3.0+, country matches of news: why the country counts as central to the article (risk-engine.md §5.10)"}
     RiskSummary:
       type: object
       required: [open_count, story_count, by_category, stories_by_category, by_status, max_score, top, last_scored_at, feeds_as_of]
@@ -2219,6 +2225,8 @@ components:
                   ports:
                     type: array
                     items: {type: string}
+                  city: {type: [string, "null"]}
+                  place: {type: [string, "null"], description: "As `Entity.place`"}
                   criticality: {type: [string, "null"]}
                   open_risk_count: {type: integer}
                   max_score: {type: [number, "null"]}
@@ -2244,7 +2252,7 @@ components:
                 properties:
                   place_type: {type: string, enum: [country, port, point]}
                   place_key: {type: string, description: "alpha-3, LOCODE or entity id"}
-                  label: {type: [string, "null"]}
+                  label: {type: [string, "null"], description: "The entity's name at a `point`, the port's display name at a `port` (`Kaohsiung`), null at a `country`"}
                   risk_count: {type: integer}
                   story_count: {type: integer, description: "Distinct stories at this place; `top_risk_ids` lists one risk per story"}
                   max_score: {type: number}
@@ -2472,18 +2480,40 @@ components:
       type: object
       required: [risk_count, max_score, portfolio_score, by_category]
       properties:
-        risk_count: {type: integer}
+        risk_count: {type: integer, description: "Risks (one per entity and story) on this side"}
+        story_count:
+          type: integer
+          description: |
+            Distinct stories on this side (as `Risk.story.key`: the engine's `factors.story`, else
+            the risk itself). The headline count. Results stored before it was added lack it
+            (show `risk_count` then).
         max_score: {type: [number, "null"]}
         portfolio_score:
           type: number
           minimum: 0
           maximum: 100
           description: |
-            The risk index (engine 1.2.0, risk-engine.md §12): per entity, its worst score in each
-            category combined across categories, `E = 100 × (1 − Π_c (1 − worst_c/100))`; the
-            index is the criticality-weighted mean of `E` over all the side's entities (0 for an
-            entity no risk touches). It does not grow with the number of risks, and it is on
-            the same 0–100 scale (and level bands) as a risk score.
+            The risk index (risk-engine.md §12), rounded to 0.1. Per entity, its *exposure*: in
+            each category c, its risks' scores sorted high to low, s_1 ≥ s_2 ≥ …, give
+            `C_c = 100 × (1 − Π_k (1 − s_k/100)^(2^−(k−1)))` (the highest in full, the next at half
+            weight, then a quarter, …); then `E = 100 × (1 − Π_c (1 − C_c/100))`. The index is the
+            criticality-weighted mean of `E` over all the side's entities (an entity no risk
+            touches counts as 0), so it is never above `most_exposed.exposure`, and a scenario
+            that adds or raises any risk (and lowers none) raises it. Results stored before
+            `most_exposed` was added used the worst score per category for `C_c`.
+        most_exposed:
+          description: |
+            The entity with the highest exposure `E` on this side; null when no risk touches any
+            entity. The index is never above its `exposure`. Absent in older stored results.
+          oneOf:
+            - {type: "null"}
+            - type: object
+              required: [entity_id, entity_name, exposure, risk_count]
+              properties:
+                entity_id: {type: string, format: uuid}
+                entity_name: {type: string}
+                exposure: {type: number, minimum: 0, maximum: 100}
+                risk_count: {type: integer, description: "That entity's risks on this side"}
         by_category:
           type: object
           additionalProperties: {type: integer}
@@ -2543,7 +2573,12 @@ components:
       required: [id, kind, severity, title, body, risk_id, connection_id, created_at, read_at]
       properties:
         id: {type: string, format: uuid}
-        kind: {type: string, enum: [risk_new, risk_escalated, sanctions_match, connection_error, source_sync_failed]}
+        kind:
+          type: string
+          enum: [risk_new, risk_escalated, sanctions_match, connection_error, source_sync_failed]
+          description: |
+            `sanctions_match` ("Possible sanctions match") only for a sanctions-list name match
+            (rule `sanctions_name`); sanctions news about a country is `risk_new`/`risk_escalated`.
         severity: {type: string, enum: [info, warning, critical]}
         title: {type: string}
         body: {type: string}
@@ -2551,6 +2586,12 @@ components:
         connection_id: {type: [string, "null"], format: uuid}
         created_at: {type: string, format: date-time}
         read_at: {type: [string, "null"], format: date-time}
+        risk_status:
+          description: |
+            The current status of the alert's risk; null when it has none (or in the
+            `alert.created` live event). An alert whose risk is resolved or dismissed is marked
+            read (by the worker's next scoring pass, or when a user dismisses the risk).
+          oneOf: [{$ref: "#/components/schemas/RiskStatus"}, {type: "null"}]
 
     # --- live updates -----------------------------------------------------------------------------
     StreamEventName:

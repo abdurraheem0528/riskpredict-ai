@@ -222,16 +222,18 @@ def test_commodity_alone_creates_no_risk_for_a_supplier():
 
 
 def test_commodity_strengthens_a_country_match():
-    sup = ent("s", "supplier", countries=["CHL"], hs_codes=["7403"], commodities=["cobalt"])
+    sup = ent("s", "supplier", countries=["CHL"], hs_codes=["7403"], commodities=["copper cathodes", "cobalt"])
     copper = news("n1", tag("trade_policy", 0.8, commodities=[("refined copper", 0.9)], countries=["CHL"]))
     a = only([sup], [copper])
     ev = a.evidence[0]
     assert a.fingerprint.endswith("|trade_policy|country:CHL") and ev.match_type == "country"
     anchor, support = round(0.6 * 0.6, 3), round(0.6 * 0.9, 3)
     assert ev.match_confidence == round(1 - (1 - anchor) * (1 - 0.5 * support), 3)
-    assert ev.snapshot["supported_by"]["match_value"] == "HS 74"
+    # engine 1.3.0: matched on the entity's own 4-digit heading, and the sentence names its product
+    assert ev.snapshot["supported_by"]["match_value"] == "HS 7403"
     assert a.explanation == (
-        "A recent news report about trade policy involving Chile mentions refined copper like those s supplies (HS 7403)."
+        "A recent news report about trade policy involving Chile mentions refined copper, which is in the same "
+        "product group (HS 7403) as the copper cathodes s supplies."
     )
     cobalt = news("n2", tag("trade_policy", 0.8, commodities=[("Cobalt", 0.7)], countries=["CHL"]))
     b = only([sup], [cobalt])
@@ -245,7 +247,11 @@ def test_a_market_move_in_a_commodity_may_create_a_capped_risk():
     sup = ent("s", "supplier", hs_codes=["7403"], criticality="critical", annual_spend=1_000_000)
     moves = [event("markets", f"cu-{i}", "market.commodity_price", commodities=["copper"], severity=1.0,
                    tag=tag("financial_stress", 1.0)) for i in range(4)]  # fmt: skip
-    a = only([sup], moves)
+    # 1.3.0: with each further item weighted down (§5.6) four such moves stay below the cap on their own ...
+    weighted = only([sup], moves)
+    assert weighted.score <= 50.0 and "capped_from" not in weighted.factors["likelihood"]
+    # ... so the cap itself is checked with the plain noisy-OR (decay 1), where they would pass it
+    a = only([sup], moves, config=replace(CFG, likelihood_decay=1.0))
     assert a.category == "financial" and a.evidence[0].match_type == "commodity"
     assert a.score <= 50.0 and a.factors["likelihood"]["capped_from"] > a.likelihood
     assert a.title == "Market move in copper affecting s"

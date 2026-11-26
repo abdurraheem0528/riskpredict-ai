@@ -177,10 +177,31 @@ def contribution(signal: float, rec: float, confidence: float) -> float:
 
 
 def noisy_or(ps: Iterable[float], cap: float) -> float:
+    """Plain noisy-OR ``min(cap, 1 − Π(1 − p))`` (engine ≤ 1.2.0; kept for comparisons)."""
     prod = 1.0
     for p in ps:
         prod *= 1.0 - clamp(p, 0.0, 1.0)
     return r3(min(cap, 1.0 - prod))
+
+
+def item_weights(n: int, config: EngineConfig) -> list[float]:
+    """Weight of the 1st, 2nd, … strongest item: ``decay^(k−1)`` (1, 0.5, 0.25, … by default)."""
+    return [r3(config.likelihood_decay**k) for k in range(n)]
+
+
+def likelihood(ps: Sequence[float], config: EngineConfig) -> float:
+    """Engine 1.3.0 (§5.6): a noisy-OR in which each further item counts less.
+
+    ``L = min(cap, 1 − Π_k (1 − w_k · p_k))`` over the contributions sorted strongest first,
+    with ``w_k = decay^(k−1)``. The strongest item counts in full, so one strong item scores
+    exactly as before; ``L ≤ Σ w_k p_k`` and the weights sum to less than ``1 / (1 − decay)``
+    (2 by default), so L stays below twice the strongest contribution however many weak items
+    there are (seven items of 0.3: 0.49, where the plain noisy-OR gave 0.92).
+    """
+    prod = 1.0
+    for k, p in enumerate(sorted(ps, reverse=True)):
+        prod *= 1.0 - config.likelihood_decay**k * clamp(p, 0.0, 1.0)
+    return r3(min(config.likelihood_cap, 1.0 - prod))
 
 
 # --- impact (§6) ---------------------------------------------------------------------

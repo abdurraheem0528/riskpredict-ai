@@ -27,7 +27,21 @@ export const test = base.extend<Fx>({
       },
       [WS, signedIn],
     );
+    // Every screen runs under the Content-Security-Policy of dist/_headers (vite preview
+    // serves those headers, see vite.config.ts): any violation, console error or uncaught
+    // error fails the test.
+    const problems: string[] = [];
+    await page.addInitScript(() => {
+      document.addEventListener('securitypolicyviolation', (e) => {
+        console.error(`CSP violation: ${e.violatedDirective} blocked ${e.blockedURI || '(inline)'}`);
+      });
+    });
+    page.on('console', (m) => {
+      if (m.type() === 'error') problems.push(`console: ${m.text()}`);
+    });
+    page.on('pageerror', (e) => problems.push(`page error: ${e.message}`));
     await use(page);
+    expect(problems, 'console errors, CSP violations or uncaught errors').toEqual([]);
   },
 });
 

@@ -1,5 +1,6 @@
+import { http, HttpResponse } from 'msw';
 import { test, expect, mapSettled, shot } from './fixtures';
-import { PENDING, risks } from '../fixtures/data';
+import { API, PENDING, entities, risks } from '../fixtures/data';
 
 test.describe('signed out', () => {
   test.use({ signedIn: false });
@@ -8,6 +9,20 @@ test.describe('signed out', () => {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await mapSettled(page);
     await shot(page, '0-sign-in', info.project.name);
+  });
+
+  test('security headers', async ({ page }) => {
+    const res = await page.goto('/');
+    const h = res!.headers();
+    expect(h['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
+    const csp = h['content-security-policy'];
+    // the build's own API (http://api.test for this build), nothing looser
+    expect(csp).toContain("connect-src 'self' http://api.test;");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toContain('unsafe-eval');
+    // the static privacy page (Google's OAuth consent links to it) runs under it too
+    await page.goto('/privacy.html');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 });
 
@@ -27,8 +42,16 @@ test.describe('active workspace', () => {
     await page.goto('/connect');
     await expect(page.getByRole('heading', { name: 'Connect a source' })).toBeVisible();
     await expect(page.getByText('Connected · live')).toBeVisible();
+    // a source is live: this is where tools are managed, not step 1 of the first flow
+    await expect(page.getByText('Step 1 of 3')).toHaveCount(0);
     await mapSettled(page);
     await shot(page, '2-connect', info.project.name);
+  });
+
+  test('sources is the connect screen', async ({ page }) => {
+    await page.goto('/sources');
+    await expect(page.getByRole('heading', { name: 'Connect a source' })).toBeVisible();
+    await expect(page).toHaveURL(/\/connect$/);
   });
 
   test('confirm', async ({ page }, info) => {
@@ -50,9 +73,18 @@ test.describe('active workspace', () => {
 
   test('register', async ({ page }, info) => {
     await page.goto('/register');
-    await expect(page.getByText('6 open risks')).toBeVisible();
+    await expect(page.getByText('6 open stories')).toBeVisible();
     await mapSettled(page);
     await shot(page, '5-register', info.project.name);
+  });
+
+  test('register for one entity', async ({ page }, info) => {
+    const e = entities.find((x) => x.name === 'Lumen Display Co')!;
+    await page.goto(`/register?entity=${e.id}`);
+    await expect(page.getByLabel('Risk register').getByTitle('Lumen Display Co')).toBeVisible();
+    await expect(page.getByText('One entity')).toHaveCount(0);
+    await mapSettled(page);
+    await shot(page, '5-register-entity', info.project.name);
   });
 
   test('risk', async ({ page }, info) => {
@@ -67,7 +99,19 @@ test.describe('active workspace', () => {
     await how.scrollIntoViewIfNeeded();
     await how.click();
     await expect(page.getByText(/noisy-OR of 2 items/)).toBeVisible();
-    await page.getByText('Score', { exact: true }).scrollIntoViewIfNeeded();
+    // opening it scrolls the sheet so the numbers sit above the action bar, not behind it
+    const inView = async () => {
+      const [body, foot, steps] = await Promise.all([
+        page.locator('.sbody').boundingBox(),
+        page.locator('.sfoot').boundingBox(),
+        page.locator('.how .step').evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; })),
+      ]);
+      const first = steps[0];
+      const last = steps[steps.length - 1];
+      const whole = last.bottom - first.top <= foot!.y - body!.y - 40;
+      return first.top >= body!.y - 1 && (whole ? last.bottom : first.bottom) <= foot!.y + 1;
+    };
+    await expect.poll(inView, { timeout: 5_000 }).toBe(true);
     await shot(page, '6-risk-how-scored', info.project.name);
   });
 
@@ -80,12 +124,20 @@ test.describe('active workspace', () => {
     await shot(page, '7-scenario', info.project.name);
   });
 
-  test('jump to', async ({ page }, info) => {
+  test('jump to', async ({ page, network }, info) => {
     test.skip(info.project.name === 'phone', 'Jump to opens from the sections menu on phones');
+    // a long title stays on one line, cut with an ellipsis, with no sideways scroll
+    const long = `${risks[0].title}: a long headline from the feed that runs well past the width of the palette`;
+    network.use(http.get(`${API}/v1/risks`, () => HttpResponse.json({ items: [{ ...risks[0], title: long }, ...risks.slice(1)], next_cursor: null })));
     await page.goto('/');
     await expect(page.getByRole('link', { name: 'Open risk' })).toBeVisible();
     await page.keyboard.press('ControlOrMeta+k');
-    await expect(page.getByRole('dialog', { name: 'Jump to' })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Jump to' });
+    await expect(dialog).toBeVisible();
+    const label = dialog.getByTitle(long);
+    await expect(label).toBeVisible();
+    expect(await label.evaluate((el) => el.scrollWidth > el.clientWidth && getComputedStyle(el).textOverflow === 'ellipsis')).toBe(true);
+    expect(await dialog.locator('.pl').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     await mapSettled(page);
     await shot(page, '8-jump-to', info.project.name);
   });

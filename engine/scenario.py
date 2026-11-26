@@ -321,42 +321,97 @@ def shock_feeds(inputs: ScenarioInputs, entities: Sequence[Entity], feeds: FeedS
     return replace(feeds, events=(*feeds.events, *events), anomalies=(*feeds.anomalies, *anomalies))
 
 
+def combine_scores(scores: Sequence[float]) -> float:
+    """Several scores of one kind as one, 0–100 (risk-engine.md §12), unrounded.
+
+    ``100 × (1 − Π_k (1 − s_k/100)^(2^−(k−1)))`` over the scores sorted high to low: the
+    highest counts in full, the next at half weight, the next at a quarter, and so on. A
+    second risk always adds something, but any number of them adds less than one more
+    copy of the highest (the result stays below ``100 × (1 − (1 − s_1/100)²)``). Adding a
+    score above 0, or raising one, always raises the result (unless it is already 100):
+    the weights shrink, so inserting a score ``x`` at rank ``k`` adds at least
+    ``x × w_(n+1) > 0`` in ``−ln(1 − s/100)`` terms.
+    """
+    prod, w = 1.0, 1.0
+    for s in sorted(scores, reverse=True):
+        prod *= max(0.0, 1 - s / 100.0) ** w
+        w /= 2
+    return 100 * (1 - prod)
+
+
+def entity_exposures(assessments: Sequence[Assessment]) -> dict[UUID, float]:
+    """Each touched entity's *exposure*, 0–100 (risk-engine.md §12), unrounded.
+
+    Per category ``C_c = combine_scores(scores of the entity's risks in c)``; the
+    categories are then combined by noisy-OR, ``E = 100 × (1 − Π_c (1 − C_c/100))``
+    (different kinds of risk are different ways to be hit). An entity no risk touches has
+    exposure 0 and is not in the mapping.
+    """
+    per: dict[UUID, dict[str, list[float]]] = {}
+    for a in assessments:
+        per.setdefault(a.entity_id, {}).setdefault(a.category, []).append(a.score)
+    out: dict[UUID, float] = {}
+    for eid, cats in per.items():
+        prod = 1.0
+        for scores in cats.values():
+            prod *= 1 - combine_scores(scores) / 100.0
+        out[eid] = 100 * (1 - prod)
+    return out
+
+
+def _weight(e: Entity, config: EngineConfig) -> float:
+    return config.criticality_weights.get(e.criticality or "", config.default_criticality_weight)
+
+
+def _index(exposures: Mapping[UUID, float], entities: Sequence[Entity], config: EngineConfig) -> float:
+    total = weights = 0.0
+    for e in entities:
+        w = _weight(e, config)
+        total += w * exposures.get(e.id, 0.0)
+        weights += w
+    return total / weights if weights else 0.0
+
+
 def risk_index(assessments: Sequence[Assessment], entities: Sequence[Entity],
                config: EngineConfig = DEFAULT_CONFIG) -> float:  # fmt: skip
-    """The What-if *risk index*, 0–100 (risk-engine.md §12).
+    """The What-if *risk index*, 0–100, rounded to 0.1 (risk-engine.md §12).
 
-    Per entity: the worst score in each category, combined across categories
-    (``E = 100 × (1 − Π_c (1 − worst_c / 100))``): many risks of one kind do not stack,
-    different kinds do. The index is the criticality-weighted mean of ``E`` over *all*
-    the workspace's entities (an entity with no risk counts as 0), so it does not grow
-    with the number of risks, it moves whenever a scenario adds or removes exposure, and
-    with one entity it equals that entity's combined score.
+    The criticality-weighted mean of every entity's exposure (``entity_exposures``; an
+    entity with no risk counts as 0) over *all* the given entities. So it is never above
+    the most exposed entity's exposure, it does not saturate with many risks, and a
+    scenario that adds or raises any risk (and lowers none) raises it.
     """
     if not entities:
         return 0.0
-    worst: dict[UUID, dict[str, float]] = {}
-    for a in assessments:
-        per = worst.setdefault(a.entity_id, {})
-        per[a.category] = max(per.get(a.category, 0.0), a.score)
-    total = weights = 0.0
-    for e in entities:
-        w = config.criticality_weights.get(e.criticality or "", config.default_criticality_weight)
-        prod = 1.0
-        for score in worst.get(e.id, {}).values():
-            prod *= 1 - score / 100.0
-        total += w * 100 * (1 - prod)
-        weights += w
-    return round(total / weights, 1) if weights else 0.0
+    return round(_index(entity_exposures(assessments), entities, config), 1)
+
+
+def story_count(assessments: Sequence[Assessment]) -> int:
+    """Distinct stories (``factors.story``, else the risk's own fingerprint), as ``Risk.story.key``."""
+    return len({(a.factors.get("story") if isinstance(a.factors, Mapping) else None) or a.fingerprint
+                for a in assessments})  # fmt: skip
 
 
 def _side(assessments: Sequence[Assessment], entities: Sequence[Entity], config: EngineConfig = DEFAULT_CONFIG) -> dict:
     by_cat = {c: 0 for c in CATEGORIES}
     for a in assessments:
         by_cat[a.category] += 1
+    exposures = entity_exposures(assessments)
+    most = None
+    if exposures and entities:
+        top = max(entities, key=lambda e: (exposures.get(e.id, 0.0), _weight(e, config), e.name))
+        if exposures.get(top.id, 0.0) > 0:
+            most = {
+                "entity_id": str(top.id), "entity_name": top.name,
+                "exposure": round(exposures[top.id], 1),
+                "risk_count": sum(1 for a in assessments if a.entity_id == top.id),
+            }  # fmt: skip
     return {
         "risk_count": len(assessments),
+        "story_count": story_count(assessments),
         "max_score": max((a.score for a in assessments), default=None),
-        "portfolio_score": risk_index(assessments, entities, config),
+        "portfolio_score": round(_index(exposures, entities, config), 1) if entities else 0.0,
+        "most_exposed": most,
         "by_category": by_cat,
     }
 

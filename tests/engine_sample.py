@@ -5,6 +5,10 @@ risk count, the score spread and every risk, e.g. to compare two engine versions
 
     python tests/engine_sample.py                       # this checkout
     PYTHONPATH=<other checkout> python tests/engine_sample.py   # another one
+    python tests/engine_sample.py tests/fixtures/engine_live_nov27_feeds.json   # another fixture
+
+Every function takes an optional ``fixture`` path; the default is engine_sample_feeds.json.
+LIVE_NOV27 (the 27 Nov live sheet, 1.2.0 → 1.3.0) has the same shape.
 """
 
 from __future__ import annotations
@@ -13,6 +17,7 @@ import csv
 import json
 import sys
 import uuid
+from collections import Counter
 from datetime import timedelta
 from pathlib import Path
 
@@ -24,6 +29,7 @@ from engine import Anomaly, Entity, EventTag, FeedEvent, FeedSnapshot, assess
 from engine.db import clean_entity
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "engine_sample_feeds.json"
+LIVE_NOV27 = FIXTURE.with_name("engine_live_nov27_feeds.json")
 
 
 def _now():
@@ -32,15 +38,15 @@ def _now():
     return NOW
 
 
-def data() -> dict:
-    return json.loads(FIXTURE.read_text(encoding="utf-8"))
+def data(fixture: Path | None = None) -> dict:
+    return json.loads((fixture or FIXTURE).read_text(encoding="utf-8"))
 
 
-def suppliers() -> list[Entity]:
+def suppliers(fixture: Path | None = None) -> list[Entity]:
     """The sheet, mapped with the header heuristics (what the live test got) and applied."""
     from api.core import mapping
 
-    rows = list(csv.reader(data()["suppliers_csv"]))
+    rows = list(csv.reader(data(fixture)["suppliers_csv"]))
     header, body = rows[0], rows[1:]
     columns = [{"name": h, "samples": [r[i] for r in body[:5]]} for i, h in enumerate(header)]
     spec = mapping.heuristic_suggest(columns)
@@ -59,8 +65,8 @@ def suppliers() -> list[Entity]:
     return out
 
 
-def feeds(extra_events=()) -> FeedSnapshot:
-    d, now = data(), _now()
+def feeds(extra_events=(), fixture: Path | None = None) -> FeedSnapshot:
+    d, now = data(fixture), _now()
     events = []
     for r in d["events"]:
         t = r.get("tag")
@@ -87,9 +93,9 @@ def feeds(extra_events=()) -> FeedSnapshot:
     return FeedSnapshot(now=now, events=(*events, *extra_events), anomalies=tuple(anomalies))
 
 
-def run():
-    ents = suppliers()
-    return ents, assess(ents, feeds(), base_currency=None)
+def run(fixture: Path | None = None):
+    ents = suppliers(fixture)
+    return ents, assess(ents, feeds(fixture=fixture), base_currency=None)
 
 
 def summary(ents, out) -> dict:
@@ -106,6 +112,9 @@ def summary(ents, out) -> dict:
         "max": scores[0] if scores else None,
         "median": scores[len(scores) // 2] if scores else None,
         "bands": {b: sum(1 for s in scores if band(s) == b) for b in ("critical", "high", "medium", "low")},
+        "by_category": dict(sorted(Counter(a.category for a in out).items())),
+        "max_likelihood": max((a.likelihood for a in out), default=None),
+        "likely": sum(1 for a in out if a.likelihood >= 0.8),  # risks reading "80% likely" or more
         "items": [
             {"entity": names[a.entity_id], "category": a.category, "score": a.score,
              "driver": a.fingerprint.split("|", 2)[2], "title": a.title}
@@ -116,4 +125,4 @@ def summary(ents, out) -> dict:
 
 if __name__ == "__main__":  # pragma: no cover
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    print(json.dumps(summary(*run()), indent=1, ensure_ascii=False))
+    print(json.dumps(summary(*run(Path(sys.argv[1]) if len(sys.argv) > 1 else None)), indent=1, ensure_ascii=False))

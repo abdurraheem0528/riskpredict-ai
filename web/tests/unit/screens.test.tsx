@@ -6,7 +6,7 @@ import { server } from '../setup';
 import { App, makeQueryClient } from '../../src/App';
 import { __resetAuth } from '../../src/api/auth';
 import { handlers } from '../fixtures/handlers';
-import { API, PENDING, WS, risks } from '../fixtures/data';
+import { API, PENDING, WS, entities, risks, summary } from '../fixtures/data';
 
 function boot(path: string, signedIn = true) {
   localStorage.clear();
@@ -56,11 +56,29 @@ describe('screens', () => {
     const first = await screen.findByRole('button', { name: /Name matches a sanctions entry/ });
     expect(first).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('.figxl')).toHaveTextContent('81');
-    expect(screen.getByText('6 open risks')).toBeInTheDocument();
+    // the headline counts stories (story_count); risks only when they differ
+    expect(screen.getByText('6 open stories')).toBeInTheDocument();
     // one story that reaches two entities is one row, naming the first and counting the rest
     expect(screen.getByText('Yantian to Rotterdam and 1 more')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open risk' })).toHaveAttribute('href', `/risks/${risks[0].id}`);
     expect(document.querySelectorAll('.b.pri')).toHaveLength(1);
+  });
+
+  it('Main: open stories first, then the entity × story risks', async () => {
+    server.use(http.get(`${API}/v1/risks/summary`, () => HttpResponse.json({ ...summary, story_count: 41, open_count: 66 })));
+    boot('/');
+    expect(await screen.findByText('41 open stories')).toBeInTheDocument();
+    expect(screen.getByText('66 risks')).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByTitle('41 open stories')).toHaveTextContent('41');
+  });
+
+  it('Register: filtered to one entity, it names the entity', async () => {
+    const e = entities.find((x) => x.name === 'Lumen Display Co')!;
+    boot(`/register?entity=${e.id}`);
+    expect(await screen.findByTitle('Lumen Display Co')).toHaveTextContent('Lumen Display Co');
+    expect(screen.queryByText('One entity')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Show all' })).toHaveAttribute('href', '/register');
   });
 
   it('Main: an empty register says so', async () => {
@@ -151,7 +169,69 @@ describe('screens', () => {
     // the level names the index shown (73 → High), and the change is its own figure
     expect(document.querySelector('.lvl')).toHaveTextContent(/^High$/);
     expect(screen.getByText('+11 from today')).toBeInTheDocument();
+    // headline counts are stories; the index is never above the most exposed entity, shown with it
+    expect(screen.getByText('stories touch you, 4 today · 8 risks')).toBeInTheDocument();
+    expect(screen.getByText('most exposed: Yantian to Rotterdam, 84 today')).toBeInTheDocument();
+    expect(screen.getByText(/inferred from their port/)).toBeInTheDocument();
     expect(box.sent?.inputs.shocks[0]).toMatchObject({ type: 'event', chokepoints: ['bab_el_mandeb'] });
+  });
+
+  it('Sources: /sources opens Connect; no step count once a source is live', async () => {
+    boot('/sources');
+    expect(await screen.findByRole('heading', { name: 'Connect a source' })).toBeInTheDocument();
+    expect(await screen.findByText('Connected · live')).toBeInTheDocument();
+    expect(screen.queryByText('Step 1 of 3')).not.toBeInTheDocument();
+  });
+
+  it('Connect: the step count shows during the first connect flow', async () => {
+    server.use(...handlers('new'));
+    boot('/connect');
+    expect(await screen.findByText('Step 1 of 3')).toBeInTheDocument();
+  });
+
+  it('Scenario: a change under one point is shown with a decimal, and old results fall back to risk counts', async () => {
+    const { scenarioFor } = await import('../fixtures/data');
+    // a result stored before story_count and most_exposed were added
+    const s = scenarioFor('Bab el-Mandeb closes', { shocks: [] });
+    const r = s.results!;
+    const strip = ({ story_count: _s, most_exposed: _m, ...rest }: typeof r.baseline) => rest;
+    const old = { ...s, results: { ...r, baseline: { ...strip(r.baseline), portfolio_score: 62.4 }, scenario: { ...strip(r.scenario), portfolio_score: 62.7 } } };
+    server.use(
+      http.post(`${API}/v1/scenarios`, () => HttpResponse.json(old, { status: 201 })),
+      http.get(`${API}/v1/scenarios/:id`, () => HttpResponse.json(old)),
+    );
+    boot('/scenarios');
+    await screen.findByRole('heading', { name: 'Bab el-Mandeb closes' });
+    await userEvent.click(screen.getByRole('button', { name: 'Run what-if' }));
+    expect(await screen.findByText('+0.3 from today')).toBeInTheDocument();
+    expect(screen.getByText('62.7')).toBeInTheDocument();
+    expect(screen.getByText('risks touch you, 6 today')).toBeInTheDocument();
+    expect(screen.getByText('highest score, 81 today')).toBeInTheDocument();
+  });
+
+  it('Alerts: five at first, then all of them page by page; a resolved risk says so', async () => {
+    const { alerts } = await import('../fixtures/data');
+    const make = (i: number) => ({ ...alerts[1], id: `7d1f3c2a-0000-4000-8000-${String(100 + i).padStart(12, '0')}`, title: `Alert ${i}`, read_at: null });
+    const first = [{ ...alerts[0], title: 'Sanctions news on chips', read_at: new Date().toISOString(), risk_status: 'resolved' as const }, ...Array.from({ length: 19 }, (_, i) => make(i + 1))];
+    const second = Array.from({ length: 3 }, (_, i) => make(i + 20));
+    server.use(
+      http.get(`${API}/v1/alerts`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        return HttpResponse.json(cursor === 'p2' ? { items: second, next_cursor: null, unread_count: 22 } : { items: first, next_cursor: 'p2', unread_count: 22 });
+      }),
+    );
+    boot('/');
+    await userEvent.click(await screen.findByRole('button', { name: 'Account, 22 unread alerts' }));
+    const menu = screen.getByRole('menu', { name: 'Account' });
+    expect(within(menu).getByText('Alerts · 22 unread')).toBeInTheDocument();
+    expect(within(menu).getByText('Sanctions news on chips')).toBeInTheDocument();
+    expect(within(menu).getByText(/^Resolved · /)).toBeInTheDocument();
+    expect(within(menu).queryByText('Alert 5')).not.toBeInTheDocument();
+    await userEvent.click(within(menu).getByRole('button', { name: 'Show all' }));
+    expect(within(menu).getByText('Alert 19')).toBeInTheDocument();
+    await userEvent.click(within(menu).getByRole('button', { name: 'Load more' }));
+    expect(await within(menu).findByText('Alert 22')).toBeInTheDocument();
+    expect(within(menu).queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
   });
 
   it('Connect: tools come from the API', async () => {

@@ -274,7 +274,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .palette { position: absolute; left: 50%; top: 96px; transform: translateX(-50%); width: 560px; max-width: calc(100% - 24px); max-height: calc(100% - 140px); display: flex; flex-direction: column; border-radius: 20px; background: #fff; box-shadow: var(--sh-overlay); z-index: 21; overflow: hidden; }
 .palette .ph { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 12px 0 18px; border-bottom: 1px solid var(--sep); color: var(--tx2); }
 .palette input { flex: 1; height: 44px; border: 0; background: transparent; font: 400 16px/20px var(--font); color: var(--ink); outline: none; min-width: 0; }
-.palette .pl { overflow: auto; padding: 6px 0; }
+.palette .pl { overflow: hidden auto; padding: 6px 0; }
+/* one line per title, cut with an ellipsis (the full text is in its tooltip): a button
+   sizes to its content, so it is held to the list's width */
+.palette .mi { box-sizing: border-box; width: calc(100% - 12px); }
+.palette .mt { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.palette .mt > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette .mi[aria-selected='true'] { background: var(--accent-tint); color: var(--accent-press); }
 
 /* toast */

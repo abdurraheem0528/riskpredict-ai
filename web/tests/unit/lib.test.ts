@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ago, initials, levelOf, outOf5, pct, signed } from '../../src/lib/format';
 import { __setGazetteer, cleanPortName, placeAll, placeLabel, placeOf, portName } from '../../src/map/geo';
@@ -47,6 +48,11 @@ describe('placing features', () => {
   it('names places', () => {
     expect(placeLabel({ ports: ['CNYTN'], countries: ['CHN'] })).toBe('Yantian, China');
   });
+  it('names an entity with a city by its city and country, and prefers the API line', () => {
+    expect(placeLabel({ city: 'Shenzhen', ports: ['CNYTN'], countries: ['CHN'] })).toBe('Shenzhen, China');
+    expect(placeLabel({ place: 'Hsinchu, Taiwan', city: 'Hsinchu', ports: ['TWKHH'], countries: ['TWN'] })).toBe('Hsinchu, Taiwan');
+    expect(placeLabel({ place: null, city: null, ports: ['CNYTN'], countries: ['CHN'] })).toBe('Yantian, China');
+  });
 });
 
 describe('port names', () => {
@@ -57,6 +63,11 @@ describe('port names', () => {
   it('prefers the UN/LOCODE name and keeps the raw WPI name in the table', () => {
     __setGazetteer({}, { TWKHH: [120.25, 22.617, 'Kao-Hsiung', 'Kaohsiung'], MYPEN: [100.35, 5.417, 'Pulau Pinang', 'Penang (Georgetown)'], JPXXX: [139, 35, 'Somewhere Ko'] });
     expect([portName('TWKHH'), portName('MYPEN'), portName('JPXXX'), portName('NLRTM')]).toEqual(['Kaohsiung', 'Penang', 'Somewhere', 'NLRTM']);
+  });
+  it("names the live test's ports as the API does (engine/places.py, tests/test_places.py)", () => {
+    const ports = JSON.parse(readFileSync('public/map/ports.json', 'utf8')) as Record<string, [number, number, string, string?]>;
+    const names = ['TWKHH', 'MYPEN', 'AEJEA', 'CLSAI', 'VNHPH'].map((c) => cleanPortName(ports[c][3] ?? ports[c][2]));
+    expect(names).toEqual(['Kaohsiung', 'Penang', 'Jebel Ali', 'San Antonio', 'Haiphong']);
   });
 });
 

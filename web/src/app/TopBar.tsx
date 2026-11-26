@@ -55,10 +55,13 @@ export function useWorkspaceState() {
   return { ready, broken, sources, connections };
 }
 
+/** The Register count is of stories (RiskSummary.story_count), not entity × story risks. */
+const storiesText = (n: number) => `${fmtInt(n)} open ${n === 1 ? 'story' : 'stories'}`;
+
 function NavLinks({ section, ready, count, broken, item, onPick }: { section: Section; ready: boolean; count: number | null; broken: boolean; item: 'navl' | 'mi'; onPick?: () => void }) {
   const links: { id: Section; label: string; to: string; extra?: ReactNode; off?: boolean }[] = [
     { id: 'overview', label: 'Overview', to: '/' },
-    { id: 'register', label: 'Register', to: '/register', off: !ready, extra: ready && count != null && count > 0 ? <small>{fmtInt(count)}</small> : null },
+    { id: 'register', label: 'Register', to: '/register', off: !ready, extra: ready && count != null && count > 0 ? <small title={storiesText(count)}>{fmtInt(count)}</small> : null },
     { id: 'scenarios', label: 'Scenarios', to: '/scenarios', off: !ready },
     { id: 'sources', label: 'Sources', to: '/connect', extra: broken ? <span className="rdot" role="img" aria-label="needs attention" /> : null },
   ];
@@ -125,7 +128,7 @@ function NavMenu({ open, onToggle, onClose, label, count, children }: { open: bo
       <div className="navm" ref={ref}>
         <button type="button" className="cap glass navsum" aria-expanded={open} aria-haspopup="true" onClick={onToggle}>
           {label}
-          {count != null && count > 0 && <small className="t12 tnum" style={{ fontWeight: 500 }}>{fmtInt(count)}</small>}
+          {count != null && count > 0 && <small className="t12 tnum" style={{ fontWeight: 500 }} title={storiesText(count)}>{fmtInt(count)}</small>}
           <Icon name="expand" size={14} stroke={1.75} style={{ color: '#5F646C' }} />
         </button>
         {open && (
@@ -217,12 +220,17 @@ function AccountMenu({ open, onToggle, onClose, label }: { open: boolean; onTogg
   const ref = useDismiss(open, onClose);
   const alerts = useAlerts(workspace.id);
   const qc = useQueryClient();
-  const unread = alerts.data?.unread_count ?? 0;
+  const unread = alerts.data?.pages[0]?.unread_count ?? 0;
   const readAll = useMutation({
     mutationFn: () => unwrap(api.POST('/v1/alerts/read-all', { params: { header: wsh(workspace.id) } })),
     onSuccess: () => qc.invalidateQueries({ queryKey: [workspace.id, 'alerts'] }),
   });
-  const items = (alerts.data?.items ?? []).slice(0, 5);
+  // Five at first; "Show all" lists every alert in a scrolling list, loading further pages.
+  const [all, setAll] = useState(false);
+  useEffect(() => { if (!open) setAll(false); }, [open]);
+  const loaded = alerts.data?.pages.flatMap((p) => p.items) ?? [];
+  const items = all ? loaded : loaded.slice(0, 5);
+  const more = !all && (loaded.length > 5 || alerts.hasNextPage);
   return (
     <div style={{ position: 'relative' }} ref={ref}>
       <button type="button" className="cap glass acct" aria-label={unread ? `Account, ${unread} unread alerts` : 'Account'} aria-expanded={open} aria-haspopup="true" onClick={onToggle} style={{ position: 'relative' }}>
@@ -247,26 +255,42 @@ function AccountMenu({ open, onToggle, onClose, label }: { open: boolean; onTogg
           {alerts.isPending && <div className="sk" style={{ height: 36, margin: '6px 18px' }} />}
           {alerts.isError && <span className="t12" style={{ padding: '6px 18px' }}>{errorText(alerts.error)}</span>}
           {alerts.isSuccess && items.length === 0 && <span className="t12" style={{ padding: '6px 18px 10px' }}>No alerts yet.</span>}
-          {items.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              role="menuitem"
-              className="mi"
-              style={{ alignItems: 'flex-start', padding: '8px 12px', flexDirection: 'column', gap: 2, justifyContent: 'center' }}
-              onClick={() => {
-                onClose();
-                if (a.risk_id) navigate(`/risks/${a.risk_id}`);
-                else if (a.connection_id) navigate('/connect');
-              }}
-            >
-              <span style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
-                {!a.read_at && <span className={a.severity === 'critical' ? 'rdot' : 'gdot'} style={a.severity === 'info' ? { background: '#A3A7AE' } : a.severity === 'warning' ? { background: '#DD6248' } : undefined} aria-hidden="true" />}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{a.title}</span>
-              </span>
-              <small>{ago(a.created_at)}</small>
+          <div style={all ? { maxHeight: 'min(360px, 50vh)', overflowY: 'auto', display: 'flex', flexDirection: 'column' } : { display: 'contents' }}>
+            {items.map((a) => {
+              const done = a.risk_status === 'resolved' || a.risk_status === 'dismissed';
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  role="menuitem"
+                  className="mi"
+                  style={{ alignItems: 'flex-start', padding: '8px 12px', flexDirection: 'column', gap: 2, justifyContent: 'center', flex: 'none' }}
+                  onClick={() => {
+                    onClose();
+                    if (a.risk_id) navigate(`/risks/${a.risk_id}`);
+                    else if (a.connection_id) navigate('/connect');
+                  }}
+                >
+                  <span style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
+                    {!a.read_at && !done && <span className={a.severity === 'critical' ? 'rdot' : 'gdot'} style={a.severity === 'info' ? { background: '#A3A7AE' } : a.severity === 'warning' ? { background: '#DD6248' } : undefined} aria-hidden="true" />}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, ...(done ? { color: '#5F646C' } : {}) }}>{a.title}</span>
+                  </span>
+                  <small>{done ? `${a.risk_status === 'resolved' ? 'Resolved' : 'Dismissed'} · ` : ''}{ago(a.created_at)}</small>
+                </button>
+              );
+            })}
+            {all && alerts.hasNextPage && (
+              <button type="button" className="b plain" style={{ height: 40, margin: '2px 6px', fontSize: 13, flex: 'none' }} disabled={alerts.isFetchingNextPage} onClick={() => void alerts.fetchNextPage()}>
+                {alerts.isFetchingNextPage && <span className="spin" />}
+                Load more
+              </button>
+            )}
+          </div>
+          {more && (
+            <button type="button" className="b plain" style={{ height: 40, margin: '2px 6px', fontSize: 13 }} onClick={() => setAll(true)}>
+              Show all
             </button>
-          ))}
+          )}
           <span className="mdiv" />
           <button type="button" role="menuitem" className="mi" onClick={() => void signOut().then(() => { qc.clear(); navigate('/sign-in'); })}>
             Sign out

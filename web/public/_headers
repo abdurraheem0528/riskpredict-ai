@@ -1,4 +1,20 @@
+# Cloudflare Pages response headers. The build (vite.config.ts, scripts/pages-headers.ts)
+# writes dist/_headers with the API origin placeholder in connect-src replaced by the
+# origin of VITE_API_URL, so the policy allows the one API this build talks to.
+# Content-Security-Policy:
+#   script-src   the app's own bundles, and apis.google.com for the Google Picker (lib/picker.ts)
+#   style-src    'unsafe-inline' only for the Picker, which adds its dialog's styles to the page
+#                (the app itself sets styles through the DOM, which CSP does not block)
+#   img-src      data: and blob: for MapLibre's and the map controls' images; Google's image
+#                hosts for the Picker
+#   font-src     Inter is bundled (@fontsource-variable/inter): no font host
+#   connect-src  the API; the map data is served from /map/ here (no tiles, styles or glyphs)
+#   worker-src   MapLibre starts its workers from blob: URLs (child-src for older browsers)
+#   frame-src    the Picker's dialog and Google's sign-in and API frames
+# No 'unsafe-eval' and no inline scripts.
 /*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src 'self' %API_ORIGIN%; worker-src 'self' blob:; child-src 'self' blob:; frame-src https://docs.google.com https://drive.google.com https://accounts.google.com https://content.googleapis.com; manifest-src 'self'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY

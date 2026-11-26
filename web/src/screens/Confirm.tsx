@@ -9,6 +9,7 @@ import { wsh } from '../api/workspace';
 import { ApiError, errorText } from '../api/errors';
 import { useSession, canEdit } from '../app/Session';
 import { useToast } from '../app/Toast';
+import { useWorkspaceState } from '../app/TopBar';
 import { navigate } from '../lib/router';
 import { KINDS, plural, fmtInt, type EntityKind } from '../lib/format';
 import { EntitiesLayer } from '../map/layers';
@@ -31,6 +32,8 @@ export function Confirm({ id }: { id: string }) {
   const source = useSource(ws, id);
   const mapping = useMapping(ws, id);
   const all = useSources(ws);
+  const { ready } = useWorkspaceState();
+  const firstRun = all.isSuccess && !ready; // the step count only during the first connect flow
   const qc = useQueryClient();
   const toast = useToast();
 
@@ -161,7 +164,7 @@ export function Confirm({ id }: { id: string }) {
       <aside className="sheet w460 tall split glass" aria-label="Check how we read your sheet">
         <Grab />
         <div className="sbody">
-        <SheetHead back={{ to: '/connect', label: 'Sources', onClick: () => navigate('/connect') }} right={<span className="t12" style={{ paddingRight: 12 }}>Step 2 of 3</span>} />
+        <SheetHead back={{ to: '/connect', label: 'Sources', onClick: () => navigate('/connect') }} right={firstRun ? <span className="t12" style={{ paddingRight: 12 }}>Step 2 of 3</span> : undefined} />
         {source.isPending || mapping.isPending ? (
           <SkeletonRows n={6} h={48} />
         ) : source.isError || mapping.isError ? (

@@ -25,8 +25,8 @@ const LEGEND: Partial<Record<RiskCategory, string>> = {
   cyber: 'Your software, checked against known exploited flaws',
 };
 
-export function RiskPlace(r: Pick<Risk, 'entity' | 'countries' | 'ports'> & { story?: Risk['story'] }) {
-  const where = placeLabel({ ports: r.ports.slice(0, 1), countries: r.countries });
+export function RiskPlace(r: Pick<Risk, 'entity' | 'countries' | 'ports' | 'place'> & { story?: Risk['story'] }) {
+  const where = placeLabel({ place: r.place, city: r.entity.city, ports: r.ports.slice(0, 1), countries: r.countries });
   // One story that reaches several entities is listed once, with the others counted.
   const more = r.story && r.story.risk_count > 1 ? ` and ${r.story.risk_count - 1} more` : '';
   return where && !more ? `${r.entity.name} · ${where}` : `${r.entity.name}${more}`;
@@ -56,26 +56,56 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
   const placedEntities = usePlaced(entities.data);
   const placedRisks = usePlaced(mapRisks.data);
 
-  // Fit the business once, when its entities first arrive.
+  // The one entity the register is filtered to: its name, and its point on the map.
+  const focusFeature = entityFilter ? (entities.data?.features.find((f) => f.id === entityFilter) ?? null) : null;
+  const focusName = focusFeature?.properties.name ?? (entityFilter ? items.find((r) => r.entity.id === entityFilter)?.entity.name : null) ?? null;
+  const [focusFc, othersFc] = useMemo(() => {
+    if (!entityFilter || !placedEntities) return [null, placedEntities?.fc ?? null];
+    const fs = placedEntities.fc.features;
+    const focus = fs.filter((f) => f.properties._id === entityFilter);
+    if (!focus.length) return [null, placedEntities.fc];
+    return [{ ...placedEntities.fc, features: focus }, { ...placedEntities.fc, features: fs.filter((f) => f.properties._id !== entityFilter) }];
+  }, [entityFilter, placedEntities]);
+
+  // Fit the business when its entities first arrive, or the one entity the register is
+  // filtered to (again whenever the filter changes).
   const { map } = useMap();
-  const fitted = useRef(false);
+  const fitted = useRef<string | null>(null);
   const fitBox = useMemo(() => boxOf(placedEntities?.fc), [placedEntities]);
+  const focusBox = useMemo(() => boxOf(focusFc), [focusFc]);
   useEffect(() => {
-    if (!map || fitted.current || !fitBox) return;
-    fitted.current = true;
+    const key = entityFilter ?? '';
+    if (!map || fitted.current === key) return;
+    if (entityFilter) {
+      if (!placedEntities) return; // not placed yet
+      fitted.current = key;
+      // An entity with no place on the map keeps the whole business in view.
+      if (focusBox) fitTo(map, focusBox, sheetPadding('left', 344), 4);
+      else if (fitBox) fitTo(map, fitBox, sheetPadding('left', 344));
+      return;
+    }
+    if (!fitBox) return;
+    fitted.current = key;
     fitTo(map, fitBox, sheetPadding('left', 344));
-  }, [map, fitBox]);
+  }, [map, fitBox, focusBox, entityFilter, placedEntities]);
 
   const pickPlace = (id: string) => (mode === 'overview' ? setPicked(id) : navigate(`/risks/${id}`));
 
   const byCategory = summary.data?.stories_by_category ?? summary.data?.by_category;
   const chips = CATEGORY_ORDER.filter((c) => (byCategory?.[c] ?? 0) > 0);
+  // A story is one feed item or event, however many entities it reaches; a risk is one
+  // entity × story. The headline counts stories, with risks second.
   const open = summary.data?.story_count ?? summary.data?.open_count ?? 0;
+  const riskRows = summary.data?.open_count ?? open;
+  const storyWord = summary.data?.story_count != null ? 'open story' : 'open risk';
+  const headline = plural(open, storyWord, storyWord === 'open story' ? 'open stories' : 'open risks');
+  const secondary = summary.data?.story_count != null && riskRows !== open ? plural(riskRows, 'risk') : null;
   const noRisks = summary.isSuccess && open === 0;
 
   return (
     <>
-      <EntitiesLayer data={placedEntities?.fc ?? null} labels="names" />
+      <EntitiesLayer data={othersFc} labels="names" muted={!!focusFc} />
+      {focusFc && <EntitiesLayer id="focus" data={focusFc} ring labels="strong" />}
       <RiskPlacesLayer data={(placedRisks?.fc as FeatureCollection<Point, never>) ?? null} callouts={5} selected={selected?.id ?? null} onPick={pickPlace} />
 
       <aside className="sheet w344 glass" aria-label={mode === 'overview' ? 'Risks' : 'Risk register'}>
@@ -91,15 +121,21 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
             <div style={{ marginTop: 8 }}><ErrorState error={summary.error} retry={() => void summary.refetch()} /></div>
           ) : mode === 'overview' ? (
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: secondary ? 'flex-end' : 'baseline', gap: 8, minWidth: 0 }}>
                 <span className="figxl">{summary.data.max_score == null ? '0' : Math.round(summary.data.max_score)}</span>
-                <span className="t13" style={{ fontWeight: 600, color: '#141518' }}>{plural(open, 'open risk')}</span>
+                <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, paddingBottom: secondary ? 7 : 0 }}>
+                  <span className="t13" style={{ fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>{headline}</span>
+                  {secondary && <span className="t12" style={{ whiteSpace: 'nowrap' }} title="One risk for each entity a story reaches">{secondary}</span>}
+                </span>
               </div>
               <span className="t12" style={{ textAlign: 'right' }}>Scored {ago(summary.data.last_scored_at)}</span>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
-              <span className="h2" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{plural(open, 'open risk')}</span>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                <span className="h2" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{headline}</span>
+                {secondary && <span className="t13" style={{ flex: 'none' }} title="One risk for each entity a story reaches">{secondary}</span>}
+              </span>
               <div className="segw" role="group" aria-label="Sort">
                 <button type="button" className={`sg${sort === '-score' ? ' on' : ''}`} aria-pressed={sort === '-score'} onClick={() => setSort('-score')}>Highest first</button>
                 <button type="button" className={`sg${sort === '-last_seen_at' ? ' on' : ''}`} aria-pressed={sort === '-last_seen_at'} onClick={() => setSort('-last_seen_at')}>Newest first</button>
@@ -127,7 +163,9 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
         <div className="sec" style={{ paddingTop: 10, paddingBottom: 10 }}>
           {entityFilter && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span className="lbl">One entity</span>
+              <span className="lbl" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={focusName ?? undefined}>
+                {focusName ?? 'One entity'}
+              </span>
               <Link to="/register" className="b plain" style={{ height: 44, padding: '0 10px', fontSize: 13 }}>Show all</Link>
             </div>
           )}

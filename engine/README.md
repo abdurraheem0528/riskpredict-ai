@@ -36,6 +36,21 @@ static table that the API serves on the disruptions layer.
 Install with `pip install -r engine/requirements.txt`: the analysis requirements plus
 `rapidfuzz` (MIT).
 
+**Places (contract §5.11).** `engine.city_position(city, countries)` gives a city's
+position from `engine/data/cities15000.tsv.gz`, matched only within the given countries;
+the mapper uses it for a row with a city and no latitude/longitude, so *Formosa
+Microcircuits* (Hsinchu, Taiwan, port TWKHH) sits in Hsinchu, not at the port of
+Kaohsiung 250 km away, and radius matching measures from Hsinchu. `engine.port_name("TWKHH")`
+is "Kaohsiung", by the same rule as the map.
+
+### Data files and attribution
+
+| File | Source | Licence |
+|---|---|---|
+| `data/cities15000.tsv.gz` | [GeoNames](https://www.geonames.org/) `cities15000` (cities with 15,000+ people), via the copy in the PyPI package `geonamescache` 3.0.2; trimmed by `data/build_places.py` to country, position (4 dp), population, name and Latin match keys | CC BY 4.0 |
+| `data/ports.tsv` | `web/public/map/ports.json`: NGA World Port Index and UNECE UN/LOCODE names (see `web/public/map/ATTRIBUTION.md`) | Public domain; free to use |
+| `data/chokepoints.json`, `data/sea_lanes.json`, `data/hs_chapters.json` | Written for this project | |
+
 ## The rules, with examples
 
 Every example below is real engine output for test-only inputs (`tests/`).
@@ -51,13 +66,26 @@ pair counts once, with its best match.
 **Anchors (engine 1.2.0, contract §5.9).** A commodity, HS-chapter or currency match
 never makes a risk on its own for an entity with a place: it only strengthens a match of
 the same item on a country, port, position, chokepoint, company name or sanctions name.
-So a story about chip export rules and China reaches the supplier *in* China (and says
-"chips like those it supplies"), not every supplier of HS chapter 85. Market-wide moves
+So a story about chip export rules and China reaches the supplier *in* China, not every
+supplier of HS chapter 85. Since engine 1.3.0 a code with 4 or more digits is matched on
+its own 4-digit heading (`engine/data/hs_chapters.json`), so "AI chips" (8542) no longer
+strengthens a printed-circuit-board maker (8534), and the sentence names the supplier's
+own product ("… circuit boards, which is in the same product group (HS 8534) as the
+printed circuit boards Pearl River PCB Works supplies"). Market-wide moves
 (an `fx.rate` flag, a `market.*` event) may make a risk alone, capped at score 50.
 Suppliers, sites and ports get chokepoints inferred from their port's country
 (`engine/data/sea_lanes.json`) or position, at half a declared route's confidence. One
 feed item that reaches several entities shares `factors.story`, so the API can show it
 once.
+
+**Central countries (engine 1.3.0, contract §5.10, `engine/relevance.py`).** A news
+country counts only when it is central to the article: named in the title (also as
+"Chinese", or "Beijing" for the government) or its tag, or the first place GDELT located
+in it. A passing mention deep inside a long article does not count. Sanctions news also
+needs the country to be the target ("sanctions on Chinese chipmakers", not "EU sanctions
+on Russia" for a China supplier); cyber news needs a national-scale incident ("nationwide
+cyberattack on rail network") or the supplier's own sector ("German sensor maker" for a
+sensor supplier).
 
 | Rule | Example | `c` |
 |---|---|---|
@@ -131,10 +159,14 @@ has r = 1.
 ### 4. Likelihood (§5.6)
 
 Each item gives `p = s × r × c`. The items of one risk (same entity, category and
-driver) combine by noisy-OR: `L = min(0.99, 1 − Π(1 − p))`. The strongest 50 are kept,
-stored as evidence, and are exactly the items L is computed from. For example, an
-`EUR/TRY` robust-z flag (p 0.697) and an IsolationForest flag on the same day (p 0.488)
-combine to L = 1 − 0.303 × 0.512 = **0.845**.
+driver) combine by a noisy-OR in which each further item counts less (engine 1.3.0):
+sorted strongest first, `L = min(0.99, 1 − Π(1 − 0.5^(k−1) × p_k))`. One item counts in
+full; the second half, the third a quarter, so L always stays below twice the strongest
+`p` (seven weak items of 0.3 give 0.49, where the plain noisy-OR of 1.2.0 gave 0.92).
+The strongest 50 are kept, stored as evidence, and are exactly the items L is computed
+from. For example, an `EUR/TRY` robust-z flag (p 0.697) and an IsolationForest flag on
+the same day (p 0.488) combine to L = 1 − 0.303 × (1 − 0.5 × 0.488) = **0.771** (1.2.0:
+0.845).
 
 ### 5. Impact (§6)
 
@@ -158,8 +190,8 @@ L = 0.977, the score is **97.7**.
 | Sanctions designation may match Acme Trading LLC | 0.977 | 1.000 | 97.7 |
 | Earthquake near Osaka plant | 0.567 | 0.675 | 38.3 |
 | Vulnerability in PyPI requests | 0.726 | 0.450 | 32.7 |
-| Port disruption at port NLRTM affecting Shanghai-Rotterdam | 0.660 | 0.400 | 26.4 |
-| TRY moved sharply against EUR (Turkish lira) | 0.845 | 0.300 | 25.3 |
+| Port disruption at the port of Rotterdam affecting Shanghai-Rotterdam | 0.660 | 0.400 | 26.4 |
+| TRY moved sharply against EUR (Turkish lira) | 0.771 | 0.300 | 23.1 |
 | Shipping disruption near Suez Canal on route Shanghai-Rotterdam | 0.370 | 0.400 | 14.8 |
 
 Each risk's `explanation` spells out the same arithmetic, for example: *"1 item(s)

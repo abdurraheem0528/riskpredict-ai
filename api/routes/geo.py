@@ -95,7 +95,8 @@ def map_risks(
             key, ptype, pkey, label = f"point:{r['entity_id']}", "point", str(r["entity_id"]), r["entity_name"]
             geom = {"type": "Point", "coordinates": [r["lon"], r["lat"]]}
         elif r["ports"]:
-            key, ptype, pkey, label, geom = f"port:{r['ports'][0]}", "port", r["ports"][0], None, None
+            pkey = r["ports"][0]
+            key, ptype, label, geom = f"port:{pkey}", "port", engine_iface.port_name(pkey), None
         elif r["countries"]:
             key, ptype, pkey, label, geom = f"country:{r['countries'][0]}", "country", r["countries"][0], None, None
         else:

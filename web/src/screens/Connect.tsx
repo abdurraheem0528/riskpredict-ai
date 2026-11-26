@@ -9,6 +9,7 @@ import { wsh } from '../api/workspace';
 import { errorText } from '../api/errors';
 import { useSession, canAdmin, canEdit } from '../app/Session';
 import { useToast } from '../app/Toast';
+import { useWorkspaceState } from '../app/TopBar';
 import { navigate, useLocation } from '../lib/router';
 import { ago, fmtInt, fmtTime, plural } from '../lib/format';
 import { pickSpreadsheet } from '../lib/picker';
@@ -42,6 +43,10 @@ export function Connect() {
   const placed = usePlaced(entities.data);
   const toast = useToast();
   const qc = useQueryClient();
+  // "Step 1 of 3" belongs to the first connect flow only: once a source is live this
+  // screen is where connected tools are managed, not a step.
+  const { ready } = useWorkspaceState();
+  const firstRun = sources.isSuccess && !ready;
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<string | null>(returned);
 
@@ -103,7 +108,7 @@ export function Connect() {
       <EntitiesLayer data={placed?.fc ?? null} labels="names" />
       <aside className="sheet glass" aria-label="Connect a source">
         <Grab />
-        <SheetHead back={{ to: '/', label: 'Overview', onClick: () => navigate('/') }} right={<span className="t12" style={{ paddingRight: 12 }}>Step 1 of 3</span>} />
+        <SheetHead back={{ to: '/', label: 'Overview', onClick: () => navigate('/') }} right={firstRun ? <span className="t12" style={{ paddingRight: 12 }}>Step 1 of 3</span> : undefined} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: -6 }}>
           <h1 className="h1">Connect a source</h1>
           <span className="body15">Pick wherever you already keep suppliers, shipments or invoices. Access is read-only, and changes sync on their own.</span>

@@ -1,1 +1,5 @@
+# Cloudflare Pages: the first rule that matches wins, so specific rules go above the
+# catch-all. `/sources` is the nav's name for the Connect screen (the router aliases it
+# too); it matches only that exact path, never `/sources/:id/confirm`.
+/sources  /connect  302
 /*  /index.html  200

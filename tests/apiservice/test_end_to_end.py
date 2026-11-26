@@ -149,9 +149,12 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         assert point["properties"]["story_count"] == 2
         assert places["country:ARE"]["properties"]["top_categories"] == ["sanctions"]
         assert places["port:NLRTM"]["properties"]["top_categories"] == ["logistics"]  # a route's ports: sorted
+        assert places["port:NLRTM"]["properties"]["label"] == "Rotterdam"  # the port's display name
         assert len(places) == 3  # the software risk has no place
+        assert by_cat["sanctions"]["place"] == "United Arab Emirates" and by_cat["sanctions"]["entity"]["city"] is None
         ents = client.get("/v1/map/entities", headers=hdr(me)).json()["features"]
         assert len(ents) == len(ENTITIES)
+        assert {f["properties"]["name"]: f["properties"]["place"] for f in ents}["Kansai Precision Parts"] == "Japan"
         dis = {f["id"]: f["properties"] for f in client.get("/v1/map/disruptions", headers=hdr(me)).json()["features"]}
         suez = dis["chokepoint:suez"]
         assert suez["status"] == "disrupted" and suez["event_ids"] == ["portwatch:pw-e2e-1"]
@@ -171,6 +174,17 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         versions = owner_db.execute("SELECT DISTINCT engine_version FROM biz.risks WHERE workspace_id = %s", (ws,))
         assert [r["engine_version"] for r in versions.fetchall()] == [engine.ENGINE_VERSION]
 
+        # An alert the earlier rule raised for sanctions *news* (not a list name match): the
+        # next pass marks it read (only a name match is a "Possible sanctions match").
+        owner_db.execute(
+            "INSERT INTO biz.alerts (workspace_id, risk_id, kind, severity, title, dedupe_key) VALUES"
+            " (%s, %s, 'sanctions_match', 'critical', 'Possible sanctions match: Sanctions news news on chips', 'old:1')",
+            (ws, by_cat["natural_hazard"]["id"]),
+        )  # fmt: skip
+        [noisy] = [a for a in client.get("/v1/alerts", headers=hdr(me)).json()["items"] if a["title"].endswith("chips")]
+        assert noisy["title"] == "Possible sanctions match: Sanctions news on chips"  # the old doubling, said once
+        assert noisy["risk_status"] == "open" and noisy["read_at"] is None
+
         # --- delisting: the full-list job deletes the entry; the risk is resolved --------------
         owner_db.execute("DELETE FROM feeds.sanctions_entries WHERE entity_id = '36001'")
         feeds_ran(owner_db)
@@ -180,5 +194,26 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         assert gone["status"] == "resolved" and gone["evidence"][0]["still_in_feeds"] is False
         assert [h["reason"] for h in gone["history"]] == ["created", "resolved_by_engine"]
         assert client.get("/v1/risks/summary", headers=hdr(me)).json()["open_count"] == 4
+        # its alert is read now and says the risk is resolved; the noisy one is read too
+        by_title = {a["title"]: a for a in client.get("/v1/alerts", headers=hdr(me)).json()["items"]}
+        match = by_title["Possible sanctions match: Sanctions listing may match Nordwind Holding"]
+        assert match["risk_status"] == "resolved" and match["read_at"] is not None
+        assert by_title["Possible sanctions match: Sanctions news on chips"]["read_at"] is not None
+
+        # A resolved risk an older engine wrote keeps its raw-formula explanation in the
+        # database; the API words it from the stored evidence with the engine's own texts.
+        owner_db.execute("UPDATE biz.risks SET factors = factors - 'explain', explanation = '1 item(s): noisy-OR 0.9'"
+                         " WHERE id = %s", (by_cat["sanctions"]["id"],))  # fmt: skip
+        old = client.get(f"/v1/risks/{by_cat['sanctions']['id']}", headers=hdr(me)).json()
+        assert old["explanation"] == "Nordwind Holding closely matches “Nordwind Holding AG”, an alias on a US sanctions list."
+
+        # A user dismissing a risk deals with its alerts too.
+        owner_db.execute(
+            "INSERT INTO biz.alerts (workspace_id, risk_id, kind, severity, title, dedupe_key) VALUES"
+            " (%s, %s, 'risk_new', 'warning', 'New risk: requests', 'old:2')", (ws, by_cat["cyber"]["id"]),
+        )  # fmt: skip
+        client.patch(f"/v1/risks/{by_cat['cyber']['id']}", headers=hdr(me), json={"status": "dismissed"}).raise_for_status()
+        [dismissed] = [a for a in client.get("/v1/alerts", headers=hdr(me)).json()["items"] if a["title"] == "New risk: requests"]
+        assert dismissed["read_at"] is not None and dismissed["risk_status"] == "dismissed"
     finally:
         worker.db.close()

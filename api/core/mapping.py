@@ -341,7 +341,9 @@ def suggest(settings: Settings, columns: list[dict]) -> tuple[dict, str]:
 # Part of every row digest (and so of a source's content hash). Bump it when ``apply`` reads
 # the same row differently, so the worker's next re-read re-syncs each source once.
 # 2: the spend currency is read from an "Annual spend (USD)" header.
-APPLY_RULES_VERSION = 2
+# 3: a row with a city and no latitude/longitude is placed at the city (GeoNames), not left
+#    for the dashboard to place at its port.
+APPLY_RULES_VERSION = 3
 
 
 @dataclass
@@ -593,6 +595,12 @@ def apply(
             problem(row, lat_col or lon_col, "", "latitude and longitude must both be present")
         elif lat is not None:
             e.lat, e.lon = lat, lon
+        if e.lat is None and e.city and e.kind in POINT:
+            # Position precedence: the row's lat/lon, then its city (within its countries, or
+            # its ports' countries when it names none), then (on the map) its port or country.
+            pos = engine_iface.city_position(e.city, e.countries or [p[:2] for p in e.ports])
+            if pos is not None:
+                e.lat, e.lon = pos
         if e.annual_spend is not None and not e.spend_currency and spend_header_ccy:
             e.spend_currency = spend_header_ccy  # "Annual spend (USD)": the header names it
         if e.annual_spend is not None and not e.spend_currency:
