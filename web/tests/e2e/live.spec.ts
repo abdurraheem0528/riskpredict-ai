@@ -5,10 +5,13 @@ import { http, HttpResponse } from 'msw';
 import { test, expect } from './fixtures';
 import { API, entities, iso, riskDetail, risks, summary } from '../fixtures/data';
 
-test.use({ reducedMotion: 'no-preference' });
+// Motion on keeps the map drawing every frame (lane flow, rotation, the travelling line); in
+// CI that is software WebGL, so this runs at 1× pixel density to keep frames affordable.
+test.use({ reducedMotion: 'no-preference', viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1 });
 
 test('a new risk ripples on the map, then the row moves', async ({ page, network }, info) => {
   test.skip(info.project.name !== 'desktop', 'one width is enough for the sequence');
+  test.setTimeout(120_000);
   const lumen = entities.find((e) => e.name === 'Lumen Display Co')!;
   const base = risks.find((r) => r.entity.id === lumen.id && r.category === 'geopolitical')!;
   const fresh = {
@@ -71,16 +74,22 @@ test('a new risk ripples on the map, then the row moves', async ({ page, network
       if (!w.rpSeen.row && document.querySelector(`[data-motion-key="${id}"]`)) w.rpSeen.row = performance.now();
     };
     new MutationObserver(note).observe(document.body, { subtree: true, childList: true });
-    document.dispatchEvent(new Event('visibilitychange'));
   }, fresh.id);
+  // (a poll already in flight ignores the nudge: nudge until the event has been served)
+  await expect
+    .poll(async () => {
+      if (!sent) await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      return sent;
+    }, { timeout: 20_000, intervals: [100, 250, 500] })
+    .toBe(true);
   const seen = () => page.evaluate(() => (window as unknown as { rpSeen: Record<string, number> }).rpSeen);
   await expect.poll(async () => (await seen()).ripple ?? 0, { timeout: 10_000 }).toBeGreaterThan(0);
 
   // then the list updates: the new risk leads, the old first row moves down a place
-  await expect(page.getByRole('button', { name: /Port strike at Kaohsiung/ })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: /Port strike at Kaohsiung/ })).toBeVisible({ timeout: 20_000 });
   const t = await seen();
   expect(t.row).toBeGreaterThan(t.ripple);
-  await expect.poll(async () => (await top.boundingBox())!.y, { timeout: 5_000 }).toBeGreaterThan(before + 20);
-  await expect(page.locator('.figxl')).toHaveText('88', { timeout: 5_000 });
+  await expect.poll(async () => (await top.boundingBox())!.y, { timeout: 10_000 }).toBeGreaterThan(before + 20);
+  await expect(page.locator('.figxl')).toHaveText('88', { timeout: 10_000 });
   expect(sent).toBe(true);
 });

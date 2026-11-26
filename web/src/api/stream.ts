@@ -126,7 +126,9 @@ export class LiveStream {
     this.polling = true;
     this.clear();
     if (this.status !== 'live') this.set(this.attempt === 0 ? 'connecting' : 'retrying');
+    // A tab hidden while this poll runs makes the next one a catch-up too.
     const batch: StreamBatch = { events: [], initial: this.cursor === null, catchUp: this.wasHidden, resync: false };
+    this.wasHidden = false;
     try {
       for (let page = 0; page < MAX_PAGES; page++) {
         const query = this.cursor === null ? {} : { after: this.cursor };
@@ -145,13 +147,13 @@ export class LiveStream {
         this.cursor = res.next;
         if (!res.more) break;
       }
-      this.wasHidden = false;
       if (this.onBatch && (batch.events.length || batch.resync)) this.onBatch(batch);
       this.attempt = 0;
       this.set(this.visible() ? 'live' : 'off');
       this.schedule(POLL_MS);
     } catch {
       if (this.stopped) return;
+      this.wasHidden ||= batch.catchUp; // the catch-up has not happened yet
       this.set('retrying');
       this.schedule(backoffMs(this.attempt++));
     } finally {

@@ -82,7 +82,20 @@ export function caption(fx: FxMap, at: LonLat, title: string, source: string | n
     const x = p.x + ox, y = p.y + oy;
     return a === 'left' ? [x, y - h / 2, x + w, y + h / 2] : a === 'right' ? [x - w, y - h / 2, x, y + h / 2] : a === 'bottom' ? [x - w / 2, y - h, x + w / 2, y] : [x - w / 2, y, x + w / 2, y + h];
   };
-  const clear = (bx: Box) => fits(area, bx) && ![...captions].some((o) => bx[0] < o[2] && bx[2] > o[0] && bx[1] < o[3] && bx[3] > o[1]);
+  // Clear of other captions, and of the pills, sites and chokepoints drawn as HTML markers.
+  const origin = fx.map.getContainer().getBoundingClientRect();
+  const marks: Box[] = [];
+  for (const m of fx.map.getContainer().querySelectorAll<HTMLElement>('.maplibregl-marker:not(.rp-fx)')) {
+    const child = (m.firstElementChild as HTMLElement | null) ?? m;
+    if (m.style.opacity === '0' || getComputedStyle(child).opacity === '0') continue; // turned away, or not shown
+    // the marker with what hangs off it (a chokepoint's label sits outside its diamond)
+    for (const el of [child, ...child.querySelectorAll<HTMLElement>('*')]) {
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height) marks.push([r.left - origin.left, r.top - origin.top, r.right - origin.left, r.bottom - origin.top]);
+    }
+  }
+  const hit = (bx: Box, o: Box) => bx[0] < o[2] && bx[2] > o[0] && bx[1] < o[3] && bx[3] > o[1];
+  const clear = (bx: Box) => fits(area, bx) && ![...captions, ...marks].some((o) => hit(bx, o));
   const side = SIDES.find((s) => clear(box(s))) ?? SIDES[0];
   const taken = box(side);
   captions.add(taken);
@@ -90,6 +103,7 @@ export function caption(fx: FxMap, at: LonLat, title: string, source: string | n
   const el = document.createElement('div');
   el.className = 'rp-fx';
   el.setAttribute('aria-hidden', 'true');
+  el.style.zIndex = '10'; // over the pills
   el.append(card);
   const m = new fx.lib.Marker({ element: el, anchor: side[0], offset: side[1], opacityWhenCovered: '0', subpixelPositioning: true }).setLngLat(at).addTo(fx.map);
   setTimeout(() => {
