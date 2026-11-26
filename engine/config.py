@@ -51,6 +51,14 @@ class EngineConfig:
     )
     # --- likelihood (§5.6) ------------------------------------------------------------
     likelihood_cap: float = 0.99
+    # Engine 1.3.0: weighted noisy-OR, L = min(cap, 1 − Π_k (1 − decay^(k−1) × p_k)), the items
+    # sorted strongest first. The strongest item counts in full (one strong item scores as
+    # before); the 2nd counts half, the 3rd a quarter, … Plain noisy-OR (decay 1) let seven weak
+    # country matches of 0.3 reach 0.92 ("92% likely"); with 0.5 they reach 0.49. Since
+    # L ≤ Σ w_k p_k and the weights sum to < 1 / (1 − decay) = 2, the likelihood is always below
+    # twice the strongest item's contribution: weak items cannot add up to "likely".
+    # 1.0 restores the plain noisy-OR.
+    likelihood_decay: float = 0.5
     # --- signal s (§5.4) --------------------------------------------------------------
     default_severity: float = 0.5  # gdacs / usgs / portwatch / osv without a severity
     eonet_major_signal: float = 0.5  # wildfire, volcano, severe_storm, flood
@@ -70,6 +78,10 @@ class EngineConfig:
         default_factory=lambda: _frozen({"site": 0.8, "supplier": 0.6, "customer": 0.5, "route": 0.5, "port": 0.5})
     )
     news_country_factor: float = 0.6
+    # Engine 1.3.0 (§5.10): a news country match needs the country to be central (title, tag or
+    # first located place); a sanctions one needs it to be the target of the measure, found in
+    # the title within this many words of the sanctions word ("sanctions on Chinese chipmakers").
+    sanctions_target_window: int = 5
     geo_min_confidence: float = 0.05
     radius_km: Mapping[str, float] = field(
         default_factory=lambda: _frozen(

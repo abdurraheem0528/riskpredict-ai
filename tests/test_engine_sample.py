@@ -32,12 +32,19 @@ def test_the_sheet_maps_with_the_spend_currency_from_the_header(sample):
 
 
 def test_after_numbers(sample):
-    """The "after" column of the PR's before/after table (the "before" was 42 risks, top 49.2,
-    3 Medium; recorded with the 1.1.0 engine on this same sample)."""
+    """The "after" column of the PR's before/after table (1.1.0: 42 risks, top 49.2, 3 Medium;
+    1.2.0: 20 risks, 13 stories, top 31.0; recorded on this same sample).
+
+    1.3.0 changes two things here: the sanctions risk of Pearl Delta Power Supplies (power
+    adapters, HS 8504) is no longer strengthened by "chips" (that was a chapter-85 match; its own
+    heading 8504 is not chips), so its score falls from 31.0 to 16.4 and the KRW move (24.8) is
+    the top risk; and the typhoon story no longer reaches Saigon Cable Assembly through
+    "electronics" (HS 8544 is wire and cable), so that risk falls below the minimum score.
+    Likelihoods of multi-item risks are a little lower (each further item counts half as much)."""
     ents, out, _ = sample
     s = summary(ents, out)
-    assert (s["risks"], s["stories"], s["max"]) == (20, 13, 31.0)
-    assert s["bands"] == {"critical": 0, "high": 0, "medium": 0, "low": 20}
+    assert (s["risks"], s["stories"], s["max"]) == (19, 12, 24.8)
+    assert s["bands"] == {"critical": 0, "high": 0, "medium": 0, "low": 19}
 
 
 def test_no_risk_rests_on_a_commodity_or_hs_chapter_alone(sample):
@@ -52,12 +59,14 @@ def test_a_china_chip_story_does_not_reach_the_malaysian_supplier(sample):
     _, out, by = sample
     penang = by["Penang Semicon Assembly"].id
     assert not [a for a in out if a.entity_id == penang and a.category == "sanctions"]
-    # it reaches the supplier *in* China, where the chip mention strengthens the country match
+    # it reaches the supplier *in* China, the target of the measures; since 1.3.0 the chip mention no
+    # longer strengthens the match, because the supplier makes power adapters (HS 8504), not chips
     [china] = [a for a in out if a.entity_id == by["Pearl Delta Power Supplies"].id and a.category == "sanctions"]
-    assert china.evidence[0].match_type == "country" and china.evidence[0].snapshot["supported_by"]["match_value"] == "HS 85"
+    assert china.evidence[0].match_type == "country"
+    assert all("supported_by" not in e.snapshot for e in china.evidence)
+    assert {e.event_raw_id for e in china.evidence} == {"s-chips-1", "s-chips-2", "s-chips-3"}
     assert china.explanation == (
-        "3 recent news reports about sanctions involving China mention chips like those "
-        "Pearl Delta Power Supplies supplies (HS 8504)."
+        "3 recent news reports describe sanctions aimed at China, where Pearl Delta Power Supplies is based."
     )
 
 
@@ -86,10 +95,18 @@ def test_texts_are_plain(sample):
                                       "natural_hazard", "cyber_incident", "labour_action", "financial_stress"])  # fmt: skip
 def test_news_titles_say_news_once_for_every_category(tag_type):
     sup = ent("s", "supplier", name="Acme Parts", countries=["JPN"])
-    n = news("n1", tag(tag_type, 0.9, countries=["JPN"]))
+    # 1.3.0 (§5.10): a sanctions country match needs the country to be the target, a cyber one a
+    # national-scale incident; the other categories only need Japan to be central (its tag).
+    title = {"sanctions": "New sanctions on Japan", "cyber_incident": "Nationwide outage after cyberattack in Japan"}
+    n = news("n1", tag(tag_type, 0.9, countries=["JPN"]), title=title.get(tag_type))
     [a] = assess([sup], snap([n]), base_currency=None)
     assert a.title.count("news") == 1 and a.title.endswith("in Japan affecting Acme Parts"), a.title
-    two = assess([sup], snap([n, news("n2", tag(tag_type, 0.9, countries=["JPN"]))]), base_currency=None)[0]
+    n2 = news("n2", tag(tag_type, 0.9, countries=["JPN"]), title=title.get(tag_type))
+    two = assess([sup], snap([n, n2]), base_currency=None)[0]
+    if tag_type == "sanctions":
+        assert two.explanation == "2 recent news reports describe sanctions aimed at Japan, where Acme Parts is based."
+        assert a.explanation == "A recent news report describes sanctions aimed at Japan, where Acme Parts is based."
+        return
     assert two.explanation.startswith("2 recent news reports about ") and " mention Japan, " in two.explanation
     assert a.explanation.startswith("A recent news report about ") and " mentions Japan, " in a.explanation
 

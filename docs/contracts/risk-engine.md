@@ -126,7 +126,7 @@ and no full scans of `feeds.series`.
 | `fingerprint` | `"<entity_id>\|<category>\|<driver>"`; driver is `<match_type>:<match_value>` of the strongest evidence, except geo matches, which use `geo_radius:near` so that several quakes near one site are one risk |
 | `category` | §4 |
 | `title` | template, e.g. `"Earthquake near Osaka plant"`, `"Sanctions designation may match Acme Trading LLC"`, `"Exploited vulnerability in Microsoft Exchange"` (≤ 300 chars) |
-| `explanation` | deterministic text (no AI): one plain sentence saying what reached the entity and through what, e.g. "3 recent news reports about sanctions involving China mention chips like those Pearl Delta Power Supplies supplies (HS 8504)." The numbers are in `factors.explain` (engine 1.2.0) |
+| `explanation` | deterministic text (no AI): one plain sentence saying what reached the entity and through what, e.g. "3 recent news reports describe sanctions aimed at China, and one mentions circuit board, which is in the same product group (HS 8534) as the printed circuit boards Pearl River PCB Works supplies." The numbers are in `factors.explain` (engine 1.2.0) |
 | `likelihood`, `impact` | §5, §6 |
 | `factors` | `RiskFactors`, below |
 | `countries`, `ports`, `lat`, `lon` | for the map: the entity's position if it has one, else the matched country/port |
@@ -137,12 +137,12 @@ and no full scans of `feeds.series`.
 
 ```json
 {
-  "likelihood": {"method": "noisy_or", "value": 0.62,
+  "likelihood": {"method": "noisy_or", "value": 0.62, "decay": 0.5,
                  "items": [{"evidence_key": "event:usgs:us6000abcd", "signal": 0.71, "recency": 0.93,
-                            "match_confidence": 0.88, "contribution": 0.58}]},
+                            "match_confidence": 0.88, "contribution": 0.58, "weight": 1.0}]},
   "impact": {"value": 0.68, "criticality": "high", "criticality_weight": 0.75,
              "exposure_share": 0.12, "exposure_norm": 0.48, "category_multiplier": 0.9},
-  "engine_version": "1.2.0",
+  "engine_version": "1.3.0",
   "story": "natural_hazard|event:usgs:us6000abcd",
   "explain": {"matched": {"match_type": "geo_radius", "match_value": "12 km", "label": "distance: 12 km",
                           "matched_text": null, "inferred_from": null, "supported_by": null},
@@ -156,9 +156,12 @@ and no full scans of `feeds.series`.
 }
 ```
 
-`story` and `explain` are new in engine 1.2.0 (§5.9); `likelihood.capped_from` appears only on
-a capped market-only risk. A risk written by an older engine has neither until it is
-re-scored, which the worker does on its next run (§9).
+`story` and `explain` are new in engine 1.2.0 (§5.9); `likelihood.decay` and each item's
+`weight` in 1.3.0 (§5.6); `likelihood.capped_from` appears only on a capped market-only risk.
+With more than one item the "Likelihood" step reads e.g. `noisy-OR of 3 items, each further
+item counting 0.5× the one before: 1 − (1 − 0.351) × (1 − 0.5 × 0.330) × (1 − 0.25 × 0.200) = 0.485`.
+A risk written by an older engine has none of these until it is re-scored, which the
+worker does on its next run (§9).
 
 `evidence_key` is `event:<source>:<raw_id>` or
 `anomaly:<series>|<key>|<ts as RFC 3339 UTC>|<method>`.
@@ -173,7 +176,9 @@ the original):
 ```
 
 For anomalies, `value`, `baseline`, `score` and `unit` are filled and `title` is
-generated (e.g. `"EUR/TRY moved 4.1 robust z from its 90-day norm"`).
+generated (e.g. `"EUR/TRY moved 4.1 robust z from its 90-day norm"`). Since engine 1.3.0
+a news item's `country` evidence also has `central`: `"title"` (the country is named in
+the title or its tag) or `"first_place"` (the first place located in the article), §5.10.
 
 **Lifecycle**, applied by `write_risks` (one transaction):
 
@@ -237,10 +242,10 @@ country match is used.
 |---|---|---|
 | `geo_radius` | haversine distance `d` ≤ `R`. `R` (km): earthquake `clamp(50 × 2^(M−5), 25, 400)` with `M = attrs.magnitude` (100 if missing); tropical cyclone 300; tsunami 300; drought 400; flood 100; volcano 100; wildfire 50; other hazard 100; `port.disruption` 50 | `1 − d/R` (0.05 at the edge at least) |
 | `port` | exact UN/LOCODE in `event.ports` | 1.0 |
-| `country` | alpha-3 in `event.countries`, or (tagged news) in `tag.entities.countries` | site 0.8, supplier 0.6, customer 0.5, route/port 0.5; × 0.6 when it came from a news tag |
+| `country` | alpha-3 in `event.countries`, or (tagged news) in `tag.entities.countries`. For news (1.3.0) only a country **central** to the item, and for sanctions and cyber news only under the extra conditions of §5.10 | site 0.8, supplier 0.6, customer 0.5, route/port 0.5; × 0.6 when it came from a news tag |
 | `chokepoint` | the route lists the chokepoint (or, for a supplier, site or port, it is inferred, §5.9), and the event is within its radius, or a tagged place's text equals one of its aliases (casefold) | geo: `1 − d/R`; text: 0.6 × place confidence; × 0.5 when inferred |
 | `currency` | an `fx.rate` anomaly on the entity's currency against the workspace `base_currency`. With base EUR this is the stored pair `EUR/<CCY>`; otherwise the engine builds the cross rate from the two EUR pairs and runs `jobs.analyse.anomalies.detect` on it in memory (cross anomalies are not stored in `feeds`). Without a `base_currency`, `EUR/<CCY>` is used | direct 1.0, cross 0.9 |
-| `commodity` | the HS code's chapter (first 2 digits) is in the engine's chapter → keyword table, or `entity.commodities` contains (casefold) a `tag.entities.commodities[].text` or `event.commodities` value. Support only (§5.9): never a risk on its own for an entity with a place | 0.6 × tag confidence (chapter); 0.8 × tag confidence (exact text) |
+| `commodity` | a keyword of the entity's HS code is in a `tag.entities.commodities[].text` or `event.commodities` value (whole words, casefold): since 1.3.0 the keywords of its **4-digit heading** for a 4- or 6-digit code, and of its 2-digit chapter only for a code given as 2 digits (§5.3); or `entity.commodities` contains (casefold) that text. Support only (§5.9): never a risk on its own for an entity with a place | 0.6 × tag confidence (HS keyword); 0.8 × tag confidence (exact text) |
 | `software` | purl `pkg:<type>/<namespace>/<name>@v` → `<OSV ecosystem>:<name>`, with pypi→`PyPI` (PEP 503-normalised name), npm→`npm`, maven→`Maven` (`group:artifact`), golang→`Go`, cargo→`crates.io`, nuget→`NuGet`, gem→`RubyGems`, composer→`Packagist`; exact match with `event.software`. CPE `cpe:2.3:a:<vendor>:<product>:…` → `<vendor>:<product>`, compared casefold with `_` and spaces removed against KEV's `vendorProject:product` | OSV 1.0; KEV 0.9. Versions are not compared (the feeds hold no affected ranges) |
 | `sanctions_name` | suppliers and customers only. Normalise both names (NFKD, strip accents, casefold, `&`→`and`, drop punctuation, drop legal-form tokens: ltd, limited, llc, inc, corp, corporation, co, company, gmbh, ag, sa, sas, srl, spa, bv, nv, plc, jsc, pjsc, ooo, oao, zao, llp, lp, pte, pvt, kk, as, ab, oy), then `sim = rapidfuzz.fuzz.token_sort_ratio(a, b) / 100` against `attrs.name` (and `attrs.aliases`) of `sanction.designation`/`sanction.update` events, and against `name` and `aliases` of every `feeds.sanctions_entries` row (§5.8). Match if `sim ≥ 0.92` | `0.7 + 0.3 × (sim − 0.92)/0.08`; then +0.1 if the countries overlap, −0.2 if both have countries and they are disjoint; clamp to 0–1, and drop if below 0.5 |
 | `company_name` | suppliers and customers only: same normaliser, `sim ≥ 0.95` against `tag.entities.companies[].text` of tagged news; or a `gdelt.articles` anomaly whose key equals `watch_terms_for` output for this entity | 0.7 × the company's tag confidence; anomaly 0.8 |
@@ -253,11 +258,23 @@ Name matching is the only fuzzy match. Every other key is an exact code comparis
   `panama`, `hormuz`, `bab_el_mandeb`, `malacca`, `singapore`, `bosporus`,
   `gibraltar`, `dover`, `taiwan_strait`, `cape_of_good_hope`. The API serves this
   table on the `disruptions` map layer.
-* **HS chapter → commodity keywords**, e.g. 27 → oil, crude, gas, lng, coal; 72 →
-  steel, iron; 74 → copper; 76 → aluminium, aluminum; 85 → semiconductor, chip,
-  electronics; 10 → wheat, rice, maize, corn, grain; 12 → soy, soybean; 31 →
-  fertiliser, fertilizer, potash; 40 → rubber; 52 → cotton; 09 → coffee, tea;
-  18 → cocoa; 17 → sugar.
+* **HS → commodity keywords** (`engine/data/hs_chapters.json`). `headings` (4 digits,
+  engine 1.3.0) are what a 4- or 6-digit code is matched on, e.g. 8534 → printed circuit
+  board(s), circuit board(s), pcb; 8542 → chip(s), semiconductor(s), integrated
+  circuit(s), microcontroller(s), processor(s), memory chip(s); 8504 → transformer(s),
+  power supply/supplies, power adapter(s), charger(s), inverter(s); 8544 → cable(s),
+  wire(s), harness(es); 9031 → sensor(s), measuring instrument(s); 7410 → copper, copper
+  foil; 2709 → crude, crude oil, oil. A heading not in the table matches only the
+  entity's own product names. `chapters` (2 digits) are used only for an entity that
+  gives a 2-digit code alone: 27 → oil, crude, gas, lng, coal; 72 → steel, iron; 74 →
+  copper; 76 → aluminium, aluminum; 85 → semiconductor, chip, electronics; 10 → wheat,
+  rice, maize, corn, grain; 12 → soy, soybean; 31 → fertiliser, fertilizer, potash; 40 →
+  rubber; 52 → cotton; 09 → coffee, tea; 18 → cocoa; 17 → sugar. (Engine ≤ 1.2.0 matched
+  every code on its chapter, so "AI chips" strengthened a printed-circuit-board maker,
+  HS 8534, and the sentence read "AI chips like those … supplies (HS 8534)".)
+* **Country names in titles** (`engine/data/country_terms.json`, 1.3.0): the ISO names
+  from pycountry plus everyday aliases, adjectives ("Chinese") and capitals used for the
+  government ("Beijing"), and phrases that are not the country ("South China Sea"); §5.10.
 
 ### 5.4 Signal `s` (0–1) per evidence item
 
@@ -304,11 +321,23 @@ Delta-file events keep the 720 h half-life.
 ### 5.6 Likelihood
 
 Each item contributes `p = s × r × c`, rounded to 3 places. Items for the same
-fingerprint are combined by noisy-OR:
+fingerprint are combined by a noisy-OR in which each further item counts less (engine
+1.3.0). With the contributions sorted strongest first, `p_1 ≥ p_2 ≥ …`:
 
 ```
-likelihood = min(0.99, 1 − Π (1 − p_i))
+likelihood = min(0.99, 1 − Π_k (1 − w_k × p_k)),   w_k = decay^(k − 1),   decay = 0.5
 ```
+
+The strongest item counts in full, so a risk with one item scores exactly as in 1.2.0;
+the second counts half, the third a quarter, and so on. Because `L ≤ Σ w_k p_k` and the
+weights sum to less than `1 / (1 − decay) = 2`, the likelihood is always **below twice
+the strongest contribution**: many weak items corroborate, but cannot add up to
+"likely". Engine ≤ 1.2.0 used the plain noisy-OR (`decay = 1`), under which seven weak
+country matches of about 0.3 each read "92% likely"; now they give 0.49 (live test of
+27 Nov: "89% likely" for a China sanctions risk built from loosely related articles).
+`factors.likelihood` keeps `method: "noisy_or"`, and adds `decay` and each item's
+`weight`. `EngineConfig.likelihood_decay` (`engine/config.py`); 1.0 restores the plain
+noisy-OR.
 
 The two anomaly methods on the same point are separate items, so agreement raises L.
 The items are the (at most) `config.max_evidence` = 50 strongest of the fingerprint, by
@@ -334,9 +363,10 @@ These make §5.1–§5.6 precise where they left a choice open. None changes a c
   text (news) matches by country, company name, commodity and chokepoint place name;
   tag `other` only by company name. An untagged news row is never evidence.
 * **News countries.** GDELT file articles now carry `event.countries` (from the
-  article's locations). These count like `tag.entities.countries`: × 0.6.
+  article's locations). These count like `tag.entities.countries`: × 0.6 — since 1.3.0
+  only when the country is central to the article (§5.10).
 * **`match_value` per type:** `geo_radius` → `"<d> km"` (driver `geo_radius:near`);
-  `currency` → the pair, e.g. `EUR/TRY` or `USD/TRY`; `commodity` → `HS <chapter>` or
+  `currency` → the pair, e.g. `EUR/TRY` or `USD/TRY`; `commodity` → `HS <heading>` (`HS <chapter>` for a 2-digit code, 1.3.0) or
   the matched text; `software` → the normalised comparable key (`PyPI:jinja2`,
   `microsoft:exchangeserver`); `sanctions_name` → the listed primary name (driver uses
   its normalised form, so `ACME TRADING L.L.C.` and `Acme Trading LLC` are one risk);
@@ -444,6 +474,66 @@ that was too broad: a news story about chip export rules and China became a High
 All of these constants live in `EngineConfig` (`engine/config.py`, the "anchoring"
 block): `support_match_types`, `support_weight`, `market_event_prefix`,
 `market_only_score_cap`, `inferred_chokepoint_factor`.
+
+### 5.10 A news country must be what the article is about (engine 1.3.0)
+
+The live test of 27 Nov (11 suppliers, 41 open stories) still let in loosely related
+articles that only mention a country somewhere in their text: "Sanctions news in China
+affecting Pearl River PCB Works" (score 49, "89% likely") cited an opinion piece on
+European leaders and an Ethiopian ministry page, each as "GDELT · same country: China";
+a FIFA data breach and a global ransomware report were "Cyber incident news in Germany"
+for a German sensor maker. GDELT's `countries` are every place it located in the full
+article, so a passing mention counted like a headline. Implemented in `engine/relevance.py`.
+
+* **Central country.** A news item (`gdelt`, `newsdata`, `currents`: any tagged text
+  that is not a hazard, port disruption, vulnerability or sanctions listing) matches a
+  country only when the country is central to it:
+  * it is **named in the title** — by an ISO name or alias (`country_terms.json`;
+    all-capital aliases such as `US`, `UK` match only in capitals), its adjective
+    ("Chinese chipmakers", "German sensor maker") or its capital standing for the
+    government ("Beijing protests…"); or it is in `tag.entities.countries` (the tag is the
+    model's reading of the same title). A country named only by its adjective becomes a
+    candidate even when the feed row has no `countries` (DOC API, NewsData, Currents); or
+  * it is the **first place** GDELT located in the article (`event.countries[0]`; the
+    feed keeps the locations first mention first). The stored rows have no mention
+    counts, so "most-mentioned" cannot be told apart and the first place stands for it.
+
+  Any other country of `event.countries` is a passing mention and does not count. Events
+  that carry their own location (GDACS, USGS, PortWatch, scenario shocks) are unchanged:
+  their `countries` are where the event is. The country evidence's snapshot says which
+  rule applied: `central: "title" | "first_place"`.
+* **Sanctions news** (tag `sanctions`) additionally needs the country to be the
+  **target** of the measure, read from the title within `sanctions_target_window = 5`
+  words that never cross `; : | ? !`:
+  `<sanctions word> [on|against|targeting …] <country>` ("sanctions on Chinese
+  chipmakers", "export curbs on China"; a verb form may take it directly: "US sanctions
+  Chinese firms"); `<country> … to <sanctions word>` ("adds Chinese circuit board makers
+  to export blacklist"); `<country> hit with / faces / protests … <sanctions word>`
+  ("China hit with EU sanctions", "Beijing protests new US sanctions"; a country between
+  the two is the imposer); `<country> [one or two words] <sanctions word>` ("Iran oil
+  sanctions", "North Korea sanctions evasion"); `<country> sanctioned / blacklisted`.
+  A country followed by an imposing verb ("US imposes", "Washington adds") or preceded by
+  "under" / "by" is the actor, not the target. So "EU agrees new sanctions package
+  against Russia" reaches a Russian supplier and not a Chinese one, even when GDELT
+  located China in the text. Sanctions **name** screening (`sanctions_name`, §5.8) is a
+  separate rule and is unchanged.
+* **Cyber news** (tag `cyber_incident`) matched on a country additionally needs either a
+  **national-scale** incident in the title (government, ministry, military, critical
+  infrastructure, power grid, energy, rail, airport, port, hospital, telecom, nationwide,
+  outage, blackout, state-sponsored, …) or the **supplier's own sector**: a content word
+  of its products / commodities, of its HS heading's keywords, or of its notes (generic
+  words such as "parts", "industrial", "supplier" are left out; plurals folded). "Germany
+  hit by nationwide cyberattack on rail network" reaches every German supplier;
+  "Ransomware attack halts production at German sensor maker" reaches the sensor maker
+  only; a FIFA breach, a global ransomware statistic or a retailer's data leak reaches
+  none. Company-name and software matches are unchanged.
+
+Every other category needs only a central country. The numbers did not change
+(`country_confidence`, `news_country_factor`); only which countries count. Measured on
+the constructed copy of the 27 Nov sheet (`tests/fixtures/engine_live_nov27_feeds.json`,
+`tests/test_engine_relevance.py`): 12 risks → 10, highest likelihood 0.957 → 0.458, risks
+at 0.8 or more 1 → 0, and none of the 13 passing-mention articles reaches a supplier,
+while every positive control does.
 
 ## 6. Impact
 
