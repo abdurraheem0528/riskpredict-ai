@@ -1,6 +1,7 @@
 """The worker's only link to the API: push SSE events, and long-poll for wake-up hints.
 
-Both go to ``API_INTERNAL_URL`` (Northflank private network) with
+Both go to ``API_INTERNAL_URL`` (on Render ``http://127.0.0.1:$PORT``, the same
+container; with docker compose ``http://api:8000``) with
 ``Authorization: Bearer ${INTERNAL_TOKEN}``. Neither touches the database, so
 waiting for work costs no Neon compute.
 """

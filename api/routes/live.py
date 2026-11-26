@@ -20,7 +20,7 @@ from api import __version__
 from api.context import StateDep, WsCtx
 from api.core import composio, crypto
 from api.core import serialize as ser
-from api.core.errors import bad_request, unauthenticated
+from api.core.errors import bad_request, not_found, unauthenticated
 
 log = logging.getLogger("riskpredict.live")
 router = APIRouter()
@@ -35,6 +35,13 @@ EventName = Literal["risk.created", "risk.updated", "risk.resolved", "alert.crea
 def health(st: StateDep) -> dict:
     # No database query here: health checks must not keep Neon awake.
     return {"status": "ok", "version": __version__, "schema_version": st.schema_version or "unknown"}
+
+
+@router.get("/healthz", include_in_schema=False)
+def healthz() -> dict:
+    # Liveness for the platform and the keep-awake pinger (infra/README.md). Outside the
+    # /v1 contract, like /internal/*: no database, no settings, nothing but "ok".
+    return {"status": "ok"}
 
 
 # --- stream -------------------------------------------------------------------------
@@ -178,7 +185,15 @@ def _record_composio(st, account: str, delivery_id: str, payload: dict) -> Respo
 # --- internal (worker → api) --------------------------------------------------------------
 
 
+LOOPBACK = {"127.0.0.1", "::1"}
+
+
 def _internal_auth(request: Request, st) -> None:
+    if st.settings.internal_loopback_only and (request.client.host if request.client else "") not in LOOPBACK:
+        # One container with a public port (Render): the worker calls 127.0.0.1, anyone
+        # else gets the same 404 as for an unknown path. Behind --proxy-headers the client
+        # is the address the platform proxy saw, which a caller cannot forge.
+        raise not_found()
     token = st.settings.internal_token
     header = request.headers.get("authorization", "")
     scheme, _, value = header.partition(" ")
