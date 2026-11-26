@@ -7,12 +7,14 @@ from __future__ import annotations
 import re
 
 import pytest
-from engine_fixtures import anomaly, ent, news, quake, snap, tag
-from engine_sample import feeds, run, summary
 
-from engine import assess, scenario_results
-from engine.core import entity_chokepoints
-from engine.scenario import ScenarioInputs, risk_index
+pytest.importorskip("rapidfuzz")  # the repository-wide job does not install the engine's dependencies
+
+from engine import assess, scenario_results  # noqa: E402
+from engine.core import entity_chokepoints  # noqa: E402
+from engine.scenario import ScenarioInputs, risk_index  # noqa: E402
+from engine_fixtures import anomaly, ent, news, quake, snap, tag  # noqa: E402
+from engine_sample import feeds, run, summary  # noqa: E402
 
 
 @pytest.fixture(scope="module")
