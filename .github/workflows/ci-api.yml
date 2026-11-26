@@ -1,7 +1,7 @@
 # api/ and worker/: tests against a throwaway Postgres 16 (migrated with the repository's
 # runner, python -m jobs.migrate) with the real engine/ installed, including the end-to-end
-# test (tests/apiservice/test_end_to_end.py), and both Docker images (each must contain the
-# engine). Google, Composio and Groq are never called: the tests replace them
+# test (tests/apiservice/test_end_to_end.py), both Docker images (docker compose
+# self-hosting; each must contain the engine), and the Vercel function bundle. Google, Composio and Groq are never called: the tests replace them
 # (tests/apiservice), and the image checks run with --network none.
 name: ci-api
 
@@ -69,27 +69,30 @@ jobs:
       - name: Compose file is valid
         run: docker compose --profile app config --quiet
 
-  # The combined image Render runs (infra/render/: API + worker in one container), at
-  # Render's free limits (512 MB, 0.1 CPU): /healthz, the worker's long poll, SSE through
-  # start.sh (worker → API → client), a what-if run, idle and peak memory, and that the
-  # container stops when the worker dies. The numbers go to the job summary.
-  render-image:
+  # The Vercel function exactly as Deploy builds it (infra/vercel/bundle.py): its file list,
+  # its size with the Python 3.12 Linux wheels Vercel installs (well under the 500 MB
+  # limit), a cold `import app` in a fresh interpreter, and the app under an ASGI test
+  # client against a migrated Postgres as a real rp_app login (/healthz, /v1/health,
+  # sign-up, GET /v1/events). The numbers go to the job summary.
+  vercel-bundle:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
-          POSTGRES_DB: render_smoke
+          POSTGRES_DB: bundle_smoke
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U test -d render_smoke"
+          --health-cmd "pg_isready -U test -d bundle_smoke"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 20
+    env:
+      DATABASE_URL_MIGRATE: postgresql://test:test@127.0.0.1:5432/bundle_smoke
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -100,17 +103,24 @@ jobs:
           cache: pip
           cache-dependency-path: jobs/requirements.txt
       - run: pip install -r jobs/requirements.txt
-      - name: Build the combined image
-        run: docker build -f infra/render/Dockerfile -t riskpredict-render:ci .
-      - name: Imports inside the image (no network)
-        run: docker run --rm --network none riskpredict-render:ci python -c "import api.main, worker.main, engine; assert engine.chokepoints()"
-      - name: Smoke test at 512 MB / 0.1 CPU, with memory numbers
+      - name: Migrate the throwaway database
         env:
-          SMOKE_DATABASE_URL: postgresql://test:test@127.0.0.1:5432/render_smoke
-        run: python infra/render/smoke.py --image riskpredict-render:ci
+          DATABASE_URL_FEEDS: ${{ env.DATABASE_URL_MIGRATE }}
+        run: python -m jobs.migrate
+      - name: Build the bundle and list its files
+        run: |
+          python infra/vercel/bundle.py build "$RUNNER_TEMP/bundle"
+          (cd "$RUNNER_TEMP/bundle" && find . -type f | sort)
+      - name: Size, cold import and ASGI smoke test (as an rp_app login)
+        run: |
+          pw="$(python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+          echo "::add-mask::$pw"
+          printf '%s\n' "$pw" | python infra/scripts/create_login_roles.py --role smoke_app:rp_app --password-stdin
+          SMOKE_DATABASE_URL="postgresql://smoke_app:${pw}@127.0.0.1:5432/bundle_smoke" \
+            python infra/vercel/bundle.py check "$RUNNER_TEMP/bundle" --max-mb 400
 
-  # The deploy, destroy and db-roles workflows (and this file): actionlint, which also runs
-  # shellcheck (preinstalled on the runner) on every run: block; and start.sh as POSIX sh.
+  # The deploy, destroy, worker and db-roles workflows (and this file): actionlint, which
+  # also runs shellcheck (preinstalled on the runner) on every run: block.
   workflows:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -131,6 +141,4 @@ jobs:
         run: >-
           ./actionlint -color
           .github/workflows/deploy.yml .github/workflows/destroy.yml .github/workflows/db-roles.yml
-          .github/workflows/ci-api.yml
-      - name: start.sh is POSIX sh (shellcheck)
-        run: shellcheck --shell=sh infra/render/start.sh
+          .github/workflows/worker.yml .github/workflows/ci-api.yml

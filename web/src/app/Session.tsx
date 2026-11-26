@@ -36,7 +36,7 @@ export function useWorkspaceId() {
   return useSyncExternalStore(subscribeWorkspace, getWorkspaceId, getWorkspaceId);
 }
 
-/** Resolves the user and workspace, and keeps the live stream open for it. */
+/** Resolves the user and workspace, and keeps its live updates coming (polled while visible). */
 export function SessionProvider({
   children,
   loading,
@@ -66,12 +66,8 @@ export function SessionProvider({
   const activeId = chosen?.workspace.id ?? null;
   useEffect(() => {
     if (!activeId) return;
-    const s = new LiveStream(
-      activeId,
-      (name, data) => applyStreamEvent(qc, activeId, name, data),
-      setStream,
-      () => void qc.invalidateQueries({ queryKey: [activeId] }),
-    );
+    // Polls GET /v1/events while the tab is visible; a resync refetches everything.
+    const s = new LiveStream(activeId, (name, data) => applyStreamEvent(qc, activeId, name, data), setStream);
     s.start();
     return () => s.stop();
   }, [activeId, qc]);

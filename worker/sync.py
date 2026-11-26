@@ -16,12 +16,13 @@ from uuid import UUID
 
 from psycopg.types.json import Jsonb
 
+from api import events
 from api.core import composio, crypto, google, mapping, providers
 from api.core.config import Settings
 from api.core.db import Database
 from api.core.errors import Problem, UpstreamAuthError
 from api.core.providers import CONNECTION_COLUMNS, ConnectionRef, Table
-from worker.api_client import ApiClient, Outbox
+from api.events import Outbox
 
 log = logging.getLogger("riskpredict.worker.sync")
 RENEW_BEFORE = timedelta(hours=24)
@@ -35,11 +36,14 @@ def utcnow() -> datetime:
 class Ctx:
     settings: Settings
     db: Database
-    api: ApiClient
     outbox: Outbox = field(default_factory=Outbox)
 
     def flush(self) -> None:
-        self.api.push(self.outbox)
+        """Write the collected live-update events (``biz.events``), after the step's commit."""
+        try:
+            self.outbox.write(self.db)
+        except Exception as exc:  # the change itself is committed; the dashboard refetches on resync
+            log.warning("event write failed (%s)", type(exc).__name__)
 
 
 def create_alert(conn, outbox: Outbox, ws: UUID, kind: str, severity: str, title: str, body: str, dedupe_key: str,
@@ -153,8 +157,10 @@ def _drive_changes(ctx: Ctx, ws: UUID, row: dict) -> None:
 
 
 def housekeeping(ctx: Ctx, ws: UUID) -> None:
-    """Prune handled webhook rows after 30 days, and Google sign-ins never finished after a day."""
+    """Prune handled webhook rows after 30 days, Google sign-ins never finished after a day,
+    and live-update events after 24 hours."""
     with ctx.db.workspace_tx(ws) as conn:
+        events.prune(conn, ws)
         conn.execute("DELETE FROM biz.webhook_events WHERE status <> 'received' AND received_at < now() - interval '30 days'")
         conn.execute(
             "DELETE FROM biz.connections WHERE provider = 'google_sheets' AND status = 'pending'"

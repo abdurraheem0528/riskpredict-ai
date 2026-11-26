@@ -179,7 +179,7 @@ generated (e.g. `"EUR/TRY moved 4.1 robust z from its 90-day norm"`).
    rows are kept per risk; the lowest contributions are deleted first.
 
 Alerts are **not** written by the engine. The worker turns `RunResult.changes` into
-`biz.alerts` rows and SSE events (§9).
+`biz.alerts` rows and live-update events (§9).
 
 ## 4. Categories
 
@@ -449,7 +449,7 @@ Groq output never changes `likelihood`, `impact`, `score`, `status` or the evide
   then commit. Advice and watch terms use `RunResult.assessments` / `.entities` (§2).
 * `RunResult.changes` → alerts. `created` with score ≥ `workspaces.alert_min_score` →
   `risk_new`. A rescore that crosses the threshold upwards → `risk_escalated`. Any
-  `created` sanctions risk → `sanctions_match` (critical). Each also becomes an SSE
+  `created` sanctions risk → `sanctions_match` (critical). Each also becomes a live-update
   `risk.*` / `alert.created` event (see `openapi.yaml`).
 
 ## 10. Tests C must ship

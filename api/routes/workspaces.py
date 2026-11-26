@@ -112,7 +112,6 @@ def delete_workspace(ctx: PathWsCtx) -> Response:
         disconnect_external(ctx.settings, c)
     with ctx.tx("owner") as conn:
         conn.execute("DELETE FROM biz.workspaces WHERE id = %s", (ctx.workspace_id,))
-    ctx.state.hints.add(ctx.workspace_id, "deleted")
     return Response(status_code=204)
 
 

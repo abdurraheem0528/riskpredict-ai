@@ -57,12 +57,12 @@ def test_sign_in_wrong_email_and_wrong_password_look_the_same(client):
     assert ok.json()["workspace_id"] == me["workspace_id"]
 
 
-def test_ten_failures_lock_the_account(client):
+def test_ten_failures_lock_the_account(client, owner_db):
     me = sign_up(client)
     for _ in range(10):
         r = client.post("/v1/auth/sign-in", json={"email": me["email"], "password": "wrong-password!!"})
         assert r.json()["code"] == "invalid_credentials"
-    client.rp.limiter.reset()
+    owner_db.execute("DELETE FROM biz.rate_limits")  # the counters live in the database now
     r = client.post("/v1/auth/sign-in", json={"email": me["email"], "password": me["password"]})
     assert r.status_code == 401 and r.json()["code"] == "account_locked"
 

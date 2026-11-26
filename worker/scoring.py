@@ -1,4 +1,4 @@
-"""Risk-engine runs per workspace, then alerts, SSE events and advice.
+"""Risk-engine runs per workspace, then alerts, live-update events and advice.
 
 The engine (``engine/``) is called only through the interface in
 ``docs/contracts/risk-engine.md``: ``run_workspace`` inside one transaction that

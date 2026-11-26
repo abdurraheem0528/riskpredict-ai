@@ -11,7 +11,7 @@ info:
     ## Conventions (defined once, apply everywhere)
 
     * **Base URL**: `https://<api host>/v1`; JSON only (`application/json`) except
-      `/v1/stream` (`text/event-stream`) and map layers (`application/geo+json`).
+      map layers (`application/geo+json`).
     * **Auth**: `Authorization: Bearer <access token>` on every endpoint except
       sign-up, sign-in, refresh, the OAuth callbacks, `/v1/health` and the inbound
       webhooks. Access tokens are JWTs (HS256), valid for 15 minutes. Refresh tokens
@@ -35,7 +35,9 @@ info:
       in UTC (`2026-11-24T12:00:00Z`). Country codes are ISO 3166-1 alpha-3, ports
       UN/LOCODE (5 characters, no space), currencies ISO 4217.
     * **Rate limits**: `429 rate_limited` with `Retry-After`. Sign-in is limited per
-      IP and per account.
+      IP and per account. Counters are shared by every API instance (in the database).
+    * **Live updates**: the dashboard polls `GET /v1/events` about every 15 s while its
+      tab is visible (there is no stream; the API runs serverless).
     * **No demo data**: every list is empty for a new workspace, and the dashboard
       must render the empty states, not placeholders.
 
@@ -45,8 +47,8 @@ info:
     |---|---|
     | **Empty** (no connections yet) | `GET /v1/me`, `GET /v1/connections` (empty list), `GET /v1/feeds/health`, `GET /v1/map/events` (the live world map still works) |
     | **Connect** (pick a tool) | `GET /v1/connections/providers`, `POST /v1/connections/google/start` → Google consent → `GET /v1/connections/google/callback` → `POST /v1/connections/{id}/google/picker-token` → Google Picker → `POST /v1/sources`; or `POST /v1/connections/composio` → hosted auth → `GET /v1/connections/{id}/browse` → `POST /v1/sources` |
-    | **Confirm** (review the AI's column mapping on the map) | `GET /v1/sources/{id}` (columns + samples), `POST /v1/sources/{id}/mapping/suggest`, `GET /v1/sources/{id}/mapping`, `POST /v1/sources/{id}/mapping/preview` (GeoJSON of would-be entities + row problems), `POST /v1/sources/{id}/mapping/confirm`; SSE `mapping.suggested`, `source.synced` |
-    | **Main** (full-screen map with risks, sheet of top risks) | `GET /v1/map/entities`, `GET /v1/map/risks`, `GET /v1/map/events`, `GET /v1/map/disruptions`, `GET /v1/risks/summary`, `GET /v1/risks?sort=-score`, `GET /v1/alerts?unread=true`; SSE `risk.*`, `alert.created`, `feeds.updated` |
+    | **Confirm** (review the AI's column mapping on the map) | `GET /v1/sources/{id}` (columns + samples), `POST /v1/sources/{id}/mapping/suggest`, `GET /v1/sources/{id}/mapping`, `POST /v1/sources/{id}/mapping/preview` (GeoJSON of would-be entities + row problems), `POST /v1/sources/{id}/mapping/confirm`; events `mapping.suggested`, `source.synced` |
+    | **Main** (full-screen map with risks, sheet of top risks) | `GET /v1/map/entities`, `GET /v1/map/risks`, `GET /v1/map/events`, `GET /v1/map/disruptions`, `GET /v1/risks/summary`, `GET /v1/risks?sort=-score`, `GET /v1/alerts?unread=true`; events `risk.*`, `alert.created`, `feeds.updated` |
     | **Risk** (one risk with evidence and advice) | `GET /v1/risks/{id}` (evidence, factors, history, advice), `GET /v1/feeds/series` (chart for anomaly evidence), `PATCH /v1/risks/{id}` |
     | **Scenario** (what-if) | `POST /v1/scenarios`, `GET /v1/scenarios`, `GET /v1/scenarios/{id}`, `GET /v1/entities` (to pick overrides) |
 servers:
@@ -75,12 +77,10 @@ tags:
     description: "What-if runs of the risk engine"
   - name: alerts
     description: "In-app alerts"
-  - name: stream
-    description: "Server-sent events"
+  - name: events
+    description: "Live updates, polled"
   - name: webhooks
     description: "Inbound notifications from Google Drive and Composio"
-  - name: internal
-    description: "Worker → API only; not public"
   - name: system
     description: "Health"
 
@@ -90,7 +90,7 @@ paths:
       tags: [system]
       operationId: getHealth
       summary: Liveness, plus the latest applied migration (read once at startup)
-      description: Never queries the database, so platform health checks do not keep Neon awake. `schema_version` is `unknown` if the database was unreachable at startup; the API refuses to start when `EXPECTED_SCHEMA_VERSION` (default `007_biz_lookups`) is not applied.
+      description: Never queries the database, so health checks do not wake Neon. `schema_version` is `unknown` until this API instance has served a request that used the database (serverless instances are short-lived). While `EXPECTED_SCHEMA_VERSION` (default `050_serverless_state`) is not applied, requests that use the database answer `503`.
       security: []
       responses:
         "200":
@@ -533,7 +533,7 @@ paths:
         Creates a `pending` `composio:<app>` connection and returns Composio's
         redirect URL. Composio uses `ws_<workspace id>` as its user id. After auth,
         Composio redirects to `${WEB_ORIGIN}/connect?connection_id=<id>`; the dashboard
-        then polls `GET /v1/connections/{id}` (or waits for SSE `connection.updated`)
+        then polls `GET /v1/connections/{id}` (or waits for the event `connection.updated`)
         until it is `active`.
       parameters:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
@@ -643,7 +643,7 @@ paths:
       tags: [sources]
       operationId: createSource
       summary: Add a picked sheet tab or table (editor)
-      description: Reads the header row and up to 5 sample values per column (from the first 200 rows), stores them in `columns`, and starts a mapping suggestion in the background (Groq, else heuristics; SSE `mapping.suggested`). A Google spreadsheet the user did not pick with the Picker is `404`; an inactive connection is `409 connection_not_active`.
+      description: Reads the header row and up to 5 sample values per column (from the first 200 rows), stores them in `columns`, and makes a mapping suggestion before answering (Groq, else heuristics; event `mapping.suggested`), so a new source usually comes back as `mapping_suggested`. A Google spreadsheet the user did not pick with the Picker is `404`; an inactive connection is `409 connection_not_active`.
       parameters:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
       requestBody:
@@ -720,7 +720,7 @@ paths:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
         - {$ref: "#/components/parameters/SourceIdPath"}
       responses:
-        "202": {description: "Queued (a source in `error` goes back to `active`); SSE `source.sync_started`, then `source.synced` or `source.sync_failed`, follows"}
+        "202": {description: "Synced and scored within the request (a source in `error` goes back to `active`); the events `source.sync_started`, then `source.synced` or `source.sync_failed`, and any `risk.*` are written before the answer. Work cut short by the time budget is finished by the next worker run."}
         "409": {$ref: "#/components/responses/Conflict"}
 
   /v1/sources/{source_id}/mapping:
@@ -1322,40 +1322,23 @@ paths:
         "204": {description: All marked read}
         "401": {$ref: "#/components/responses/Unauthorized"}
 
-  # --- server-sent events --------------------------------------------------------------
-  /v1/stream/ticket:
-    post:
-      tags: [stream]
-      operationId: createStreamTicket
-      summary: One-time ticket for opening the event stream
-      description: "`EventSource` cannot send an Authorization header, so the dashboard first gets a ticket (single use, valid 60 s, bound to the user and workspace) and opens `/v1/stream?ticket=...`."
-      parameters:
-        - {$ref: "#/components/parameters/WorkspaceHeader"}
-      responses:
-        "201":
-          description: Ticket
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ticket, expires_at]
-                properties:
-                  ticket: {type: string}
-                  expires_at: {type: string, format: date-time}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-
-  /v1/stream:
+  # --- live updates (polling) ---------------------------------------------------------
+  /v1/events:
     get:
-      tags: [stream]
-      operationId: openStream
-      summary: Live updates for one workspace (SSE)
+      tags: [events]
+      operationId: listEvents
+      summary: Live updates for one workspace (polled)
       description: |
-        `text/event-stream`. Each message has `id` (monotonic per workspace),
-        `event` (one of the names below) and `data` (one line of JSON, the matching
-        schema). A comment line `: ping` is sent every 25 s. After a reconnect,
-        `Last-Event-ID` resumes from the API's in-memory buffer (last 500 events per
-        workspace). If that is not possible, the first event is `resync` and the
-        client should refetch what it shows.
+        The dashboard calls this about every 15 s while its tab is visible, and not at
+        all while it is hidden (each call wakes the database). Without `after`, it
+        returns no items and the newest id as `next`: start there, the page was just
+        loaded. With `after`, it returns the events after that id, oldest first, at most
+        `limit`; `more` means call again at once with `next`. Events are kept 24 hours.
+        When `after` is older than that (or from a database that was reset), the answer
+        is `resync: true` with no items: refetch what is shown and continue from `next`.
+        Ids are increasing but not consecutive (one sequence for all workspaces). An
+        event is returned only once every transaction that started before it has ended,
+        so a cursor never skips one that committed late.
 
         | event | data |
         |---|---|
@@ -1369,21 +1352,17 @@ paths:
         | `mapping.suggested` | `MappingEvent` |
         | `connection.updated` | `ConnectionEvent` |
         | `feeds.updated` | `FeedsUpdatedEvent` |
-        | `resync` | `{}` |
-
-        No database connection is held open for a stream: the worker pushes events
-        to the API (`POST /internal/events`), and the API fans them out from memory.
-        This keeps Neon able to scale to zero.
-      security: []
+        | `resync` | `{}` (never stored: the `resync` flag of the response) |
       parameters:
-        - {name: ticket, in: query, required: true, schema: {type: string}}
-        - {name: Last-Event-ID, in: header, schema: {type: string}}
+        - {$ref: "#/components/parameters/WorkspaceHeader"}
+        - {name: after, in: query, schema: {type: integer, minimum: 0}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 100}}
       responses:
         "200":
-          description: Event stream
+          description: Events after the cursor
           content:
-            text/event-stream:
-              schema: {$ref: "#/components/schemas/StreamEvent"}
+            application/json:
+              schema: {$ref: "#/components/schemas/EventPage"}
         "401": {$ref: "#/components/responses/Unauthorized"}
 
   # --- inbound webhooks ---------------------------------------------------------------
@@ -1397,7 +1376,7 @@ paths:
         1. Looks up `X-Goog-Channel-ID` with `biz.route_drive_channel`.
         2. Compares sha256(`X-Goog-Channel-Token`) with `watch_token_hash` (constant time) and checks `X-Goog-Resource-ID`.
         3. Inserts `biz.webhook_events` with delivery id `<channel id>:<message number>`, ON CONFLICT DO NOTHING.
-        4. For `X-Goog-Resource-State: change`, queues a `changes.list` check for the connection.
+        4. For `X-Goog-Resource-State: change`, runs `changes.list` and the syncs it causes within the same request, for about 20 s under a per-workspace lease (a burst of notifications runs once). Whatever is left stays queued for the next worker run.
         It answers 200 quickly for every well-formed notification, also for unknown
         channels or a wrong token, so Google does not retry and a caller learns nothing.
         A request without the required `X-Goog-*` headers gets 400. `sync` messages are
@@ -1434,8 +1413,9 @@ paths:
         3. Inserts `biz.webhook_events` (delivery id = `webhook-id`, which equals the payload
            `id` and is stable across retries), ON CONFLICT DO NOTHING. Only ids, the event
            type, trigger slug and status are kept, never the record data.
-        4. Wakes the worker, which re-reads the connection's sources (trigger) or re-checks
-           the account's status with Composio (lifecycle).
+        4. Within the same request (about 20 s, under a per-workspace lease), re-reads the
+           connection's sources (trigger) or re-checks the account's status with Composio
+           (lifecycle). Whatever is left stays queued for the next worker run.
         Unknown accounts get 200, and the delivery is dropped.
       security: []
       parameters:
@@ -1471,77 +1451,6 @@ paths:
         "200": {description: Accepted}
         "401": {$ref: "#/components/responses/Unauthorized"}
 
-  # --- internal (worker → api, private network only) -----------------------------------
-  /internal/events:
-    post:
-      tags: [internal]
-      operationId: pushStreamEvents
-      summary: The worker hands SSE events to the API for fan-out
-      description: "Only reachable on the Northflank private network. It is also authenticated with `Authorization: Bearer ${INTERNAL_TOKEN}`. Not part of the public API, and the dashboard never calls it."
-      x-internal: true
-      security:
-        - internalToken: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [events]
-              properties:
-                events:
-                  type: array
-                  maxItems: 500
-                  items:
-                    type: object
-                    required: [workspace_id, event, data]
-                    properties:
-                      workspace_id: {type: string, format: uuid}
-                      event: {$ref: "#/components/schemas/StreamEventName"}
-                      data: {type: object}
-      responses:
-        "202": {description: Accepted}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-
-  /internal/work:
-    get:
-      tags: [internal]
-      operationId: takeWorkHints
-      summary: The worker long-polls for wake-up hints
-      description: |
-        Returns (and clears) the workspaces that need a worker pass, waiting up to `wait`
-        seconds for one. The API adds a hint when a webhook was recorded, a mapping
-        confirmed, a sync or a re-score requested, or a connection activated. Hints live
-        in memory only: the durable state is in the database (`webhook_events`,
-        `sources.last_change_at`), which the worker's scheduled pass reads anyway. No
-        database query is made, so waiting costs no Neon compute. Private network and
-        `Authorization: Bearer ${INTERNAL_TOKEN}` only.
-      x-internal: true
-      security:
-        - internalToken: []
-      parameters:
-        - {name: wait, in: query, schema: {type: number, minimum: 0, maximum: 55, default: 25}}
-      responses:
-        "200":
-          description: Hints, possibly none
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items:
-                      type: object
-                      required: [workspace_id, reasons]
-                      properties:
-                        workspace_id: {type: string, format: uuid}
-                        reasons:
-                          type: array
-                          items: {type: string, enum: [webhook, sync, engine, connection, deleted]}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-
 components:
   securitySchemes:
     bearerAuth:
@@ -1549,10 +1458,6 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: 'Access token from sign-in/refresh. Claims: `sub` (user id), `sid` (session id), `iat`, `exp`, `iss` = "riskpredict-api", `aud` = "riskpredict-web". HS256 with `JWT_SIGNING_KEY`.'
-    internalToken:
-      type: http
-      scheme: bearer
-      description: Shared secret `INTERNAL_TOKEN` between worker and api.
 
   parameters:
     WorkspaceHeader:
@@ -2553,7 +2458,7 @@ components:
         created_at: {type: string, format: date-time}
         read_at: {type: [string, "null"], format: date-time}
 
-    # --- stream ---------------------------------------------------------------------------------
+    # --- live updates -----------------------------------------------------------------------------
     StreamEventName:
       type: string
       enum: [risk.created, risk.updated, risk.resolved, alert.created, source.sync_started, source.synced, source.sync_failed, mapping.suggested, connection.updated, feeds.updated, resync]
@@ -2596,12 +2501,23 @@ components:
           type: array
           description: Sources whose last_run_at advanced
           items: {type: string}
+    EventPage:
+      type: object
+      required: [items, next, more, resync]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/StreamEvent"}
+        next: {type: integer, description: "The cursor for the next call (`after`)"}
+        more: {type: boolean, description: "More events are waiting: call again at once"}
+        resync: {type: boolean, description: "The cursor was too old: refetch, then continue from `next`"}
     StreamEvent:
       type: object
-      description: "One SSE message: `id`, `event` and `data` (JSON of the schema for that event)"
-      required: [id, event, data]
+      description: "One live update: `id`, `event` and `data` (the schema for that event)"
+      required: [id, event, data, created_at]
       properties:
-        id: {type: string}
+        id: {type: integer}
+        created_at: {type: string, format: date-time}
         event: {$ref: "#/components/schemas/StreamEventName"}
         data:
           oneOf:

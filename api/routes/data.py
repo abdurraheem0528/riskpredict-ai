@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 
-from api import pagination
+from api import events, pagination
 from api.context import WsCtx, audit
 from api.core import serialize as ser
 from api.core.errors import invalid, not_found
@@ -231,8 +231,8 @@ def update_risk(risk_id: UUID, body: RiskPatch, ctx: WsCtx) -> dict:
             audit(conn, ctx.workspace_id, ctx.user_id, "risk.status_changed", "risk", str(risk_id),
                   {"from": cur["status"], "to": body.status})  # fmt: skip
         out = ser.risk(conn.execute(ser.RISK_SELECT + " WHERE r.id = %s", (risk_id,)).fetchone())
-    if changed:
-        ctx.state.hub.publish(ctx.workspace_id, "risk.updated", {"risk": out, "previous_score": out["score"]})
+        if changed:
+            events.publish(conn, ctx.workspace_id, "risk.updated", {"risk": out, "previous_score": out["score"]})
     return out
 
 

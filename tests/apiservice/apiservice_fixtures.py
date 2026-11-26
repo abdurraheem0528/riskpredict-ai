@@ -72,7 +72,7 @@ def app_dsn():
 def owner_db(app_dsn):
     """Superuser connection for arranging fixtures and inspecting results."""
     with psycopg.connect(DSN, autocommit=True, row_factory=psycopg.rows.dict_row) as conn:
-        conn.execute("TRUNCATE biz.workspaces, biz.users CASCADE")
+        conn.execute("TRUNCATE biz.workspaces, biz.users, biz.rate_limits CASCADE")
         conn.execute("TRUNCATE feeds.events, feeds.series, feeds.anomalies, feeds.source_health, feeds.analysis_status,"
                      " feeds.sanctions_entries CASCADE")
         conn.execute("DELETE FROM feeds.watch_terms WHERE origin = 'workspace'")
@@ -91,10 +91,8 @@ def settings(app_dsn):
         database_url=app_dsn,
         jwt_signing_key=secrets.token_bytes(32),
         token_keys=parse_key_ring(f"k2:{_key()},k1:{_key()}"),
-        internal_token=secrets.token_urlsafe(24),
         web_origin="https://dash.example.test",
         public_api_url="https://api.example.test",
-        api_internal_url="http://api.internal.test",
         google_client_id="test-client-id",
         google_client_secret="test-client-secret",
         google_picker_api_key="test-picker-key",

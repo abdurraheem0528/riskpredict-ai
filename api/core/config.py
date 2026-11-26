@@ -77,12 +77,11 @@ class Settings:
     database_url: str = ""
     jwt_signing_key: bytes = b""
     token_keys: tuple[tuple[str, bytes], ...] = ()
-    internal_token: str = ""
     web_origin: str = ""
     public_api_url: str = ""
-    api_internal_url: str = ""
-    # API and worker in one container (Render): /internal/* answers loopback callers only.
-    internal_loopback_only: bool = False
+    # The request header that holds the client's address, set by the platform's edge and
+    # not forgeable by the client (Vercel: x-real-ip). Empty: the socket peer address.
+    client_ip_header: str = ""
     google_client_id: str = ""
     google_client_secret: str = ""
     google_picker_api_key: str = ""
@@ -96,12 +95,16 @@ class Settings:
     groq_mapping_model: str = ""
     groq_advice_model: str = ""
     groq_base_url: str = "https://api.groq.com/openai/v1"
-    expected_schema_version: str = "007_biz_lookups"
+    expected_schema_version: str = "050_serverless_state"
     db_max_connections: int = 5
     db_max_idle_seconds: int = 60
-    # worker timing
+    # work done inside a request (serverless: no background loop); Vercel stops at 300 s
+    inline_budget_seconds: int = 240
+    webhook_budget_seconds: int = 20
+    # worker timing (the loop for docker compose; `--once` for GitHub Actions)
     worker_db_interval_seconds: int = 1800
     source_recheck_seconds: int = 900
+    worker_once_budget_seconds: int = 480
     advice_per_run: int = 20
 
     @classmethod
@@ -119,11 +122,9 @@ class Settings:
             database_url=_env("DATABASE_URL_APP"),
             jwt_signing_key=jwt_key,
             token_keys=parse_key_ring(_env("TOKEN_ENCRYPTION_KEYS")),
-            internal_token=_env("INTERNAL_TOKEN"),
             web_origin=_env("WEB_ORIGIN").rstrip("/"),
             public_api_url=_env("PUBLIC_API_URL").rstrip("/"),
-            api_internal_url=_env("API_INTERNAL_URL").rstrip("/"),
-            internal_loopback_only=_env("INTERNAL_LOOPBACK_ONLY").lower() in ("1", "true", "yes"),
+            client_ip_header=_env("CLIENT_IP_HEADER").lower(),
             google_client_id=_env("GOOGLE_OAUTH_CLIENT_ID"),
             google_client_secret=_env("GOOGLE_OAUTH_CLIENT_SECRET"),
             google_picker_api_key=_env("GOOGLE_PICKER_API_KEY"),
@@ -135,10 +136,13 @@ class Settings:
             groq_api_key=_env("GROQ_API_KEY"),
             groq_mapping_model=_env("GROQ_MAPPING_MODEL"),
             groq_advice_model=_env("GROQ_ADVICE_MODEL"),
-            expected_schema_version=_env("EXPECTED_SCHEMA_VERSION", "007_biz_lookups"),
+            expected_schema_version=_env("EXPECTED_SCHEMA_VERSION", "050_serverless_state"),
             db_max_connections=_int("DB_MAX_CONNECTIONS", 5),
+            inline_budget_seconds=_int("INLINE_BUDGET_SECONDS", 240),
+            webhook_budget_seconds=_int("WEBHOOK_BUDGET_SECONDS", 20),
             worker_db_interval_seconds=_int("WORKER_DB_INTERVAL_SECONDS", 1800),
             source_recheck_seconds=_int("SOURCE_RECHECK_SECONDS", 900),
+            worker_once_budget_seconds=_int("WORKER_ONCE_BUDGET_SECONDS", 480),
             advice_per_run=_int("ADVICE_PER_RUN", 20),
         )
 
@@ -162,7 +166,6 @@ class Settings:
             "database": bool(self.database_url),
             "jwt": bool(self.jwt_signing_key),
             "token_encryption": bool(self.token_keys),
-            "internal_token": bool(self.internal_token),
             "google": self.google_enabled,
             "drive_watch": self.drive_watch_enabled,
             "composio": self.composio_enabled,

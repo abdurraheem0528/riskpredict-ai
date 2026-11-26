@@ -52,7 +52,7 @@ def dsn():
     known = [
         "001_feeds_schema", "002_seed_watch_terms", "003_analysis", "004_maintenance",
         "005_roles", "006_biz_schema", "007_biz_lookups", "030_sanctions_entries",
-        "040_comtrade_world_totals", "041_gdelt_theme_watch_terms",
+        "040_comtrade_world_totals", "041_gdelt_theme_watch_terms", "050_serverless_state",
     ]  # fmt: skip
     assert [v for v in applied if v in known] == known
     return DSN
@@ -210,7 +210,7 @@ def test_comtrade_cleanup_removes_old_rows_and_refills_next_run(tmp_path):
     ]
     db.write_results(DSN, [FetchResult("comtrade", Status.PARTIAL, series=old[:2], error="cap"),
                            FetchResult("frankfurter", Status.OK, series=old[2:])], NOW)  # fmt: skip
-    assert migrate.apply(DSN) == ["040_comtrade_world_totals", "041_gdelt_theme_watch_terms"]
+    assert migrate.apply(DSN) == [p.stem for p in migrate.migration_files() if p.stem >= "040"]
     assert query(DSN, "SELECT source, key FROM feeds.series") == [("frankfurter", "EUR/USD")]
     _, last_success, _ = db.load_state(DSN)
     assert last_success["comtrade"] is None and last_success["frankfurter"] == NOW

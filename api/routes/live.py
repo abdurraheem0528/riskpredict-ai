@@ -1,5 +1,8 @@
-"""SSE stream + tickets, inbound webhooks (Drive, Composio), the internal
-worker endpoints, and health."""
+"""Live updates (``GET /v1/events``, polled), inbound webhooks (Drive, Composio), and health.
+
+There is no stream and no worker endpoint: on a serverless platform each request
+may land on a different instance, so events live in ``biz.events`` and webhooks
+are processed in the request that records them (``api/work.py``)."""
 
 from __future__ import annotations
 
@@ -7,87 +10,44 @@ import asyncio
 import hmac
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Annotated, Literal
-from uuid import UUID
+from typing import Annotated
 
 from fastapi import APIRouter, Header, Query, Request, Response
-from fastapi.responses import StreamingResponse
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, Field
 
-from api import __version__
+from api import __version__, events, work
 from api.context import StateDep, WsCtx
 from api.core import composio, crypto
-from api.core import serialize as ser
-from api.core.errors import bad_request, not_found, unauthenticated
+from api.core.errors import bad_request, unauthenticated
 
 log = logging.getLogger("riskpredict.live")
 router = APIRouter()
-PING_SECONDS = 25.0
-
-EventName = Literal["risk.created", "risk.updated", "risk.resolved", "alert.created", "source.sync_started",
-                    "source.synced", "source.sync_failed", "mapping.suggested", "connection.updated",
-                    "feeds.updated", "resync"]  # fmt: skip
 
 
 @router.get("/v1/health", tags=["system"])
 def health(st: StateDep) -> dict:
-    # No database query here: health checks must not keep Neon awake.
+    # No database query here: health checks must not wake Neon. The schema version is
+    # known once this instance has served a request that used the database.
     return {"status": "ok", "version": __version__, "schema_version": st.schema_version or "unknown"}
 
 
 @router.get("/healthz", include_in_schema=False)
 def healthz() -> dict:
-    # Liveness for the platform and the keep-awake pinger (infra/README.md). Outside the
-    # /v1 contract, like /internal/*: no database, no settings, nothing but "ok".
+    # Liveness for Deploy's check. Outside the /v1 contract: no database, no settings.
     return {"status": "ok"}
 
 
-# --- stream -------------------------------------------------------------------------
+# --- live updates (polling) -----------------------------------------------------------
 
 
-@router.post("/v1/stream/ticket", tags=["stream"], status_code=201)
-def stream_ticket(ctx: WsCtx) -> dict:
-    with ctx.tx():
-        pass  # membership and session check
-    token, expires = ctx.state.tickets.issue(ctx.user_id, ctx.workspace_id)
-    return {"ticket": token, "expires_at": ser.ts(datetime.fromtimestamp(int(expires), tz=timezone.utc))}
-
-
-@router.get("/v1/stream", tags=["stream"])
-async def stream(
-    request: Request,
-    st: StateDep,
-    ticket: Annotated[str, Query(max_length=200)],
-    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID", max_length=100)] = None,
-) -> StreamingResponse:
-    t = st.tickets.redeem(ticket)
-    if t is None:
-        raise unauthenticated("the stream ticket is invalid, expired or already used")
-    queue, replay = st.hub.subscribe(t.workspace_id, last_event_id)
-
-    async def events():
-        try:
-            yield ": connected\n\n"
-            for m in replay:
-                yield m.encode()
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    msg = await asyncio.wait_for(queue.get(), PING_SECONDS)
-                    yield msg.encode()
-                except asyncio.TimeoutError:
-                    yield ": ping\n\n"
-        finally:
-            st.hub.unsubscribe(t.workspace_id, queue)
-
-    return StreamingResponse(
-        events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
-    )
+@router.get("/v1/events", tags=["events"])
+def list_events(
+    ctx: WsCtx,
+    after: Annotated[int | None, Query(ge=0, le=2**62)] = None,
+    limit: Annotated[int, Query(ge=1, le=events.PAGE)] = 100,
+) -> dict:
+    with ctx.tx() as conn:
+        return events.poll(conn, after, limit)
 
 
 # --- webhooks ------------------------------------------------------------------------
@@ -96,7 +56,7 @@ DRIVE_STATES = {"sync", "change", "add", "remove", "update", "trash", "untrash"}
 
 
 @router.post("/v1/webhooks/google-drive", tags=["webhooks"])
-def drive_notification(
+async def drive_notification(
     st: StateDep,
     x_goog_channel_id: Annotated[str | None, Header(max_length=200)] = None,
     x_goog_channel_token: Annotated[str | None, Header(max_length=500)] = None,
@@ -107,6 +67,12 @@ def drive_notification(
     if not (x_goog_channel_id and x_goog_channel_token and x_goog_resource_id and x_goog_resource_state
             and x_goog_message_number) or x_goog_resource_state not in DRIVE_STATES:  # fmt: skip
         raise bad_request("missing or invalid X-Goog-* headers")
+    return await asyncio.to_thread(_record_drive, st, x_goog_channel_id, x_goog_channel_token, x_goog_resource_id,
+                                   x_goog_resource_state, x_goog_message_number)  # fmt: skip
+
+
+def _record_drive(st, x_goog_channel_id: str, x_goog_channel_token: str, x_goog_resource_id: str,
+                  x_goog_resource_state: str, x_goog_message_number: str) -> Response:  # fmt: skip
     ok = Response(status_code=200)
     with st.db.tx() as conn:
         route = conn.execute("SELECT * FROM biz.route_drive_channel(%s)", (x_goog_channel_id,)).fetchone()
@@ -128,7 +94,7 @@ def drive_notification(
              Jsonb({"resource_state": x_goog_resource_state, "message_number": x_goog_message_number})),
         ).fetchone()  # fmt: skip
     if inserted and not is_sync:
-        st.hints.add(ws, "webhook")
+        work.after_webhook(st, ws)  # a few seconds at most; the rest waits for the worker
     return ok
 
 
@@ -178,50 +144,5 @@ def _record_composio(st, account: str, delivery_id: str, payload: dict) -> Respo
             (ws, route["connection_id"], delivery_id[:300], event_type, Jsonb(minimal)),
         ).fetchone()
     if inserted:
-        st.hints.add(ws, "webhook")
+        work.after_webhook(st, ws)
     return Response(status_code=200)
-
-
-# --- internal (worker → api) --------------------------------------------------------------
-
-
-LOOPBACK = {"127.0.0.1", "::1"}
-
-
-def _internal_auth(request: Request, st) -> None:
-    if st.settings.internal_loopback_only and (request.client.host if request.client else "") not in LOOPBACK:
-        # One container with a public port (Render): the worker calls 127.0.0.1, anyone
-        # else gets the same 404 as for an unknown path. Behind --proxy-headers the client
-        # is the address the platform proxy saw, which a caller cannot forge.
-        raise not_found()
-    token = st.settings.internal_token
-    header = request.headers.get("authorization", "")
-    scheme, _, value = header.partition(" ")
-    if not token or scheme.lower() != "bearer" or not hmac.compare_digest(value.strip().encode(), token.encode()):
-        raise unauthenticated("invalid internal token")
-
-
-class InternalEvent(BaseModel):
-    workspace_id: UUID
-    event: EventName
-    data: dict
-
-
-class InternalEvents(BaseModel):
-    events: list[InternalEvent] = Field(max_length=500)
-
-
-@router.post("/internal/events", tags=["internal"], status_code=202, include_in_schema=False)
-def push_events(body: InternalEvents, request: Request, st: StateDep) -> Response:
-    _internal_auth(request, st)
-    for e in body.events:
-        st.hub.publish(e.workspace_id, e.event, e.data)
-    return Response(status_code=202)
-
-
-@router.get("/internal/work", tags=["internal"], include_in_schema=False)
-async def take_work(request: Request, st: StateDep, wait: Annotated[float, Query(ge=0, le=55)] = 25) -> dict:
-    _internal_auth(request, st)
-    hints = await st.hints.wait(wait)
-    return {"items": [{"workspace_id": ws, "reasons": reasons} for ws, reasons in hints.items()]}
-

@@ -1,20 +1,33 @@
-"""Deploy / destroy helpers for .github/workflows/deploy.yml and destroy.yml.
+"""Deploy / destroy helpers for .github/workflows/deploy.yml, destroy.yml and worker.yml.
 
 Runs inside GitHub Actions only (never on the owner's computer). Standard library
-only, apart from psycopg for the role checks. Every secret this script creates is
-announced to the runner with ``::add-mask::`` before it is used anywhere, and no
-secret value is ever printed, written to $GITHUB_OUTPUT or to a file.
+only, apart from psycopg for the role checks. Every secret this script creates or
+reads is announced to the runner with ``::add-mask::`` before it is used anywhere,
+and no secret value is ever printed, written to $GITHUB_OUTPUT or to a file.
 
     python infra/scripts/deploy.py pages-ensure                 # Cloudflare Pages project, prints its URL
-    python infra/scripts/deploy.py render-up --web-origin URL   # role + Render service + env + deploy
-    python infra/scripts/deploy.py render-origin --web-origin URL
-    python infra/scripts/deploy.py render-destroy
+    python infra/scripts/deploy.py vercel-up --web-origin URL   # role + Vercel project + env + bundle + deploy
+    python infra/scripts/deploy.py vercel-origin --web-origin URL
+    python infra/scripts/deploy.py vercel-destroy
     python infra/scripts/deploy.py pages-destroy
     python infra/scripts/deploy.py drop-app-role
+    python infra/scripts/deploy.py worker-run                   # python -m worker --once, env from Vercel
 
 Environment (only what each command needs):
-    RENDER_API_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, DATABASE_URL_OWNER,
-    GROQ_API_KEY, the optional Google / Composio secrets, GITHUB_REPOSITORY, GITHUB_SHA.
+    VERCEL_TOKEN (and VERCEL_TEAM_ID only to use a team other than the token's default
+    one), CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+    DATABASE_URL_OWNER, GROQ_API_KEY, the optional Google / Composio secrets.
+
+**Where the API's secrets live: only in the Vercel project's environment.** Deploy
+writes them there (generated ones once, never overwritten); the worker job reads
+them back from there at its start (``worker-run``) with the same ``VERCEL_TOKEN``,
+masks each one, and hands them to ``python -m worker --once`` as its environment,
+in memory, never through a file. For that, every variable is stored as Vercel
+type ``encrypted`` (encrypted at rest, readable through the API by a token with
+access to the project), not ``sensitive`` (which nobody can read back, so the
+worker could not run). The trade-off: anyone holding ``VERCEL_TOKEN`` can read
+them, which a token able to deploy this project could do anyway (it can deploy
+code that prints them). Nothing has to be copied by hand.
 
 The pooled Neon host rule (DATABASE_URL_APP): take the owner URL's host and add
 ``-pooler`` to its first label, the endpoint id:
@@ -28,9 +41,12 @@ import base64
 import importlib.util
 import json
 import os
+import re
 import secrets
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -39,51 +55,46 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RENDER_API = "https://api.render.com/v1"
+VERCEL_API = "https://api.vercel.com"
 CF_API = "https://api.cloudflare.com/client/v4"
+VERCEL_CLI = "vercel@65.14.0"  # pinned; at least two weeks old when chosen
 
-SERVICE_NAME = os.environ.get("RENDER_SERVICE_NAME", "riskpredict-api")
+PROJECT_NAME = os.environ.get("VERCEL_PROJECT_NAME", "riskpredict-api")
 PAGES_PROJECT = os.environ.get("PAGES_PROJECT_NAME", "riskpredict")
 APP_ROLE, APP_GROUP = "riskpredict_app", "rp_app"
-DOCKERFILE = "./infra/render/Dockerfile"
-PORT = "10000"
 HEALTH_PATH = "/healthz"
+BUNDLE_GUARD_MB = 400  # Vercel's limit is 500 MB uncompressed; stay well under it
 
-# Generated once, when the variable is missing on Render, and never overwritten:
+# Generated once, when the variable is missing on Vercel, and never overwritten:
 # rotating TOKEN_ENCRYPTION_KEYS would make the stored Google refresh tokens unreadable.
-GENERATED = ("JWT_SIGNING_KEY", "TOKEN_ENCRYPTION_KEYS", "INTERNAL_TOKEN")
+# (INTERNAL_TOKEN is gone: there is no worker → API endpoint any more.)
+GENERATED = ("JWT_SIGNING_KEY", "TOKEN_ENCRYPTION_KEYS")
 # Copied from GitHub secrets / variables when they are set; skipped (left as they are on
-# Render) when empty, so a later run of Deploy adds them.
+# Vercel) when empty, so a later run of Deploy adds them.
 OPTIONAL = (
     "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_PICKER_API_KEY", "GOOGLE_CLOUD_PROJECT_NUMBER",
     "COMPOSIO_API_KEY", "COMPOSIO_WEBHOOK_SECRET", "COMPOSIO_AUTH_CONFIGS", "COMPOSIO_TRIGGER_SLUGS",
-    "GROQ_MAPPING_MODEL", "GROQ_ADVICE_MODEL", "WORKER_DB_INTERVAL_SECONDS",
+    "GROQ_MAPPING_MODEL", "GROQ_ADVICE_MODEL",
 )  # fmt: skip
 SECRET_KEYS = {"DATABASE_URL_APP", "GROQ_API_KEY", *GENERATED, "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_PICKER_API_KEY",
                "COMPOSIO_API_KEY", "COMPOSIO_WEBHOOK_SECRET"}  # fmt: skip
+# What `python -m worker --once` needs from the Vercel project (nothing else is passed on).
+WORKER_KEYS = (
+    "DATABASE_URL_APP", "TOKEN_ENCRYPTION_KEYS", "PUBLIC_API_URL", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
+    "COMPOSIO_API_KEY", "COMPOSIO_AUTH_CONFIGS", "COMPOSIO_TRIGGER_SLUGS", "GROQ_API_KEY", "GROQ_MAPPING_MODEL",
+    "GROQ_ADVICE_MODEL",
+)  # fmt: skip
 
-# Render serves web services through Cloudflare and its own load balancer, and keeps
-# any X-Forwarded-For the client sent, appending to it. Uvicorn walks the header from
-# the right, skipping trusted proxies, so the first untrusted entry is the client.
-# ("*" would make uvicorn take the leftmost entry, which the client chooses.)
-PRIVATE_RANGES = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "127.0.0.1", "::1", "fc00::/7"]
-CLOUDFLARE_FALLBACK = [
-    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18",
-    "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
-    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22", "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32",
-    "2405:b500::/32", "2405:8100::/32", "2a06:98c0::/29", "2c0f:f248::/32",
-]  # fmt: skip
-
-# Neon region (from the host) → closest Render region (oregon, ohio, virginia, frankfurt, singapore).
-NEON_TO_RENDER = {
-    "us-east-1": "virginia", "us-east-2": "ohio", "us-west-2": "oregon", "eu-central-1": "frankfurt",
-    "eu-west-2": "frankfurt", "eu-west-1": "frankfurt", "ap-southeast-1": "singapore",
-    "ap-southeast-2": "singapore", "ap-northeast-1": "singapore", "ap-south-1": "singapore",
-    "sa-east-1": "virginia", "ca-central-1": "virginia",
+# Neon region (from the host) → the closest Vercel function region.
+NEON_TO_VERCEL = {
+    "us-east-1": "iad1", "us-east-2": "cle1", "us-west-2": "pdx1", "eu-central-1": "fra1", "eu-west-2": "lhr1",
+    "eu-west-1": "dub1", "ap-southeast-1": "sin1", "ap-southeast-2": "syd1", "ap-northeast-1": "hnd1",
+    "ap-south-1": "bom1", "sa-east-1": "gru1", "ca-central-1": "yul1",
     # Azure
-    "eastus2": "virginia", "eastus": "virginia", "westus3": "oregon", "germanywestcentral": "frankfurt",
+    "eastus2": "iad1", "eastus": "iad1", "westus3": "sfo1", "germanywestcentral": "fra1",
 }  # fmt: skip
-DEFAULT_REGION = "ohio"
+VERCEL_REGIONS = sorted(set(NEON_TO_VERCEL.values()) | {"cdg1", "arn1", "icn1", "hkg1", "kix1", "cpt1"})
+DEFAULT_REGION = "iad1"
 
 
 class DeployError(Exception):
@@ -159,10 +170,10 @@ def neon_region(host: str) -> str | None:
     return None
 
 
-def render_region(host: str, override: str = "") -> str:
+def vercel_region(host: str, override: str = "") -> str:
     if override and override != "auto":
         return override
-    return NEON_TO_RENDER.get(neon_region(host) or "", DEFAULT_REGION)
+    return NEON_TO_VERCEL.get(neon_region(host) or "", DEFAULT_REGION)
 
 
 def app_url(owner_dsn: str, password: str) -> str:
@@ -185,23 +196,17 @@ def new_secret(name: str) -> str:
         return base64.b64encode(secrets.token_bytes(32)).decode()
     if name == "TOKEN_ENCRYPTION_KEYS":
         return "k1:" + base64.b64encode(secrets.token_bytes(32)).decode()
-    if name == "INTERNAL_TOKEN":
-        return secrets.token_urlsafe(32)
     raise ValueError(name)
-
-
-def forwarded_allow_ips(cloudflare: list[str]) -> str:
-    return ",".join(PRIVATE_RANGES + (cloudflare or CLOUDFLARE_FALLBACK))
 
 
 @dataclass
 class EnvPlan:
-    set: dict[str, str] = field(default_factory=dict)  # key → value to PUT
-    kept: list[str] = field(default_factory=list)  # present on Render and left alone
+    set: dict[str, str] = field(default_factory=dict)  # key → value to write
+    kept: list[str] = field(default_factory=list)  # present on Vercel and left alone
 
 
 def plan_env(current: dict[str, str], desired: dict[str, str], generated: dict[str, str]) -> EnvPlan:
-    """``desired`` always wins when it differs; ``generated`` only fills keys Render lacks."""
+    """``desired`` always wins when it differs; ``generated`` only fills keys Vercel lacks."""
     plan = EnvPlan()
     for k, v in desired.items():
         if current.get(k) != v:
@@ -214,15 +219,29 @@ def plan_env(current: dict[str, str], desired: dict[str, str], generated: dict[s
     return plan
 
 
+def production_url(project_name: str, aliases: list[str]) -> str:
+    """The stable production address among a deployment's aliases: ``<project>.vercel.app``
+    when Vercel gave it, else the shortest ``*.vercel.app`` alias (never the per-deployment URL)."""
+    hosts = sorted({a.removeprefix("https://").rstrip("/") for a in aliases if a}, key=lambda h: (len(h), h))
+    if f"{project_name}.vercel.app" in hosts:
+        return f"https://{project_name}.vercel.app"
+    vercel = [h for h in hosts if h.endswith(".vercel.app")]
+    if not (vercel or hosts):
+        raise DeployError("Vercel returned no production alias for the deployment")
+    return "https://" + (vercel or hosts)[0]
+
+
 # --- HTTP -------------------------------------------------------------------------------
 
 
 class Api:
-    def __init__(self, base: str, token: str, name: str):
-        self.base, self.token, self.name = base, token, name
+    def __init__(self, base: str, token: str, name: str, query: dict[str, str] | None = None):
+        self.base, self.token, self.name, self.query = base, token, name, query or {}
 
-    def call(self, method: str, path: str, body: dict | None = None, *, ok404: bool = False, tries: int = 5):
+    def call(self, method: str, path: str, body=None, *, ok404: bool = False, tries: int = 5):
         url = path if path.startswith("http") else self.base + path
+        if self.query:
+            url += ("&" if "?" in url else "?") + urllib.parse.urlencode(self.query)
         data = json.dumps(body).encode() if body is not None else None
         for attempt in range(tries):
             req = urllib.request.Request(url, data=data, method=method)
@@ -253,7 +272,7 @@ class Api:
 
     @staticmethod
     def _safe(path: str) -> str:
-        # env-var paths carry a key name only; strip query strings
+        # paths carry ids and key names only; strip query strings
         return path.split("?", 1)[0]
 
     @staticmethod
@@ -265,11 +284,14 @@ class Api:
         if isinstance(body, dict):
             if body.get("errors"):  # Cloudflare
                 return "; ".join(f"{e.get('code')}: {str(e.get('message'))[:200]}" for e in body["errors"][:3])
+            err = body.get("error")
+            if isinstance(err, dict):  # Vercel; its messages name keys and ids, never values
+                return f"{err.get('code')}: {str(err.get('message'))[:300]}"
             return str(body.get("message") or "")[:300]
         return ""
 
 
-def get_text(url: str, timeout: float = 20) -> tuple[int, str]:
+def get_text(url: str, timeout: float = 30) -> tuple[int, str]:
     req = urllib.request.Request(url, headers={"User-Agent": "riskpredict-deploy"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -280,107 +302,14 @@ def get_text(url: str, timeout: float = 20) -> tuple[int, str]:
         return 0, ""
 
 
-# --- Render -------------------------------------------------------------------------------
-
-
-def render() -> Api:
-    return Api(RENDER_API, env("RENDER_API_KEY", required=True), "Render")
-
-
-def render_owner(api: Api) -> str:
-    wanted = env("RENDER_OWNER_ID")
-    _, rows = api.call("GET", "/owners?limit=100")
-    owners = [r["owner"] for r in rows or []]
-    if wanted:
-        if not any(o["id"] == wanted for o in owners):
-            raise DeployError("RENDER_OWNER_ID is not a workspace this API key can use")
-        return wanted
-    if len(owners) == 1:
-        return owners[0]["id"]
-    names = ", ".join(f"{o.get('name')} ({o['id']})" for o in owners)
-    raise DeployError(f"the Render API key sees {len(owners)} workspaces; set the repository variable "
-                      f"RENDER_OWNER_ID to one of: {names}")  # fmt: skip
-
-
-def find_service(api: Api, owner_id: str | None = None) -> dict | None:
-    q = {"name": SERVICE_NAME, "type": "web_service", "limit": "100"}
-    if owner_id:
-        q["ownerId"] = owner_id
-    _, rows = api.call("GET", "/services?" + urllib.parse.urlencode(q))
-    found = [r["service"] for r in rows or [] if r.get("service", {}).get("name") == SERVICE_NAME]
-    if len(found) > 1:
-        raise DeployError(f"{len(found)} Render services are named {SERVICE_NAME}; delete the extra ones")
-    return found[0] if found else None
-
-
-def service_url(svc: dict) -> str:
-    url = (svc.get("serviceDetails") or {}).get("url") or ""
-    if not url:
-        raise DeployError("Render did not return the service URL")
-    return url.rstrip("/")
-
-
-def env_vars(api: Api, sid: str) -> dict[str, str]:
-    out: dict[str, str] = {}
-    cursor = None
-    while True:
-        q = {"limit": "100"} | ({"cursor": cursor} if cursor else {})
-        _, rows = api.call("GET", f"/services/{sid}/env-vars?" + urllib.parse.urlencode(q))
-        rows = rows or []
-        for r in rows:
-            ev = r.get("envVar") or {}
-            key, value = ev.get("key"), ev.get("value") or ""
-            if key:
-                if key in SECRET_KEYS:
-                    mask(value)
-                out[key] = value
-        if len(rows) < 100:
-            return out
-        cursor = rows[-1].get("cursor")
-
-
-def put_env(api: Api, sid: str, key: str, value: str) -> None:
-    api.call("PUT", f"/services/{sid}/env-vars/{urllib.parse.quote(key)}", {"value": value})
-
-
-def trigger_deploy(api: Api, sid: str, commit: str) -> str:
-    body: dict = {"clearCache": "do_not_clear"}
-    if commit:
-        body["commitId"] = commit
-    status, dep = api.call("POST", f"/services/{sid}/deploys", body)
-    if dep and dep.get("id"):
-        return dep["id"]
-    # 202 (queued behind a running deploy) has no body: take the newest deploy.
-    time.sleep(5)
-    _, rows = api.call("GET", f"/services/{sid}/deploys?limit=5")
-    for r in rows or []:
-        d = r.get("deploy") or {}
-        if not commit or (d.get("commit") or {}).get("id") == commit:
-            return d["id"]
-    raise DeployError(f"Render accepted the deploy (HTTP {status}) but it could not be found")
-
-
-def wait_deploy(api: Api, sid: str, deploy_id: str, timeout: float = 30 * 60) -> None:
+def wait_healthy(url: str, timeout: float = 4 * 60) -> dict:
+    """``/healthz`` answers 200 ``ok`` without credentials (so Deployment Protection is off),
+    then ``/v1/health`` for the version. Neither touches the database."""
     start = time.monotonic()
-    last = ""
-    while time.monotonic() - start < timeout:
-        _, d = api.call("GET", f"/services/{sid}/deploys/{deploy_id}")
-        status = (d or {}).get("status", "")
-        if status != last:
-            info(f"deploy {deploy_id}: {status} ({(time.monotonic() - start) / 60:.0f} min)")
-            last = status
-        if status == "live":
-            return
-        if status in ("build_failed", "update_failed", "pre_deploy_failed", "canceled", "deactivated"):
-            raise DeployError(f"deploy {deploy_id} ended as {status}; open the service's Events/Logs in the Render dashboard")
-        time.sleep(15)
-    raise DeployError(f"deploy {deploy_id} was not live after {timeout / 60:.0f} minutes")
-
-
-def wait_healthy(url: str, timeout: float = 6 * 60) -> dict:
-    start = time.monotonic()
+    last = 0
     while time.monotonic() - start < timeout:
         code, body = get_text(url + HEALTH_PATH)
+        last = code
         if code == 200:
             try:
                 if json.loads(body).get("status") == "ok":
@@ -388,18 +317,162 @@ def wait_healthy(url: str, timeout: float = 6 * 60) -> dict:
                     return json.loads(body2) if code2 == 200 else {}
             except ValueError:
                 pass
+        if code in (401, 403):
+            raise DeployError(f"{url}{HEALTH_PATH} answered {code}: Vercel Deployment Protection is still on; "
+                              "the API and the webhooks must be public")  # fmt: skip
         time.sleep(10)
-    raise DeployError(f"{url}{HEALTH_PATH} did not answer ok within {timeout / 60:.0f} minutes")
+    raise DeployError(f"{url}{HEALTH_PATH} did not answer ok within {timeout / 60:.0f} minutes (last HTTP {last})")
 
 
-def cloudflare_ranges() -> list[str]:
-    code, body = get_text(CF_API + "/ips")
-    try:
-        result = json.loads(body)["result"] if code == 200 else {}
-        ranges = list(result.get("ipv4_cidrs") or []) + list(result.get("ipv6_cidrs") or [])
-        return ranges or CLOUDFLARE_FALLBACK
-    except (ValueError, KeyError, TypeError, AttributeError):
-        return CLOUDFLARE_FALLBACK
+# --- Vercel -------------------------------------------------------------------------------
+
+
+def vercel() -> Api:
+    """The Vercel API, scoped to VERCEL_TEAM_ID or else the token's default team (Hobby
+    accounts are a personal team, e.g. "<name>'s projects"), so every call and the CLI
+    work in one place."""
+    api = Api(VERCEL_API, env("VERCEL_TOKEN", required=True), "Vercel")
+    team = env("VERCEL_TEAM_ID")
+    if not team:
+        _, me = api.call("GET", "/v2/user")
+        team = str(((me or {}).get("user") or {}).get("defaultTeamId") or "")
+    if team:
+        api.query = {"teamId": team}
+    return api
+
+
+def find_project(api: Api) -> dict | None:
+    status, proj = api.call("GET", f"/v9/projects/{PROJECT_NAME}", ok404=True)
+    return None if status == 404 else proj
+
+
+PROJECT_SETTINGS = {
+    "framework": "fastapi",
+    # Public: the dashboard, Google Drive and Composio call this API without Vercel credentials.
+    "ssoProtection": None,
+    "passwordProtection": None,
+    "buildCommand": None,
+    "installCommand": None,
+    "outputDirectory": None,
+    "rootDirectory": None,
+}
+
+
+def ensure_project(api: Api) -> tuple[dict, bool]:
+    proj = find_project(api)
+    created = proj is None
+    if created:
+        _, proj = api.call("POST", "/v11/projects", {"name": PROJECT_NAME, **PROJECT_SETTINGS})
+        info(f"created Vercel project {PROJECT_NAME} ({proj['id']})")
+    else:
+        info(f"found Vercel project {PROJECT_NAME} ({proj['id']})")
+    # Every run: framework preset, no build overrides, and no Deployment Protection.
+    _, proj = api.call("PATCH", f"/v9/projects/{proj['id']}", PROJECT_SETTINGS)
+    if proj.get("ssoProtection") or proj.get("passwordProtection"):
+        raise DeployError("Vercel kept Deployment Protection on; turn it off under Project → Settings → "
+                          "Deployment Protection (the API must be public)")  # fmt: skip
+    return proj, created
+
+
+def _env_rows(payload) -> list[dict]:
+    if isinstance(payload, list):
+        return payload
+    return list((payload or {}).get("envs") or [])
+
+
+def env_vars(api: Api, project_id: str, keys: tuple[str, ...] | set[str] | None = None) -> dict[str, dict]:
+    """Production variables by key: {"id", "value", "type"}. Values of SECRET_KEYS (and of
+    every key when ``keys`` is given) are masked before anything else happens."""
+    _, payload = api.call("GET", f"/v10/projects/{project_id}/env?decrypt=true")
+    out: dict[str, dict] = {}
+    for row in _env_rows(payload):
+        key = row.get("key")
+        if not key or "production" not in (row.get("target") or []) or (keys is not None and key not in keys):
+            continue
+        value = row.get("value") or ""
+        if row.get("type") in ("encrypted", "secret") and not row.get("decrypted", True):
+            # the list did not decrypt it: read this one variable
+            _, one = api.call("GET", f"/v1/projects/{project_id}/env/{row['id']}")
+            value = (one or {}).get("value") or ""
+        if key in SECRET_KEYS or keys is not None:
+            mask(value)
+        out[key] = {"id": row.get("id"), "value": value, "type": row.get("type")}
+    return out
+
+
+def put_env(api: Api, project_id: str, key: str, value: str) -> None:
+    """Create or update one production variable, type ``encrypted`` (readable back by the worker job)."""
+    api.call("POST", f"/v10/projects/{project_id}/env?upsert=true",
+             {"key": key, "value": value, "type": "encrypted", "target": ["production"]})  # fmt: skip
+
+
+def deploy_bundle(api: Api, proj: dict, region: str, *, check_size: bool) -> dict:
+    """Build the clean bundle, check it, deploy it to production with the pinned CLI, wait until READY."""
+    bundle = _bundle_module()
+    with tempfile.TemporaryDirectory(prefix="riskpredict-vercel-") as tmp:
+        out = bundle.build(Path(tmp) / "bundle", region)
+        info(f"bundle: {len(bundle.file_list(out))} files, region {region}")
+        size = {}
+        if check_size:
+            try:
+                size = bundle.check(out, BUNDLE_GUARD_MB)
+            except SystemExit as exc:  # the size guard or the ASGI smoke test
+                raise DeployError(str(exc)) from None
+            info(f"bundle size: {size['total_mb']} MB of Vercel's {size['limit_mb']} MB (largest: {', '.join(size['largest'])})")
+            shutil.rmtree(out / ".check", ignore_errors=True)
+        url = run_cli(out, proj)
+    dep = wait_ready(api, url)
+    dep["bundle_mb"] = size.get("total_mb", "")
+    return dep
+
+
+def _bundle_module():
+    spec = importlib.util.spec_from_file_location("vercel_bundle", ROOT / "infra/vercel/bundle.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def run_cli(directory: Path, proj: dict) -> str:
+    """``vercel deploy --prod`` from ``directory``; returns the deployment URL it prints."""
+    npx = shutil.which("npx")
+    if not npx:
+        raise DeployError("npx is not available (actions/setup-node runs before this step)")
+    child = {k: v for k, v in os.environ.items() if k not in SECRET_KEYS and not k.startswith(("DATABASE_URL", "GOOGLE_", "COMPOSIO_"))}
+    child.update({"VERCEL_ORG_ID": proj.get("accountId") or "", "VERCEL_PROJECT_ID": proj["id"],
+                  "VERCEL_TELEMETRY_DISABLED": "1", "CI": "1"})  # fmt: skip
+    cmd = [npx, "--yes", VERCEL_CLI, "deploy", "--prod", "--yes", "--token", env("VERCEL_TOKEN", required=True)]
+    proc = subprocess.run(cmd, cwd=directory, env=child, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                          timeout=20 * 60)  # fmt: skip
+    for line in proc.stderr.splitlines()[-40:]:  # the CLI's progress and build log; no values in it
+        info(f"  vercel: {line[:300]}")
+    urls = re.findall(r"https://[a-z0-9.-]+\.vercel\.app", proc.stdout)
+    if proc.returncode != 0 or not urls:
+        raise DeployError(f"vercel deploy failed (exit {proc.returncode}); see the build log above")
+    return urls[-1]
+
+
+def wait_ready(api: Api, url: str, timeout: float = 15 * 60) -> dict:
+    host = url.removeprefix("https://")
+    start, last = time.monotonic(), ""
+    while time.monotonic() - start < timeout:
+        _, dep = api.call("GET", f"/v13/deployments/{host}")
+        state = (dep or {}).get("readyState") or (dep or {}).get("status") or ""
+        if state != last:
+            info(f"deployment {dep.get('id')}: {state}")
+            last = state
+        if state == "READY" and (dep.get("aliasAssigned") or dep.get("alias")):
+            return dep
+        if state in ("ERROR", "CANCELED"):
+            raise DeployError(f"deployment {dep.get('id')} ended as {state}; open it in the Vercel dashboard")
+        time.sleep(5)
+    raise DeployError(f"deployment {host} was not READY after {timeout / 60:.0f} minutes")
+
+
+def deployment_url(proj: dict, dep: dict) -> str:
+    aliases = list(dep.get("alias") or [])
+    aliases += list(((proj.get("targets") or {}).get("production") or {}).get("alias") or [])
+    return production_url(PROJECT_NAME, aliases)
 
 
 # --- the app login role ---------------------------------------------------------------------
@@ -434,149 +507,124 @@ def run_roles_script(*extra: str, password: str | None = None) -> None:
 # --- commands -----------------------------------------------------------------------------
 
 
-def cmd_render_up(args) -> None:
+def cmd_vercel_up(args) -> None:
     owner_dsn = env("DATABASE_URL_OWNER", required=True)
     groq = env("GROQ_API_KEY", required=True)
-    host = neon_host(owner_dsn)
-    region = render_region(host, args.region)
-    api = render()
-    owner_id = render_owner(api)
-    svc = find_service(api, owner_id)
-    current = env_vars(api, svc["id"]) if svc else {}
-    if svc:
-        plan = (svc.get("serviceDetails") or {}).get("plan")
-        if plan != "free":
-            raise DeployError(f"the Render service {SERVICE_NAME} is on plan {plan!r}, not free; refusing to touch it")
+    region = vercel_region(neon_host(owner_dsn), args.region)
+    api = vercel()
+    proj, created = ensure_project(api)
+    pid = proj["id"]
+    current = {k: v["value"] for k, v in env_vars(api, pid).items()}
 
-    # 1. The riskpredict_app login and DATABASE_URL_APP (kept only on Render).
+    # 1. The riskpredict_app login and DATABASE_URL_APP (kept only on Vercel). A login left
+    #    by an earlier platform has a password nobody knows: no Vercel value → rotate.
     exists = app_role_exists()
     new_password = None
     if args.rotate_app_password or not exists or "DATABASE_URL_APP" not in current:
         reason = ("rotate requested" if args.rotate_app_password else
-                  "role missing" if not exists else "Render has no DATABASE_URL_APP")  # fmt: skip
+                  "role missing" if not exists else "Vercel has no DATABASE_URL_APP")  # fmt: skip
         new_password = mask(secrets.token_urlsafe(32))
         info(f"{APP_ROLE}: new password ({reason})")
         run_roles_script(*(["--rotate"] if exists else []), password=new_password)
     else:
-        info(f"{APP_ROLE}: exists; keeping its password and the Render value")
+        info(f"{APP_ROLE}: exists; keeping its password and the Vercel value")
         run_roles_script("--check")
-    database_url_app = mask(app_url(owner_dsn, new_password)) if new_password else None
 
-    # 2. Environment for the service.
+    # 2. Environment of the project (production).
     desired = {
         "GROQ_API_KEY": groq,
         "WEB_ORIGIN": args.web_origin.rstrip("/"),
-        "API_INTERNAL_URL": f"http://127.0.0.1:{PORT}",
-        "PORT": PORT,
-        "INTERNAL_LOOPBACK_ONLY": "true",
-        "FORWARDED_ALLOW_IPS": forwarded_allow_ips(cloudflare_ranges()),
+        # Vercel's edge sets x-real-ip itself; a client cannot choose it.
+        "CLIENT_IP_HEADER": "x-real-ip",
     }
     for k in OPTIONAL:
         if env(k):
             desired[k] = env(k)
-    if database_url_app:
-        desired["DATABASE_URL_APP"] = database_url_app
+    if new_password:
+        desired["DATABASE_URL_APP"] = mask(app_url(owner_dsn, new_password))
+    if current.get("PUBLIC_API_URL"):
+        desired["PUBLIC_API_URL"] = current["PUBLIC_API_URL"]
     generated = {k: mask(new_secret(k)) for k in GENERATED if k not in current}
-
-    created = False
-    first_deploy = None
-    if svc is None:
-        body = {
-            "type": "web_service",
-            "name": SERVICE_NAME,
-            "ownerId": owner_id,
-            "repo": f"https://github.com/{env('GITHUB_REPOSITORY', required=True)}",
-            "branch": "main",
-            "autoDeployTrigger": "off",
-            "envVars": [{"key": k, "value": v} for k, v in {**desired, **generated}.items()],
-            "serviceDetails": {
-                "runtime": "docker",
-                "plan": "free",
-                "region": region,
-                "healthCheckPath": HEALTH_PATH,
-                "numInstances": 1,
-                "envSpecificDetails": {"dockerfilePath": DOCKERFILE, "dockerContext": "."},
-            },
-        }
-        _, res = api.call("POST", "/services", body)
-        svc, first_deploy = res["service"], res.get("deployId")
-        created = True
-        info(f"created Render service {svc['id']} ({region}, free)")
-        if first_deploy:
-            # PUBLIC_API_URL is only known now; cancel the automatic first build and
-            # deploy once with every variable in place.
-            try:
-                api.call("POST", f"/services/{svc['id']}/deploys/{first_deploy}/cancel", {})
-            except DeployError as exc:
-                info(f"could not cancel the first automatic deploy ({exc}); waiting for it instead")
-                try:
-                    wait_deploy(api, svc["id"], first_deploy)
-                except DeployError:
-                    pass
-    else:
-        info(f"found Render service {svc['id']} ({(svc.get('serviceDetails') or {}).get('region')})")
-        if (svc.get("serviceDetails") or {}).get("region") != region:
-            info(f"note: the service's region cannot change; the Neon host suggests {region}")
-        api.call("PATCH", f"/services/{svc['id']}", {
-            "autoDeployTrigger": "off",
-            "branch": "main",
-            "serviceDetails": {"healthCheckPath": HEALTH_PATH,
-                               "envSpecificDetails": {"dockerfilePath": DOCKERFILE, "dockerContext": "."}},
-        })  # fmt: skip
-
-    sid, url = svc["id"], service_url(svc)
-    desired["PUBLIC_API_URL"] = url
-    # A new service got every other variable in its create request.
-    plan = EnvPlan(set={"PUBLIC_API_URL": url}) if created else plan_env(current, desired, generated)
+    plan = plan_env(current, desired, generated)
     for k, v in plan.set.items():
         try:
-            put_env(api, sid, k, v)
+            put_env(api, pid, k, v)
         except DeployError:
             if k == "DATABASE_URL_APP":
-                raise DeployError("the role's password changed but Render kept the old DATABASE_URL_APP; "
+                raise DeployError("the role's password changed but Vercel kept the old DATABASE_URL_APP; "
                                   "run Deploy again with rotate_app_password=true") from None  # fmt: skip
             raise
     info("env set: " + (", ".join(sorted(plan.set)) or "none changed"))
     if plan.kept:
         info("env kept (generated once, never overwritten): " + ", ".join(sorted(plan.kept)))
 
-    # 3. Deploy this commit and wait until it serves /healthz.
-    deploy_id = trigger_deploy(api, sid, env("GITHUB_SHA"))
-    wait_deploy(api, sid, deploy_id)
+    # 3. Deploy this commit's bundle; then make PUBLIC_API_URL the production address.
+    dep = deploy_bundle(api, proj, region, check_size=True)
+    _, proj = api.call("GET", f"/v9/projects/{pid}")
+    url = deployment_url(proj, dep)
+    redeployed = False
+    if current.get("PUBLIC_API_URL") != url:
+        put_env(api, pid, "PUBLIC_API_URL", url)
+        info(f"PUBLIC_API_URL set to {url}; deploying again so the API sees it")
+        dep = {**deploy_bundle(api, proj, region, check_size=False), "bundle_mb": dep.get("bundle_mb", "")}
+        redeployed = True
     health = wait_healthy(url)
-    output(service_id=sid, api_url=url, render_region=(svc.get("serviceDetails") or {}).get("region") or region,
-           created=str(created).lower(), schema_version=str(health.get("schema_version", "unknown")),
-           api_version=str(health.get("version", "unknown")), deploy_id=deploy_id)  # fmt: skip
+    output(project_id=pid, api_url=url, vercel_region=region, created=str(created).lower(),
+           api_version=str(health.get("version", "unknown")), deployment_id=str(dep.get("id", "")),
+           bundle_mb=str(dep.get("bundle_mb", "")), redeployed=str(redeployed).lower())  # fmt: skip
 
 
-def cmd_render_origin(args) -> None:
-    api = render()
-    svc = find_service(api, render_owner(api))
-    if svc is None:
-        raise DeployError(f"Render service {SERVICE_NAME} not found")
+def cmd_vercel_origin(args) -> None:
+    api = vercel()
+    proj = find_project(api)
+    if proj is None:
+        raise DeployError(f"Vercel project {PROJECT_NAME} not found")
     origin = args.web_origin.rstrip("/")
-    current = env_vars(api, svc["id"])
-    if current.get("WEB_ORIGIN") == origin:
+    current = env_vars(api, proj["id"], {"WEB_ORIGIN", "PUBLIC_API_URL"})
+    if current.get("WEB_ORIGIN", {}).get("value") == origin:
         output(origin_changed="false")
         return
-    put_env(api, svc["id"], "WEB_ORIGIN", origin)
-    info(f"WEB_ORIGIN changed to {origin}; redeploying")
-    deploy_id = trigger_deploy(api, svc["id"], env("GITHUB_SHA"))
-    wait_deploy(api, svc["id"], deploy_id)
-    wait_healthy(service_url(svc))
+    put_env(api, proj["id"], "WEB_ORIGIN", origin)
+    info(f"WEB_ORIGIN changed to {origin}; deploying again")
+    region = args.region or proj.get("serverlessFunctionRegion") or DEFAULT_REGION
+    deploy_bundle(api, proj, region if region in VERCEL_REGIONS else DEFAULT_REGION, check_size=False)
+    wait_healthy(current.get("PUBLIC_API_URL", {}).get("value") or f"https://{PROJECT_NAME}.vercel.app")
     output(origin_changed="true")
 
 
-def cmd_render_destroy(args) -> None:
-    api = render()
-    svc = find_service(api)
-    if svc is None:
-        info(f"Render service {SERVICE_NAME}: already gone")
-        output(render_removed="already gone")
+def cmd_vercel_destroy(args) -> None:
+    api = vercel()
+    proj = find_project(api)
+    if proj is None:
+        info(f"Vercel project {PROJECT_NAME}: already gone")
+        output(vercel_removed="already gone")
         return
-    api.call("DELETE", f"/services/{svc['id']}", ok404=True)
-    info(f"Render service {SERVICE_NAME} ({svc['id']}): deleted")
-    output(render_removed=f"deleted ({svc['id']})")
+    api.call("DELETE", f"/v9/projects/{proj['id']}", ok404=True)
+    info(f"Vercel project {PROJECT_NAME} ({proj['id']}): deleted, with its deployments and environment")
+    output(vercel_removed=f"deleted ({proj['id']})")
+
+
+def cmd_worker_run(args) -> None:
+    """Read the worker's settings from the Vercel project, mask them, run ``python -m worker --once``
+    with them as its environment (in memory: nothing is written to a file)."""
+    if not env("VERCEL_TOKEN"):
+        info("::notice title=Worker skipped::The VERCEL_TOKEN secret is not set, so the worker did not run.")
+        return
+    api = vercel()
+    proj = find_project(api)
+    if proj is None:
+        info(f"::notice title=Worker skipped::The Vercel project {PROJECT_NAME} does not exist yet; run Deploy first.")
+        return
+    values = {k: v["value"] for k, v in env_vars(api, proj["id"], set(WORKER_KEYS)).items() if v["value"]}
+    if "DATABASE_URL_APP" not in values:
+        raise DeployError("the Vercel project has no DATABASE_URL_APP; run Deploy first")
+    info("worker settings from Vercel: " + ", ".join(sorted(values)))
+    child = {k: v for k, v in os.environ.items() if k not in WORKER_KEYS and k not in SECRET_KEYS and k != "VERCEL_TOKEN"}
+    child.update(values)
+    child["WORKER_ONCE_BUDGET_SECONDS"] = env("WORKER_ONCE_BUDGET_SECONDS") or "480"
+    proc = subprocess.run([sys.executable, "-m", "worker", "--once"], cwd=ROOT, env=child)
+    if proc.returncode != 0:
+        raise DeployError(f"python -m worker --once exited with {proc.returncode}")
 
 
 # --- Cloudflare Pages -----------------------------------------------------------------------
@@ -657,16 +705,19 @@ def cmd_drop_app_role(args) -> None:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    up = sub.add_parser("render-up")
+    up = sub.add_parser("vercel-up")
     up.add_argument("--web-origin", required=True)
     up.add_argument("--rotate-app-password", action="store_true")
-    up.add_argument("--region", default="auto", choices=["auto", "oregon", "ohio", "virginia", "frankfurt", "singapore"])
-    sub.add_parser("render-origin").add_argument("--web-origin", required=True)
-    for name in ("render-destroy", "pages-ensure", "pages-destroy", "drop-app-role"):
+    up.add_argument("--region", default="auto", choices=["auto", *VERCEL_REGIONS])
+    origin = sub.add_parser("vercel-origin")
+    origin.add_argument("--web-origin", required=True)
+    origin.add_argument("--region", default="")
+    for name in ("vercel-destroy", "pages-ensure", "pages-destroy", "drop-app-role", "worker-run"):
         sub.add_parser(name)
     args = ap.parse_args(argv)
-    fn = {"render-up": cmd_render_up, "render-origin": cmd_render_origin, "render-destroy": cmd_render_destroy,
-          "pages-ensure": cmd_pages_ensure, "pages-destroy": cmd_pages_destroy, "drop-app-role": cmd_drop_app_role}  # fmt: skip
+    fn = {"vercel-up": cmd_vercel_up, "vercel-origin": cmd_vercel_origin, "vercel-destroy": cmd_vercel_destroy,
+          "pages-ensure": cmd_pages_ensure, "pages-destroy": cmd_pages_destroy, "drop-app-role": cmd_drop_app_role,
+          "worker-run": cmd_worker_run}  # fmt: skip
     try:
         fn[args.cmd](args)
     except DeployError as exc:

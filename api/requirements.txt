@@ -1,4 +1,4 @@
-# API service (FastAPI; on Render with the worker in one container). All free and open source.
+# API service (FastAPI; on Vercel via infra/vercel/bundle.py, which leaves uvicorn out). All free and open source.
 # Shared with the worker: psycopg, httpx, cryptography, pycountry (jobs/codes.py).
 fastapi==0.165.0
 uvicorn==0.54.0

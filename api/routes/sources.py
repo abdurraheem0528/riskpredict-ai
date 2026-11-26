@@ -7,10 +7,11 @@ from typing import Annotated, Any
 from uuid import UUID
 
 import psycopg
-from fastapi import APIRouter, BackgroundTasks, Body, Query, Response
+from fastapi import APIRouter, Body, Query, Response
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
+from api import events, work
 from api.context import State, WsCtx, audit
 from api.core import mapping, providers
 from api.core import serialize as ser
@@ -95,16 +96,18 @@ def store_suggestion(st: State, workspace_id: UUID, source_id: UUID) -> dict | N
             " WHERE id = %s AND status IN ('new', 'mapping_suggested')",
             (source_id,),
         )
-    st.hub.publish(workspace_id, "mapping.suggested",
-                   {"source_id": str(source_id), "mapping_id": str(row["id"]), "version": row["version"]})  # fmt: skip
+        events.publish(conn, workspace_id, "mapping.suggested",
+                       {"source_id": str(source_id), "mapping_id": str(row["id"]), "version": row["version"]})  # fmt: skip
     return row
 
 
-def _suggest_in_background(st: State, workspace_id: UUID, source_id: UUID) -> None:
+def _suggest_now(st: State, workspace_id: UUID, source_id: UUID) -> None:
+    """Serverless: no background task survives the response, so the suggestion is made
+    before it (Groq's own timeout bounds it; heuristics if Groq is down)."""
     try:
         store_suggestion(st, workspace_id, source_id)
-    except Exception as exc:  # never let a background task take the process down
-        log.warning("background mapping suggestion failed (%s)", type(exc).__name__)
+    except Exception as exc:  # the source exists either way; "suggest" can be asked again
+        log.warning("mapping suggestion failed (%s)", type(exc).__name__)
 
 
 @router.get("/v1/sources")
@@ -118,7 +121,7 @@ def list_sources(ctx: WsCtx, connection_id: Annotated[UUID | None, Query()] = No
 
 
 @router.post("/v1/sources", status_code=201)
-def create_source(body: NewSource, ctx: WsCtx, tasks: BackgroundTasks) -> dict:
+def create_source(body: NewSource, ctx: WsCtx) -> dict:
     with ctx.tx("editor") as conn:
         ref = _connection(conn, body.connection_id)
     _require_active(ref)
@@ -136,10 +139,11 @@ def create_source(body: NewSource, ctx: WsCtx, tasks: BackgroundTasks) -> dict:
                  body.header_row, Jsonb(table.columns), ctx.user_id),
             ).fetchone()  # fmt: skip
             audit(conn, ctx.workspace_id, ctx.user_id, "source.created", "source", str(row["id"]))
-            out = _source(conn, row["id"])
     except psycopg.errors.UniqueViolation:
         raise conflict("this sheet or table is already a source") from None
-    tasks.add_task(_suggest_in_background, ctx.state, ctx.workspace_id, row["id"])
+    _suggest_now(ctx.state, ctx.workspace_id, row["id"])
+    with ctx.tx() as conn:
+        out = _source(conn, row["id"])
     return ser.source(out)
 
 
@@ -177,7 +181,9 @@ def update_source(source_id: UUID, body: SourcePatch, ctx: WsCtx) -> dict:
         )  # fmt: skip
         out = _source(conn, source_id)
     if out["status"] == "active":
-        ctx.state.hints.add(ctx.workspace_id, "sync")
+        work.sync_and_score(ctx.state, ctx.workspace_id)
+        with ctx.tx() as conn:
+            out = _source(conn, source_id)
     return ser.source(out)
 
 
@@ -187,7 +193,7 @@ def delete_source(source_id: UUID, ctx: WsCtx) -> Response:
         _source(conn, source_id)
         conn.execute("DELETE FROM biz.sources WHERE id = %s", (source_id,))
         audit(conn, ctx.workspace_id, ctx.user_id, "source.deleted", "source", str(source_id))
-    ctx.state.hints.add(ctx.workspace_id, "engine")
+    work.score(ctx.state, ctx.workspace_id)
     return Response(status_code=204)
 
 
@@ -204,7 +210,7 @@ def sync_source(source_id: UUID, ctx: WsCtx) -> Response:
             " status = CASE WHEN status = 'error' THEN 'active' ELSE status END WHERE id = %s",
             (source_id,),
         )
-    ctx.state.hints.add(ctx.workspace_id, "sync")
+    work.sync_and_score(ctx.state, ctx.workspace_id)  # within the request; the events follow
     return Response(status_code=202)
 
 
@@ -295,6 +301,6 @@ def confirm_mapping(source_id: UUID, ctx: WsCtx, spec: Annotated[dict, Body()]) 
             (source_id,),
         )
         audit(conn, ctx.workspace_id, ctx.user_id, "mapping.confirmed", "source", str(source_id), {"version": row["version"]})
-    ctx.state.hints.add(ctx.workspace_id, "sync")
+    work.sync_and_score(ctx.state, ctx.workspace_id)
     return ser.column_mapping(row)
 

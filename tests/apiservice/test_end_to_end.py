@@ -18,7 +18,7 @@ pytest.importorskip("fastapi")  # the repository-wide CI job does not install th
 engine = pytest.importorskip("engine")
 
 from apiservice_fixtures import *  # noqa: E402,F401,F403  (fixtures)
-from apiservice_helpers import hdr, sign_up  # noqa: E402
+from apiservice_helpers import event_names, hdr, sign_up  # noqa: E402
 
 GEOJSON = "application/geo+json"
 ENTITIES = [
@@ -77,19 +77,18 @@ def feeds_ran(db) -> None:
 
 
 def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
-    from test_api_google_flow import RecordingApi
-
     from worker.main import Worker
 
     me = sign_up(client, workspace="E2E")
     ws = me["workspace_id"]
     ids = add_entities(owner_db, ws)
     add_feed_rows(owner_db)
-    api = RecordingApi()
-    worker = Worker(settings, api=api)
+    worker = Worker(settings)
     worker.db.open()
     try:
         worker.db_pass()  # first pass: feeds "moved" (never seen), so every workspace is scored
+        seen = owner_db.execute("SELECT feeds_seen_at FROM biz.worker_state WHERE workspace_id = %s", (ws,)).fetchone()
+        assert seen["feeds_seen_at"] is not None  # persisted: the next run-once worker knows
 
         # --- risks and evidence ----------------------------------------------------------
         risks = client.get("/v1/risks", headers=hdr(me), params={"limit": 50}).json()["items"]
@@ -122,7 +121,8 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         # --- alerts and live events -------------------------------------------------------
         alerts = client.get("/v1/alerts", headers=hdr(me)).json()["items"]
         assert ("sanctions_match", "critical") in {(a["kind"], a["severity"]) for a in alerts}
-        assert api.names().count("risk.created") == 4 and "alert.created" in api.names()
+        names = event_names(owner_db, ws)
+        assert names.count("risk.created") == 4 and "alert.created" in names
 
         # --- GeoJSON ------------------------------------------------------------------------
         r = client.get("/v1/map/risks", headers=hdr(me))
@@ -143,16 +143,16 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         assert summary["open_count"] == 4 and summary["by_category"]["sanctions"] == 1
 
         # --- the next pass with nothing new changes nothing ----------------------------------
-        before = len(api.events)
+        before = len(event_names(owner_db, ws))
         feeds_ran(owner_db)
-        worker.db_pass()
-        assert [e["event"] for e in api.events[before:]] == ["feeds.updated"]
+        Worker(settings).db_pass()  # a fresh process, as each `--once` run is
+        assert event_names(owner_db, ws)[before:] == ["feeds.updated"]
 
         # --- delisting: the full-list job deletes the entry; the risk is resolved --------------
         owner_db.execute("DELETE FROM feeds.sanctions_entries WHERE entity_id = '36001'")
         feeds_ran(owner_db)
         worker.db_pass()
-        assert "risk.resolved" in api.names()
+        assert "risk.resolved" in event_names(owner_db, ws)
         gone = client.get(f"/v1/risks/{by_cat['sanctions']['id']}", headers=hdr(me)).json()
         assert gone["status"] == "resolved" and gone["evidence"][0]["still_in_feeds"] is False
         assert [h["reason"] for h in gone["history"]] == ["created", "resolved_by_engine"]

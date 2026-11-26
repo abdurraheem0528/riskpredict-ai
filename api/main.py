@@ -3,14 +3,20 @@
     uvicorn api.main:app --host 0.0.0.0 --port 8000 --no-access-log
 
 Uvicorn's own access log is off because URLs can carry one-time secrets (the
-stream ticket, the OAuth code and state); the middleware below logs method,
-route template, status and time only (contracts decision 12).
+OAuth code and state); the middleware below logs method, route template, status
+and time only (contracts decision 12).
+
+Serverless (Vercel, ``app.py`` in the deploy bundle): each request may run on a
+fresh, short-lived instance and the lifespan hook may not run. So nothing here
+depends on it: the database pool opens on first use, and the schema check runs
+once per instance on the first connection (``check_schema``), not at startup.
+State that must be shared (rate limits, live-update events) is in the database.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
+import threading
 import time
 from contextlib import asynccontextmanager
 
@@ -28,7 +34,6 @@ from api.core.db import Database
 from api.core.errors import Problem
 from api.ratelimit import RateLimiter
 from api.routes import auth, connections, data, geo, live, scenarios, sources, workspaces
-from api.stream import Hub, Tickets, WorkHints
 
 log = logging.getLogger("riskpredict.api")
 access = logging.getLogger("riskpredict.access")
@@ -44,33 +49,35 @@ def _pointer(loc: tuple) -> str:
     return "/" + "/".join(parts) if parts else ""
 
 
-def check_schema(st: State) -> None:
-    """Refuse to start when the database lacks the migration this build expects."""
-    try:
-        with st.db.tx() as conn:
+def schema_hook(st: State):
+    """Lazy, idempotent schema check: on this instance's first database connection, answer
+    503 (and check again next time) while the migration this build expects is missing."""
+    lock = threading.Lock()
+
+    def hook(conn) -> None:
+        with lock:
+            if st.db.on_first_use is None:
+                return
             st.schema_version = dbmod.schema_version(conn)
-            present = dbmod.has_migration(conn, st.settings.expected_schema_version)
-    except Exception as exc:  # unreachable DB at boot: start anyway, report "unknown"
-        log.warning("schema check skipped: database unreachable (%s)", type(exc).__name__)
-        return
-    if not present:
-        raise RuntimeError(f"migration {st.settings.expected_schema_version} is not applied; run python -m jobs.migrate")
+            if not dbmod.has_migration(conn, st.settings.expected_schema_version):
+                log.error("migration %s is not applied; run python -m jobs.migrate", st.settings.expected_schema_version)
+                raise Problem(503, "internal", "the database schema is older than this API; run the migrations")
+            st.db.on_first_use = None
+
+    return hook
 
 
 def create_app(settings: Settings | None = None, *, check_db: bool = True) -> FastAPI:
     settings = settings or Settings.from_env()
     database = Database(settings.database_url, max_size=settings.db_max_connections,
                         max_idle=settings.db_max_idle_seconds)  # fmt: skip
-    st = State(settings, database, Hub(), Tickets(), WorkHints(), RateLimiter())
+    st = State(settings, database, RateLimiter(database, settings.jwt_signing_key))
+    if check_db:
+        database.on_first_use = schema_hook(st)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        loop = asyncio.get_running_loop()
-        st.hub.bind(loop)
-        st.hints.bind(loop)
-        database.open()
-        if check_db:
-            await asyncio.to_thread(check_schema, st)
+        # Optional: may not run on a serverless platform; nothing depends on it.
         log.info("api started; integrations: %s", settings.describe())
         yield
         database.close()
@@ -91,7 +98,7 @@ def create_app(settings: Settings | None = None, *, check_db: bool = True) -> Fa
             allow_origins=[settings.web_origin],
             allow_credentials=False,  # no cookies: tokens travel in headers
             allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type", "X-Workspace-Id", "Last-Event-ID"],
+            allow_headers=["Authorization", "Content-Type", "X-Workspace-Id"],
             expose_headers=["Retry-After"],
             max_age=600,
         )

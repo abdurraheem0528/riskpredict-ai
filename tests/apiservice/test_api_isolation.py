@@ -58,10 +58,10 @@ def test_each_user_sees_only_their_workspace(client, two):
     assert client.get("/v1/entities", headers=hdr(b)).json()["items"][0]["name"] == "Secret supplier b"
 
 
-@pytest.mark.parametrize("path", LISTS + ["/v1/stream/ticket"])
+@pytest.mark.parametrize("path", LISTS + ["/v1/events"])
 def test_forged_workspace_header_is_404(client, two, path):
     a, b, _, _ = two
-    method = client.post if path == "/v1/stream/ticket" else client.get
+    method = client.get
     r = method(path, headers=hdr(a, workspace=b["workspace_id"]))
     assert r.status_code == 404, path
     assert r.json()["code"] == "not_found"

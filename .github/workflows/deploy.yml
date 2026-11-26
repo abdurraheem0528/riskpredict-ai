@@ -1,20 +1,23 @@
-# One-click Deploy: Actions → deploy → Run workflow (on main). Free tiers only, all in
-# GitHub Actions. Re-running it updates everything in place.
+# One-click Deploy: Actions → deploy → Run workflow (on main). Free tiers only, no card,
+# all in GitHub Actions. Re-running it updates everything in place.
 #
 #   1. migrations (python -m jobs.migrate as the Neon owner)
 #   2. Cloudflare Pages project "riskpredict" (created if missing) → the dashboard URL
-#   3. the riskpredict_app login (created once; --check afterwards) and the Render free
-#      web service "riskpredict-api" (API + worker in one container, infra/render/),
-#      its environment, a deploy of this commit, and a /healthz check
-#   4. the dashboard built with VITE_API_URL = the Render URL, deployed with wrangler
+#   3. the riskpredict_app login (created once; --check afterwards; rotated when the
+#      Vercel project has no DATABASE_URL_APP yet) and the Vercel Hobby project
+#      "riskpredict-api" (Python/FastAPI, Deployment Protection off, function region next
+#      to the Neon host): its environment, a clean bundle of the API (infra/vercel/
+#      bundle.py, size-checked), a production deploy, and a /healthz check
+#   4. the dashboard built with VITE_API_URL = the Vercel URL, deployed with wrangler
 #   5. WEB_ORIGIN re-checked against the Pages URL (redeploys only if it changed)
 #
-# Secrets: RENDER_API_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, DATABASE_URL_OWNER,
+# Secrets: VERCEL_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, DATABASE_URL_OWNER,
 # GROQ_API_KEY (required); the Google and Composio ones (optional: skipped while empty).
-# Generated here and kept only on Render: DATABASE_URL_APP, JWT_SIGNING_KEY,
-# TOKEN_ENCRYPTION_KEYS, INTERNAL_TOKEN (the last three are never overwritten).
-# Optional repository variables: RENDER_OWNER_ID (only if the key sees several Render
-# workspaces), GROQ_MAPPING_MODEL, GROQ_ADVICE_MODEL, WORKER_DB_INTERVAL_SECONDS.
+# Generated here and kept only in the Vercel project's environment: DATABASE_URL_APP,
+# JWT_SIGNING_KEY, TOKEN_ENCRYPTION_KEYS (the last two are never overwritten). The worker
+# job (worker.yml) reads what it needs from there with the same VERCEL_TOKEN.
+# Optional repository variables: VERCEL_TEAM_ID (only for a team other than the token's
+# default one), GROQ_MAPPING_MODEL, GROQ_ADVICE_MODEL.
 # This repository is public: no step prints a secret, and nothing is uploaded.
 name: deploy
 
@@ -22,14 +25,14 @@ on:
   workflow_dispatch:
     inputs:
       rotate_app_password:
-        description: "Give the riskpredict_app login a new password and update DATABASE_URL_APP on Render"
+        description: "Give the riskpredict_app login a new password and update DATABASE_URL_APP on Vercel"
         type: boolean
         default: false
-      render_region:
-        description: "Render region for a NEW service ('auto' = closest to the Neon host). An existing service keeps its region."
+      vercel_region:
+        description: "Vercel function region ('auto' = closest to the Neon host)"
         type: choice
         default: auto
-        options: [auto, oregon, ohio, virginia, frankfurt, singapore]
+        options: [auto, iad1, cle1, pdx1, sfo1, yul1, gru1, fra1, lhr1, dub1, cdg1, arn1, sin1, syd1, hnd1, kix1, icn1, hkg1, bom1, cpt1]
 
 permissions:
   contents: read
@@ -43,18 +46,18 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - name: Check the required secrets are set
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           missing=""
-          for name in RENDER_API_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID DATABASE_URL_OWNER GROQ_API_KEY; do
+          for name in VERCEL_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID DATABASE_URL_OWNER GROQ_API_KEY; do
             if [ -z "${!name}" ]; then missing="$missing $name"; fi
           done
           if [ -n "$missing" ]; then
@@ -88,11 +91,18 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: python infra/scripts/deploy.py pages-ensure
 
-      - name: App login role and Render service (build, deploy, /healthz)
-        id: render
+      # Node runs the pinned Vercel CLI (npx) and builds the dashboard.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: App login role and Vercel project (bundle, deploy, /healthz)
+        id: vercel
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_OWNER_ID: ${{ vars.RENDER_OWNER_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
@@ -105,25 +115,18 @@ jobs:
           COMPOSIO_TRIGGER_SLUGS: ${{ secrets.COMPOSIO_TRIGGER_SLUGS }}
           GROQ_MAPPING_MODEL: ${{ vars.GROQ_MAPPING_MODEL }}
           GROQ_ADVICE_MODEL: ${{ vars.GROQ_ADVICE_MODEL }}
-          WORKER_DB_INTERVAL_SECONDS: ${{ vars.WORKER_DB_INTERVAL_SECONDS }}
           WEB_ORIGIN: ${{ steps.pages.outputs.pages_url }}
           ROTATE: ${{ inputs.rotate_app_password }}
-          REGION: ${{ inputs.render_region || 'auto' }}
+          REGION: ${{ inputs.vercel_region || 'auto' }}
         run: |
           args=(--web-origin "$WEB_ORIGIN" --region "$REGION")
           if [ "$ROTATE" = true ]; then args+=(--rotate-app-password); fi
-          python infra/scripts/deploy.py render-up "${args[@]}"
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+          python infra/scripts/deploy.py vercel-up "${args[@]}"
 
       - name: Build the dashboard
         working-directory: web
         env:
-          VITE_API_URL: ${{ steps.render.outputs.api_url }}
+          VITE_API_URL: ${{ steps.vercel.outputs.api_url }}
         run: |
           npm ci
           npm run build
@@ -146,22 +149,23 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: python infra/scripts/deploy.py pages-ensure
 
-      - name: WEB_ORIGIN on Render (redeploys only if it changed)
+      - name: WEB_ORIGIN on Vercel (redeploys only if it changed)
         id: origin
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_OWNER_ID: ${{ vars.RENDER_OWNER_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           WEB_ORIGIN: ${{ steps.pages_after.outputs.pages_url }}
-        run: python infra/scripts/deploy.py render-origin --web-origin "$WEB_ORIGIN"
+          REGION: ${{ steps.vercel.outputs.vercel_region }}
+        run: python infra/scripts/deploy.py vercel-origin --web-origin "$WEB_ORIGIN" --region "$REGION"
 
       - name: Summary
         if: always()
         env:
-          API_URL: ${{ steps.render.outputs.api_url }}
+          API_URL: ${{ steps.vercel.outputs.api_url }}
           WEB_URL: ${{ steps.pages_after.outputs.pages_url || steps.pages.outputs.pages_url }}
-          CREATED: ${{ steps.render.outputs.created }}
-          REGION: ${{ steps.render.outputs.render_region }}
-          SCHEMA: ${{ steps.render.outputs.schema_version }}
+          CREATED: ${{ steps.vercel.outputs.created }}
+          REGION: ${{ steps.vercel.outputs.vercel_region }}
+          BUNDLE_MB: ${{ steps.vercel.outputs.bundle_mb }}
           ORIGIN_CHANGED: ${{ steps.origin.outputs.origin_changed }}
           REPO: ${{ github.repository }}
           OUTCOME: ${{ job.status }}
@@ -173,21 +177,21 @@ jobs:
             echo "|---|---|"
             echo "| Dashboard | ${WEB_URL:-not deployed} |"
             echo "| API | ${API_URL:-not deployed} |"
-            echo "| Render service | riskpredict-api, free plan, region ${REGION:-?}, $( [ "$CREATED" = true ] && echo 'created now' || echo 'updated in place' ) |"
-            echo "| Database schema | ${SCHEMA:-?} |"
+            echo "| Vercel project | riskpredict-api, Hobby, region ${REGION:-?}, $( [ "$CREATED" = true ] && echo 'created now' || echo 'updated in place' ) |"
+            echo "| Function bundle | ${BUNDLE_MB:-?} MB of Vercel's 500 MB |"
             echo "| WEB_ORIGIN | $( [ "$ORIGIN_CHANGED" = true ] && echo 'changed, redeployed' || echo 'matches the dashboard' ) |"
             echo
-            echo "Secrets generated by this workflow live only on Render; none are shown here."
+            echo "Secrets generated by this workflow live only in the Vercel project's environment; none are shown here."
             echo
-            echo "### Keep it awake and the feeds fresh (cron-job.org, free)"
+            echo "### Feeds every 30 minutes (cron-job.org, free)"
             echo
-            echo "Create two jobs at https://cron-job.org:"
+            echo "Keep (or create) one job at https://cron-job.org: every 30 minutes,"
+            echo "\`POST https://api.github.com/repos/${REPO}/actions/workflows/feeds.yml/dispatches\`"
+            echo "with body \`{\"ref\":\"main\"}\` and headers"
+            echo "\`Authorization: Bearer <fine-grained PAT: this repository only, Actions: read and write>\` and"
+            echo "\`Accept: application/vnd.github+json\`."
             echo
-            echo "1. **Keep-awake ping**: every 10 minutes, \`GET ${API_URL:-<api>}/healthz\`."
-            echo "   Render's free service sleeps after 15 idle minutes; 744 h a month stays under its 750 free hours."
-            echo "2. **Feeds every 30 minutes** (GitHub's own schedule can be late): every 30 minutes,"
-            echo "   \`POST https://api.github.com/repos/${REPO}/actions/workflows/feeds.yml/dispatches\`"
-            echo "   with body \`{\"ref\":\"main\"}\` and headers"
-            echo "   \`Authorization: Bearer <fine-grained PAT: this repository only, Actions: read and write>\` and"
-            echo "   \`Accept: application/vnd.github+json\`."
+            echo "Nothing else is needed: the worker (worker.yml) runs by itself after each feeds run,"
+            echo "while the database is awake, and the API on Vercel needs no keep-awake ping."
+            echo "**Delete the old keep-awake ping** to \`/healthz\` if you made one for Render."
           } >> "$GITHUB_STEP_SUMMARY"

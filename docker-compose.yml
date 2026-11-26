@@ -4,7 +4,9 @@
 #   docker compose down -v        # remove everything, including the data volume
 #
 # The api and worker (profile "app") connect as an rp_app login, never as the
-# superuser above. Create it once (docs/database-roles.md, "Self-hosting"), put
+# superuser above. The worker is `python -m worker` in a loop here (a database pass
+# every WORKER_DB_INTERVAL_SECONDS); in production it is the run-once GitHub Actions
+# job .github/workflows/worker.yml. The two share nothing but the database. Create it once (docs/database-roles.md, "Self-hosting"), put
 # DATABASE_URL_APP and the api/worker variables in .env (see .env.example), then:
 #   docker compose --profile app up -d --build
 # The web service joins this file in a later step.
@@ -50,10 +52,8 @@ services:
       DATABASE_URL_APP: ${DATABASE_URL_APP:-}
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-}
       TOKEN_ENCRYPTION_KEYS: ${TOKEN_ENCRYPTION_KEYS:-}
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
-      API_INTERNAL_URL: http://api:8000
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
       GOOGLE_PICKER_API_KEY: ${GOOGLE_PICKER_API_KEY:-}
@@ -77,9 +77,12 @@ services:
     build:
       context: .
       dockerfile: worker/Dockerfile
-    environment: *app_env
+    environment:
+      <<: *app_env
+      WORKER_DB_INTERVAL_SECONDS: ${WORKER_DB_INTERVAL_SECONDS:-1800}
     depends_on:
-      - api
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
