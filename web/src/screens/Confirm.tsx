@@ -227,7 +227,7 @@ export function Confirm({ id }: { id: string }) {
                             {c?.field && !offered.some((f) => f.field === c.field) && c.field !== 'ignore' && <option value={c.field}>{fields.find((f) => f.field === c.field)?.label ?? c.field}</option>}
                             <option value="ignore">Ignore it</option>
                           </select>
-                          <span className="cf" style={need ? { color: '#0F55CF' } : undefined}>
+                          <span className={`cf${need ? ' need' : ''}`}>
                             {need ? 'Needs you' : c?.touched ? 'Your choice' : k != null ? `${Math.round(k * 100)}% sure` : mapping.data.confirmed ? 'Confirmed' : 'Your choice'}
                           </span>
                           {c?.field === 'annual_spend' && c.currency && <span className="cf">currency from the header: {c.currency}</span>}

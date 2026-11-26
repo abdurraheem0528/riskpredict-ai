@@ -29,7 +29,7 @@ export function ErrorState({ error, retry, title = 'This did not load' }: { erro
   return (
     <div role="alert" style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
       <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontWeight: 600 }}>
-        <Icon name="warning" style={{ color: '#B3200F' }} />
+        <Icon name="warning" className="tx-danger" />
         {title}
       </span>
       <span className="t13">{errorText(error)}</span>
@@ -150,11 +150,10 @@ export function FeedStatus({ health, pending, failed }: { health: Parameters<typ
   return (
     <span
       className={`k feedst${down ? ' has-tip' : ''}`}
-      style={{ color: '#141518' }}
       tabIndex={down ? 0 : undefined}
       aria-describedby={down ? tipId : undefined}
     >
-      <span style={{ width: 6, height: 6, borderRadius: 3, background: f.color, flex: 'none' }} aria-hidden="true" />
+      <span className={`sdot${!f.total ? '' : down ? ' warn' : ' live'}`} aria-hidden="true" />
       {f.text}
       {down && (
         <span role="tooltip" id={tipId} className="tip">
