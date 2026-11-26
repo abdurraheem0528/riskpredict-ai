@@ -618,7 +618,10 @@ That is when there is no advice yet, the score moved into another 20-point band
 3. If it passes, the worker sets `advice`, `advice_source = 'groq'`,
    `advice_model` and `advice_generated_at`.
 4. If it fails, or Groq is unavailable or rate-limited, the worker stores
-   `template_advice(...)` (deterministic per category) with
+   `template_advice(...)` (deterministic per category × entity kind: a supplier or
+   customer is asked, a site, route, port, currency, commodity or software gets advice
+   for that kind of thing, and only software is told to patch; a sanctions risk driven
+   by a list name match gets the compliance-review text) with
    `advice_source = 'template'`.
 
 Groq output never changes `likelihood`, `impact`, `score`, `status` or the evidence.
@@ -636,9 +639,15 @@ Groq output never changes `likelihood`, `impact`, `score`, `status` or the evide
   own transaction: `set_config('app.workspace_id', …, true)`, then `run_workspace`,
   then commit. Advice and watch terms use `RunResult.assessments` / `.entities` (§2).
 * `RunResult.changes` → alerts. `created` with score ≥ `workspaces.alert_min_score` →
-  `risk_new`. A rescore that crosses the threshold upwards → `risk_escalated`. Any
-  `created` sanctions risk → `sanctions_match` (critical). Each also becomes a live-update
-  `risk.*` / `alert.created` event (see `openapi.yaml`).
+  `risk_new`. A rescore that crosses the threshold upwards → `risk_escalated`. A
+  `created` sanctions risk whose driver is a sanctions-list **name match** (fingerprint
+  `<entity>|sanctions|sanctions_name:…`) → `sanctions_match` (critical, "Possible
+  sanctions match"); sanctions *news* about a country only gets `risk_new` /
+  `risk_escalated` like any risk. Each also becomes a live-update `risk.*` /
+  `alert.created` event (see `openapi.yaml`).
+* After the alerts, every pass marks read the workspace's unread alerts whose risk is now
+  `resolved` or `dismissed`, and `sanctions_match` alerts whose risk is not a name match
+  (raised by the earlier rule). `Alert.risk_status` carries the risk's current status.
 
 ## 10. Tests C must ship
 
@@ -670,20 +679,40 @@ the inputs applied. It writes nothing; the API stores the result in `biz.scenari
   changes the other suppliers' spend shares.
 * `changes` lists fingerprints whose score differs (by at least 0.1), largest absolute
   delta first, at most 200, with `risk_id` when a stored risk has that fingerprint.
-* `portfolio_score` is the **risk index** (engine 1.2.0), computed for each side over that
-  side's entities (the scenario side after `entity_overrides`):
+* `portfolio_score` is the **risk index**, computed for each side over that side's
+  entities (the scenario side after `entity_overrides`), rounded to 0.1:
 
   ```
-  per entity e:  worst_c(e) = max score of e's risks in category c (0 if none)
-                 E(e)       = 100 × (1 − Π_c (1 − worst_c(e) / 100))
-  index         = Σ_e w(e) · E(e) / Σ_e w(e)        w = criticality weight (§6; NULL 0.5)
+  per entity e, category c:  s_1 ≥ s_2 ≥ … ≥ s_n = scores of e's risks in c
+                             C_c(e) = 100 × (1 − Π_k (1 − s_k/100)^(2^−(k−1)))     (0 if none)
+  exposure                   E(e)   = 100 × (1 − Π_c (1 − C_c(e)/100))
+  index                      = Σ_e w(e) · E(e) / Σ_e w(e)    over all entities; w = criticality weight (§6; NULL 0.5)
   ```
 
-  Several risks of one kind do not stack (the worst counts), different kinds do; every
-  entity counts, so a scenario that adds exposure anywhere raises the index, and it
-  reaches 100 only if every entity is at 100. With one entity it equals that entity's
-  combined score. Engine 1.1.0 used `100 × (1 − Π(1 − score_i/100))` over all risks,
-  which saturated at 100 with many risks (77 risks → "100 → 100").
+  Within a category the highest risk counts in full, the next at half weight, the next at
+  a quarter, and so on: more risks of one kind add, but all of them together add less
+  than one more copy of the highest (`C_c < 100 × (1 − (1 − s_1/100)²)`), so the index
+  does not saturate with many risks. Different kinds combine by noisy-OR. Every entity
+  counts (0 when no risk touches it). Consequences:
+  * **A scenario that adds or raises any risk, and lowers none, strictly raises the index**
+    (before rounding; unless that entity is already at 100). In `−ln(1 − s/100)` terms
+    `C_c` is a sum with positive weights that shrink by rank: raising a score raises it,
+    and inserting a score `x > 0` at rank `k` of `n` adds at least `x × w_(n+1) > 0`
+    (the risks pushed down a rank lose `Σ (w_i − w_(i+1)) x_i ≤ x (w_k − w_(n+1))`).
+    Engine 1.2.0 took the worst score per category, so a new shipping risk below an
+    existing one added nothing ("Suez Canal closes: 62 → 62").
+  * **The index is never above the most exposed entity's exposure.** Each side also
+    reports `most_exposed` (`entity_id`, `entity_name`, `exposure` = max `E`, its
+    `risk_count`), and the What-if panel shows it next to the index: the index is in a
+    level band because an entity's risks *combined* are, even when no single risk is
+    (several Medium risks of different kinds give a High exposure).
+  * With one entity and one risk it equals that risk's score.
+
+  Each side also has `story_count`: distinct `factors.story` keys (a risk without one is
+  its own story), the same grouping as `Risk.story.key`. Headline counts are stories;
+  `risk_count` (one per entity × story) is secondary. Results stored before these
+  fields were added lack them. Engine 1.1.0 used `100 × (1 − Π(1 − score_i/100))` over
+  all risks, which saturated at 100 with many risks (77 risks → "100 → 100").
 
 ## 13. Write details (engine 1.0.0)
 

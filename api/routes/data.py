@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from api import events, pagination
 from api.context import WsCtx, audit
+from api.core import legacy
 from api.core import serialize as ser
 from api.core.errors import invalid, not_found
 
@@ -211,9 +212,14 @@ def risk_detail(conn, risk_id: UUID) -> dict:
         advice = {"text": row["advice"], "source": row["advice_source"], "model": row["advice_model"],
                   "generated_at": ser.ts(row["advice_generated_at"] or row["last_scored_at"])}  # fmt: skip
     factors = row["factors"] or {}
+    explanation = row["explanation"]
+    if legacy.written_by_old_engine(row):  # e.g. resolved before engine 1.2.0: raw-formula text
+        ent = conn.execute("SELECT kind, name, hs_codes FROM biz.entities WHERE id = %s",
+                           (row["entity_id"],)).fetchone()  # fmt: skip
+        explanation = legacy.explanation(row, evidence, ent) or explanation
     return {
         **ser.risk(row),
-        "explanation": row["explanation"],
+        "explanation": explanation,
         "factors": factors,
         "advice": advice,
         "evidence": [ser.evidence(e) for e in evidence],
@@ -255,6 +261,9 @@ def update_risk(risk_id: UUID, body: RiskPatch, ctx: WsCtx) -> dict:
             )
             audit(conn, ctx.workspace_id, ctx.user_id, "risk.status_changed", "risk", str(risk_id),
                   {"from": cur["status"], "to": body.status})  # fmt: skip
+            if body.status == "dismissed":  # its alerts are dealt with too
+                conn.execute("UPDATE biz.alerts SET read_at = now(), read_by = %s"
+                             " WHERE risk_id = %s AND read_at IS NULL", (ctx.user_id, risk_id))  # fmt: skip
         out = ser.risk(conn.execute(ser.RISK_SELECT + " WHERE r.id = %s", (risk_id,)).fetchone())
         if changed:
             events.publish(conn, ctx.workspace_id, "risk.updated", {"risk": out, "previous_score": out["score"]})
@@ -263,15 +272,22 @@ def update_risk(risk_id: UUID, body: RiskPatch, ctx: WsCtx) -> dict:
 
 # --- alerts ----------------------------------------------------------------------------------
 
+# An alert with its risk's current status (``Alert.risk_status``), so a resolved risk's alert
+# can say so; the worker also marks those alerts read (worker/scoring.py).
+ALERT_SELECT = (
+    "SELECT a.*, r.status AS risk_status FROM biz.alerts a"
+    " LEFT JOIN biz.risks r ON r.workspace_id = a.workspace_id AND r.id = a.risk_id"
+)
+
 
 @router.get("/v1/alerts", tags=["alerts"])
 def list_alerts(ctx: WsCtx, limit: Limit = 50, cursor: Cursor = None, unread: bool | None = None) -> dict:
     after = pagination.decode(cursor, 2)
     with ctx.tx() as conn:
         rows = conn.execute(
-            "SELECT * FROM biz.alerts WHERE (%(u)s::boolean IS NULL OR (read_at IS NULL) = %(u)s)"
-            " AND (%(at)s::text IS NULL OR (created_at, id) < (%(at)s::timestamptz, %(ai)s::uuid))"
-            " ORDER BY created_at DESC, id DESC LIMIT %(n)s",
+            ALERT_SELECT + " WHERE (%(u)s::boolean IS NULL OR (a.read_at IS NULL) = %(u)s)"
+            " AND (%(at)s::text IS NULL OR (a.created_at, a.id) < (%(at)s::timestamptz, %(ai)s::uuid))"
+            " ORDER BY a.created_at DESC, a.id DESC LIMIT %(n)s",
             {"u": unread, "at": str(after[0]) if after else None, "ai": after[1] if after else None, "n": limit + 1},
         ).fetchall()
         unread_count = conn.execute("SELECT count(*) AS n FROM biz.alerts WHERE read_at IS NULL").fetchone()["n"]
@@ -286,8 +302,10 @@ class AlertPatch(BaseModel):
 def update_alert(alert_id: UUID, body: AlertPatch, ctx: WsCtx) -> dict:
     with ctx.tx() as conn:
         row = conn.execute(
-            "UPDATE biz.alerts SET read_at = CASE WHEN %(r)s THEN coalesce(read_at, now()) END,"
-            " read_by = CASE WHEN %(r)s THEN coalesce(read_by, %(u)s) END WHERE id = %(id)s RETURNING *",
+            "WITH a AS (UPDATE biz.alerts SET read_at = CASE WHEN %(r)s THEN coalesce(read_at, now()) END,"
+            " read_by = CASE WHEN %(r)s THEN coalesce(read_by, %(u)s) END WHERE id = %(id)s RETURNING *)"
+            " SELECT a.*, r.status AS risk_status FROM a"
+            " LEFT JOIN biz.risks r ON r.workspace_id = a.workspace_id AND r.id = a.risk_id",
             {"r": body.read, "u": ctx.user_id, "id": alert_id},
         ).fetchone()
         if row is None:

@@ -198,7 +198,9 @@ def test_risk_index_does_not_grow_with_the_number_of_risks():
     sup = ent("s", "supplier", countries=["JPN"], criticality="high")
     stories = [news(f"n{i}", tag(t, 0.9, countries=["JPN"])) for i, t in enumerate(["conflict"] * 30)]
     out = assess([sup], snap(stories), base_currency=None)
-    assert risk_index(out, [sup]) == max(a.score for a in out) < 100
+    top = max(a.score for a in out)
+    # more risks of one kind add, but never more than one more copy of the worst (§12)
+    assert top <= risk_index(out, [sup]) < round(100 * (1 - (1 - top / 100) ** 2), 1) < 100
 
 
 def test_risk_index_is_a_weighted_mean_over_all_entities():

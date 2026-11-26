@@ -327,8 +327,10 @@ def _news_sentence(category: str, entity: Entity, items, top) -> str:
     if mt == "country":
         where = country_name(mv)
         sup = _support_clause(entity, top)
-        # 1.3.0: a sanctions country match means the measure is aimed at the country (§5.10).
-        aimed = category == "sanctions" and topic == "sanctions"
+        # 1.3.0: a sanctions country match means the measure is aimed at the country (§5.10). An
+        # older engine's evidence (re-worded by the API) has no `central` and was never checked for
+        # that, so it keeps the neutral wording.
+        aimed = category == "sanctions" and topic == "sanctions" and bool(top.detail.get("central"))
         lead = f"{reports} {'describes' if n == 1 else 'describe'} sanctions aimed at {where}" if aimed else None
         if sup:
             k = sum(1 for i in items if i.detail.get("supported_by"))

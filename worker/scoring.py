@@ -48,14 +48,39 @@ def valid_advice(text: str, messages: list[dict]) -> bool:
     return all(n in given for n in NUM_RE.findall(text))
 
 
+def sanctions_name_match(risk: dict) -> bool:
+    """A risk driven by a sanctions-*list* name match (rule ``sanctions_name``, risk-engine.md
+    §5.2), not by sanctions news about a country: its fingerprint's driver follows the
+    strongest item's match (§5.7), ``<entity>|sanctions|sanctions_name:<name>``."""
+    parts = str(risk.get("fingerprint") or "").split("|", 2)
+    return len(parts) == 3 and parts[1] == "sanctions" and parts[2].startswith("sanctions_name:")
+
+
+# Alerts whose risk is no longer active, or "possible sanctions match" alerts that were raised
+# (before this rule) for sanctions news rather than a list match: marked read on every pass.
+STALE_ALERTS_SQL = """
+UPDATE biz.alerts a SET read_at = now()
+FROM biz.risks r
+WHERE a.read_at IS NULL AND r.workspace_id = a.workspace_id AND r.id = a.risk_id
+  AND (r.status IN ('resolved', 'dismissed')
+       OR (a.kind = 'sanctions_match'
+           AND NOT (split_part(r.fingerprint, '|', 2) = 'sanctions'
+                    AND left(split_part(r.fingerprint, '|', 3), 15) = 'sanctions_name:')))
+"""
+
+
 def _alerts_for(change: Any, risk: dict, threshold: float) -> list[tuple[str, str, str, str]]:
-    """(kind, severity, title, dedupe key) for one RiskChange (risk-engine.md §9)."""
+    """(kind, severity, title, dedupe key) for one RiskChange (risk-engine.md §9).
+
+    Only a sanctions-list name match is a "Possible sanctions match"; sanctions news about a
+    country is an ordinary new or escalated risk, above the workspace's threshold.
+    """
     kind = getattr(change, "change", "")
     new, old = getattr(change, "new_score", None), getattr(change, "old_score", None)
     rid = risk["id"]
     sev = "critical" if (new or 0) >= 80 else "warning"
     out = []
-    if kind == "created" and risk["category"] == "sanctions":
+    if kind == "created" and sanctions_name_match(risk):
         out.append(("sanctions_match", "critical", f"Possible sanctions match: {risk['title']}", f"sanctions_match:{rid}"))
     elif kind == "created" and (new or 0) >= threshold:
         out.append(("risk_new", sev, f"New risk: {risk['title']}", f"risk_new:{rid}"))
@@ -119,6 +144,7 @@ def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSumm
                 create_alert(conn, ctx.outbox, ws, akind, sev, title,
                              f"{risk['entity_name']}: score {ser.r1(risk['score'])}", key, risk_id=risk["id"])  # fmt: skip
                 alerts += 1
+        conn.execute(STALE_ALERTS_SQL)
 
         # Which risks need (new) advice wording.
         by_fp = {a.fingerprint: a for a in assessments}

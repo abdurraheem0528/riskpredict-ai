@@ -308,16 +308,16 @@ export const preview: S['MappingPreview'] = {
 };
 
 export const alerts: S['Alert'][] = [
-  { id: '7d1f3c2a-0000-4000-8000-0000000000a1', kind: 'sanctions_match', severity: 'critical', title: 'Anatolia Fasteners matches a sanctions entry', body: '', risk_id: risks[0].id, connection_id: null, created_at: iso(3 * H), read_at: null },
-  { id: '7d1f3c2a-0000-4000-8000-0000000000a2', kind: 'risk_escalated', severity: 'warning', title: 'Bab el-Mandeb transits down rose to 74', body: '', risk_id: risks[1].id, connection_id: null, created_at: iso(6 * H), read_at: null },
+  { id: '7d1f3c2a-0000-4000-8000-0000000000a1', kind: 'sanctions_match', severity: 'critical', title: 'Anatolia Fasteners matches a sanctions entry', body: '', risk_id: risks[0].id, connection_id: null, created_at: iso(3 * H), read_at: null, risk_status: 'open' },
+  { id: '7d1f3c2a-0000-4000-8000-0000000000a2', kind: 'risk_escalated', severity: 'warning', title: 'Bab el-Mandeb transits down rose to 74', body: '', risk_id: risks[1].id, connection_id: null, created_at: iso(6 * H), read_at: null, risk_status: 'open' },
 ];
 
 export function scenarioFor(name: string, inputs: S['ScenarioInputs']): S['Scenario'] {
   return {
     id: '7d1f3c2a-0000-4000-8000-0000000005c1', name, description: null, status: 'completed', created_at: iso(0), completed_at: iso(0), inputs, error: null,
     results: {
-      baseline: { risk_count: 6, max_score: 81, portfolio_score: 62.4, by_category: {} },
-      scenario: { risk_count: 8, max_score: 86, portfolio_score: 73.1, by_category: {} },
+      baseline: { risk_count: 6, story_count: 4, max_score: 81, portfolio_score: 62.4, by_category: {}, most_exposed: { entity_id: byName('Yantian to Rotterdam').id, entity_name: 'Yantian to Rotterdam', exposure: 84.2, risk_count: 2 } },
+      scenario: { risk_count: 8, story_count: 5, max_score: 86, portfolio_score: 73.1, by_category: {}, most_exposed: { entity_id: byName('Yantian to Rotterdam').id, entity_name: 'Yantian to Rotterdam', exposure: 90.3, risk_count: 2 } },
       changes: [
         { fingerprint: 'f1', risk_id: risks[1].id, entity_id: byName('Yantian to Rotterdam').id, entity_name: 'Yantian to Rotterdam', category: 'logistics', title: 'Route disrupted', baseline_score: 74, scenario_score: 86, delta: 12, lat: null, lon: null, countries: ['CHN', 'NLD'] },
         { fingerprint: 'f2', risk_id: null, entity_id: byName('Kaohsiung to Rotterdam').id, entity_name: 'Kaohsiung to Rotterdam', category: 'logistics', title: 'Route disrupted', baseline_score: null, scenario_score: 71, delta: 71, lat: null, lon: null, countries: ['TWN', 'NLD'] },
