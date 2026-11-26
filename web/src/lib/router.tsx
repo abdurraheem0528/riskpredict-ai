@@ -1,20 +1,35 @@
 // A small History API router: the dashboard has eight routes and no nested layouts.
 import { useSyncExternalStore, type AnchorHTMLAttributes, type MouseEvent } from 'react';
+import { withTransition } from '../live/transitions';
 
 const EVT = 'rp:navigate';
-const subscribe = (l: () => void) => {
-  const pop = () => {
+const snapshot = () => window.location.pathname + window.location.search;
+
+// One set of listeners and one popstate handler, so Back and Forward can run the screen
+// change inside a single view transition (src/live/transitions.ts).
+const listeners = new Set<() => void>();
+let shown = typeof window === 'undefined' ? '' : snapshot();
+const notify = () => {
+  shown = snapshot();
+  for (const l of [...listeners]) l();
+};
+let wired = false;
+function wire() {
+  if (wired) return;
+  wired = true;
+  window.addEventListener('popstate', () => {
     replaceAlias();
-    l();
-  };
-  window.addEventListener('popstate', pop);
-  window.addEventListener(EVT, l);
+    withTransition(shown, snapshot(), notify);
+  });
+  window.addEventListener(EVT, notify);
+}
+const subscribe = (l: () => void) => {
+  wire();
+  listeners.add(l);
   return () => {
-    window.removeEventListener('popstate', pop);
-    window.removeEventListener(EVT, l);
+    listeners.delete(l);
   };
 };
-const snapshot = () => window.location.pathname + window.location.search;
 
 /**
  * Other addresses for a route. The nav calls the Connect screen "Sources", so `/sources`
@@ -40,10 +55,14 @@ replaceAlias();
 
 export function navigate(href: string, opts: { replace?: boolean } = {}) {
   const to = canonical(href);
-  if (to === snapshot()) return;
-  if (opts.replace) window.history.replaceState(null, '', to);
-  else window.history.pushState(null, '', to);
-  window.dispatchEvent(new Event(EVT));
+  const from = snapshot();
+  if (to === from) return;
+  // List ↔ risk morphs the title and slides the sheet; anything else swaps at once.
+  withTransition(from, to, () => {
+    if (opts.replace) window.history.replaceState(null, '', to);
+    else window.history.pushState(null, '', to);
+    window.dispatchEvent(new Event(EVT));
+  });
 }
 
 export function useLocation() {

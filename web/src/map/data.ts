@@ -24,12 +24,3 @@ export function usePlaced<T extends EventFC | EntityFC | RiskPlaceFC>(fc: T | un
     return placeAll(fc.features as unknown as Parameters<typeof placeAll>[0]);
   }, [fc, ready]) as { fc: FeatureCollection<Point, T['features'][number]['properties'] & { _id: string }>; unplaced: number } | null;
 }
-
-/** The strongest few signals, for the pulsing rings on Empty. */
-export function topSignals(fc: FeatureCollection<Point, { severity?: number | null; _id: string }> | null, n = 6) {
-  if (!fc) return [];
-  return [...fc.features]
-    .sort((a, b) => (b.properties.severity ?? 0) - (a.properties.severity ?? 0))
-    .slice(0, n)
-    .map((f) => ({ key: f.properties._id, at: f.geometry.coordinates as [number, number] }));
-}

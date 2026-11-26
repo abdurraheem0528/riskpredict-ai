@@ -120,7 +120,7 @@ export function Connect() {
           </div>
         )}
         <label style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <span style={{ position: 'absolute', left: 14, display: 'inline-flex', color: '#5F646C' }}><Icon name="search" /></span>
+          <span className="searchicon"><Icon name="search" /></span>
           <span className="vh">Search tools</span>
           <input className="search" type="text" placeholder="Search tools" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
@@ -135,17 +135,17 @@ export function Connect() {
             {items.map((p) => {
               const c = byProvider.get(p.id);
               const on = !!c && selConn?.id === c.id;
-              let sub: { text: string; color?: string } = { text: p.kind === 'direct' ? 'Spreadsheets' : 'Bases and tables' };
+              let sub: { text: string; tone?: 'tx-live' | 'tx-danger' } = { text: p.kind === 'direct' ? 'Spreadsheets' : 'Bases and tables' };
               if (!p.available) sub = { text: 'Not set up on this server' };
-              else if (c?.status === 'active') sub = { text: 'Connected · live', color: '#0D7A47' };
-              else if (c?.status === 'needs_reauth' || c?.status === 'error') sub = { text: 'Needs reconnecting', color: '#8F1A0B' };
+              else if (c?.status === 'active') sub = { text: 'Connected · live', tone: 'tx-live' };
+              else if (c?.status === 'needs_reauth' || c?.status === 'error') sub = { text: 'Needs reconnecting', tone: 'tx-danger' };
               else if (c?.status === 'pending') sub = { text: 'Waiting for sign-in' };
               return (
                 <button key={p.id} type="button" className={`ctile${on ? ' on' : ''}`} aria-pressed={on} disabled={!p.available || (start.isPending && start.variables?.id === p.id)} onClick={() => onTile(p)}>
-                  <span className="mg" style={c?.status === 'active' ? { color: '#141518' } : undefined}>{monogram(p.name)}</span>
+                  <span className={`mg${c?.status === 'active' ? ' on' : ''}`}>{monogram(p.name)}</span>
                   <span style={{ minWidth: 0 }}>
                     <b>{p.name}</b>
-                    <span className="s" style={sub.color ? { color: sub.color } : undefined}>{start.isPending && start.variables?.id === p.id ? 'Opening sign-in…' : sub.text}</span>
+                    <span className={`s${sub.tone ? ` ${sub.tone}` : ''}`}>{start.isPending && start.variables?.id === p.id ? 'Opening sign-in…' : sub.text}</span>
                   </span>
                 </button>
               );
@@ -169,8 +169,8 @@ export function Connect() {
       )}
 
       <div className="legend glass">
-        <span className="k"><span className="sw" style={{ background: '#141518' }} />From your sources</span>
-        <span className="k"><span className="sw" style={{ background: '#141518', borderRadius: 2 }} />Your sites</span>
+        <span className="k"><span className="sw ink" />From your sources</span>
+        <span className="k"><span className="sw ink sq" />Your sites</span>
         <span>{entities.data ? plural(entities.data.features.length, 'entity', 'entities') + ' on the map' : ''}</span>
       </div>
     </>
@@ -263,17 +263,17 @@ function ConnectionPanel({ conn, sources, compact = false }: { conn: Connection;
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 15, lineHeight: '20px', fontWeight: 600 }}>{conn.display_name}</span>
         <span className="t12" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: 3, background: live && !failing ? '#1A9E5A' : conn.status === 'pending' ? '#A3A7AE' : '#B3200F' }} />
+          <span className={`sdot${live && !failing ? ' live' : conn.status === 'pending' ? '' : ' bad'}`} aria-hidden="true" />
           {live ? (failing ? 'Sync failed' : 'Live') : conn.status === 'pending' ? 'Waiting' : 'Needs reconnecting'}
         </span>
       </div>
       <span className="t12" style={{ marginTop: -8 }}>
         {[conn.account_label, plural(conn.source_count, google ? 'sheet' : 'table'), google && conn.watch ? 'syncs on every edit' : 'syncs on a schedule', 'read-only'].filter(Boolean).join(' · ')}
       </span>
-      {conn.status_reason && !live && <span className="t12" style={{ color: '#8F1A0B' }}>{conn.status_reason}</span>}
+      {conn.status_reason && !live && <span className="t12 tx-danger">{conn.status_reason}</span>}
 
       {mine.length > 0 && !compact && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 14, borderTop: '1px solid rgba(20,21,24,0.07)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 14, borderTop: '1px solid var(--rule)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontSize: 13, lineHeight: '18px', fontWeight: 600 }}>Placing rows on the map</span>
             <span className="t12 tnum">{totalRows ? `${fmtInt(placedN)} of ${fmtInt(totalRows)}` : fmtInt(placedN)}</span>
@@ -286,7 +286,7 @@ function ConnectionPanel({ conn, sources, compact = false }: { conn: Connection;
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
               <span>
                 {s.status === 'error' ? (
-                  <button type="button" className="b plain" style={{ height: 32, padding: '0 8px', fontSize: 13 }} onClick={() => sync.mutate(s.id)}>Retry</button>
+                  <button type="button" className="b plain bsm" onClick={() => sync.mutate(s.id)}>Retry</button>
                 ) : needsConfirm(s) ? 'to review' : s.status === 'paused' ? 'paused' : plural(s.entity_count, 'entity', 'entities')}
               </span>
             </div>
@@ -295,7 +295,7 @@ function ConnectionPanel({ conn, sources, compact = false }: { conn: Connection;
       )}
 
       {mine.length > 0 && !compact && (lastChange || lastSync) && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 14, borderTop: '1px solid rgba(20,21,24,0.07)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 14, borderTop: '1px solid var(--rule)' }}>
           <span className="lbl">Changes picked up</span>
           {lastChange && <div className="ev"><span className="t12 tnum">{fmtTime(lastChange)}</span><span>Last edit in the tool · {ago(lastChange)}</span></div>}
           {lastSync && <div className="ev"><span className="t12 tnum">{fmtTime(lastSync)}</span><span>Last read · {ago(lastSync)}</span></div>}
@@ -315,7 +315,7 @@ function ConnectionPanel({ conn, sources, compact = false }: { conn: Connection;
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {addBtn}
             {canAdmin(role) && !compact && (
-              <button type="button" className="b plain" style={{ flex: addBtn ? 'none' : 1, padding: '0 14px', fontSize: 14, color: '#5F646C' }} onClick={() => setConfirmDisconnect(true)}>
+              <button type="button" className="b plain muted" style={{ flex: addBtn ? 'none' : 1, padding: '0 14px', fontSize: 14 }} onClick={() => setConfirmDisconnect(true)}>
                 Disconnect…
               </button>
             )}
@@ -326,7 +326,7 @@ function ConnectionPanel({ conn, sources, compact = false }: { conn: Connection;
       {confirmDisconnect && (
         <>
           <div className="scrim" style={{ position: 'fixed' }} onClick={() => setConfirmDisconnect(false)} aria-hidden="true" />
-          <div role="alertdialog" aria-modal="true" aria-labelledby="dc-t" className="card" style={{ position: 'fixed', background: '#fff', width: 400, gap: 16, zIndex: 21 }}>
+          <div role="alertdialog" aria-modal="true" aria-labelledby="dc-t" className="card solid" style={{ position: 'fixed', width: 400, gap: 16, zIndex: 21 }}>
             <span id="dc-t" className="h3">Disconnect {conn.display_name}?</span>
             <span className="t13">Its {plural(mine.length, 'source')}, the entities read from them and their risks are deleted. Alerts from it stop until you connect it again.</span>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -347,10 +347,10 @@ function Browse({ conn, onPick, onCancel }: { conn: Connection; onPick: (base: s
   const [base, setBase] = useState<{ id: string; name: string } | null>(null);
   const list = useBrowse(workspace.id, conn.id, base?.id);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', paddingTop: 14, borderTop: '1px solid rgba(20,21,24,0.07)', maxHeight: 260, overflow: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', paddingTop: 14, borderTop: '1px solid var(--rule)', maxHeight: 260, overflow: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span className="lbl">{base ? base.name : 'Bases'}</span>
-        <button type="button" className="b plain" style={{ height: 32, padding: '0 8px', fontSize: 13 }} onClick={() => (base ? setBase(null) : onCancel())}>
+        <button type="button" className="b plain bsm" onClick={() => (base ? setBase(null) : onCancel())}>
           {base ? 'All bases' : 'Cancel'}
         </button>
       </div>

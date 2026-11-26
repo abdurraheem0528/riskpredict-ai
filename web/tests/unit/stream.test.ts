@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../setup';
-import { LiveStream, POLL_MS, type StreamStatus } from '../../src/api/stream';
+import { LiveStream, POLL_MS, type StreamBatch, type StreamStatus } from '../../src/api/stream';
 import { __resetAuth } from '../../src/api/auth';
 import { API, WS } from '../fixtures/data';
 
@@ -130,6 +130,100 @@ describe('LiveStream (polling)', () => {
     await vi.waitFor(() => expect(s.status).toBe('live'));
     expect(seen.slice(-1)).toEqual(['4']);
     expect(statuses).toEqual(['connecting', 'live', 'retrying', 'live']);
+    s.stop();
+  });
+
+  it('with a batch handler, hands over each poll at once, saying whether it is a catch-up or a resync', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let n = 0;
+    serve((after) => {
+      n++;
+      if (after === null) return { items: [], next: 1, more: false, resync: false };
+      if (n === 2) return { items: [ev(2)], next: 2, more: true, resync: false };
+      if (n === 3) return { items: [ev(3, 'alert.created')], next: 3, more: false, resync: false };
+      if (n === 4) return { items: [ev(4)], next: 4, more: false, resync: false }; // after the tab was hidden
+      return { items: [], next: 9, more: false, resync: true };
+    });
+    localStorage.setItem('rp.refresh', 'r');
+    __resetAuth();
+    const doc = new FakeDoc();
+    const batches: StreamBatch[] = [];
+    const events: string[] = [];
+    const s = new LiveStream(WS, (name) => events.push(name), () => undefined, doc as unknown as Document, (b) => batches.push(b));
+    s.start();
+    await vi.waitFor(() => expect(s.status).toBe('live'));
+    expect(batches).toEqual([]); // the first poll starts from now: nothing to hand over
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    await vi.waitFor(() => expect(batches).toHaveLength(1));
+    expect(batches[0]).toMatchObject({ initial: false, catchUp: false, resync: false });
+    expect(batches[0].events.map((e) => e.name)).toEqual(['risk.created', 'alert.created']); // both pages, one batch
+    doc.show('hidden');
+    doc.show('visible');
+    await vi.waitFor(() => expect(batches).toHaveLength(2));
+    expect(batches[1]).toMatchObject({ catchUp: true, resync: false });
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    await vi.waitFor(() => expect(batches).toHaveLength(3));
+    expect(batches[2]).toMatchObject({ catchUp: false, resync: true, events: [] });
+    expect(events).toEqual([]); // nothing went to the per-event handler
+    s.stop();
+  });
+
+  it('when a later page fails, hands over the pages already read at once (partial), then retries from after them', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let n = 0;
+    const seen = serve((after) => {
+      n++;
+      if (after === null) return { items: [], next: 1, more: false, resync: false };
+      if (n === 2) return { items: [ev(2), ev(3, 'alert.created')], next: 3, more: true, resync: false }; // page 1 moves the cursor to 3
+      if (n === 3) return new HttpResponse(null, { status: 503 }); // page 2 fails
+      return { items: [ev(4)], next: 4, more: false, resync: false };
+    });
+    localStorage.setItem('rp.refresh', 'r');
+    __resetAuth();
+    const doc = new FakeDoc();
+    const batches: StreamBatch[] = [];
+    const statuses: StreamStatus[] = [];
+    const s = new LiveStream(WS, () => undefined, (st) => statuses.push(st), doc as unknown as Document, (b) => batches.push(b));
+    s.start();
+    await vi.waitFor(() => expect(s.status).toBe('live'));
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    // The events of page 1 are not lost: delivered once, to be applied without animation.
+    await vi.waitFor(() => expect(batches).toHaveLength(1));
+    expect(batches[0]).toMatchObject({ partial: true, initial: false, catchUp: false, resync: false });
+    expect(batches[0].events.map((e) => e.name)).toEqual(['risk.created', 'alert.created']);
+    expect(s.status).toBe('retrying');
+    // The retry asks for what comes after page 1, and its batch is a whole one again.
+    await vi.advanceTimersByTimeAsync(2000);
+    await vi.waitFor(() => expect(batches).toHaveLength(2));
+    expect(seen).toEqual([null, '1', '3', '3']);
+    expect(batches[1]).toMatchObject({ partial: false });
+    expect(batches[1].events.map((e) => (e.data as { risk: { id: string } }).risk.id)).toEqual(['r4']);
+    expect(statuses.at(-1)).toBe('live');
+    s.stop();
+  });
+
+  it('delivers nothing extra when the first page fails', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let n = 0;
+    serve((after) => {
+      n++;
+      if (after === null) return { items: [], next: 1, more: false, resync: false };
+      if (n === 2) return new HttpResponse(null, { status: 503 });
+      return { items: [ev(2)], next: 2, more: false, resync: false };
+    });
+    localStorage.setItem('rp.refresh', 'r');
+    __resetAuth();
+    const doc = new FakeDoc();
+    const batches: StreamBatch[] = [];
+    const s = new LiveStream(WS, () => undefined, () => undefined, doc as unknown as Document, (b) => batches.push(b));
+    s.start();
+    await vi.waitFor(() => expect(s.status).toBe('live'));
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    await vi.waitFor(() => expect(s.status).toBe('retrying'));
+    expect(batches).toEqual([]);
+    await vi.advanceTimersByTimeAsync(2000);
+    await vi.waitFor(() => expect(batches).toHaveLength(1));
+    expect(batches[0]).toMatchObject({ partial: false });
     s.stop();
   });
 });

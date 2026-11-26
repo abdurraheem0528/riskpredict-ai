@@ -160,6 +160,18 @@ export function useRisk(ws: string, id: string | null) {
   });
 }
 
+const riskDetailFn = (ws: string, id: string) => () => unwrap(api.GET('/v1/risks/{risk_id}', { params: { header: wsh(ws), path: { risk_id: id } } }));
+
+/** The risk's detail, fresh from the API (the live sequence reads its evidence), into the same cache entry. */
+export function fetchRiskDetail(qc: QueryClient, ws: string, id: string): Promise<RiskDetail> {
+  return qc.fetchQuery({ queryKey: [ws, 'risk', id], staleTime: 0, queryFn: riskDetailFn(ws, id) });
+}
+
+/** Load a risk's detail ahead of opening it (a row under the pointer), so its screen opens drawn. */
+export function prefetchRiskDetail(qc: QueryClient, ws: string, id: string) {
+  void qc.prefetchQuery({ queryKey: [ws, 'risk', id], staleTime: 30_000, queryFn: riskDetailFn(ws, id) });
+}
+
 export function useSeries(series: string | null, key: string | null) {
   return useQuery({
     queryKey: ['series', series, key],

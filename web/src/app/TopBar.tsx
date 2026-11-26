@@ -1,7 +1,7 @@
 // The four capsules of the top row (System-Nav): workspace, sections, Jump to, account.
 // ≤900 the sections fold into one menu and Jump to keeps only its icon; ≤760 Jump to
 // moves into that menu. Register and Scenarios stay greyed out until a source is live.
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Icon } from '../ui/Icon';
 import { Link, navigate, useLocation } from '../lib/router';
@@ -12,6 +12,7 @@ import { wsh, setWorkspaceId } from '../api/workspace';
 import { errorText } from '../api/errors';
 import { ago, fmtInt, initials } from '../lib/format';
 import { useSession } from './Session';
+import { setThemeChoice, useThemeChoice, type ThemeChoice } from '../lib/theme';
 
 export type Section = 'overview' | 'register' | 'scenarios' | 'sources';
 
@@ -129,7 +130,7 @@ function NavMenu({ open, onToggle, onClose, label, count, children }: { open: bo
         <button type="button" className="cap glass navsum" aria-expanded={open} aria-haspopup="true" onClick={onToggle}>
           {label}
           {count != null && count > 0 && <small className="t12 tnum" style={{ fontWeight: 500 }} title={storiesText(count)}>{fmtInt(count)}</small>}
-          <Icon name="expand" size={14} stroke={1.75} style={{ color: '#5F646C' }} />
+          <Icon name="expand" size={14} stroke={1.75} className="chv" />
         </button>
         {open && (
           <nav aria-label="Sections" className="menu c">
@@ -167,7 +168,7 @@ function WorkspaceMenu({ open, onToggle, onClose }: { open: boolean; onToggle: (
       <button type="button" className="cap glass capbtn" aria-expanded={open} aria-haspopup="true" aria-label={`Workspace: ${workspace.name}`} onClick={onToggle}>
         <span className="wsmark"><Icon name="signals" size={18} stroke={1.75} /></span>
         <span className="wsn">{workspace.name}</span>
-        <Icon name="expand" size={14} stroke={1.75} style={{ color: '#5F646C' }} />
+        <Icon name="expand" size={14} stroke={1.75} className="chv" />
       </button>
       {open && (
         <div className="menu l" role="menu" aria-label="Workspaces">
@@ -243,6 +244,7 @@ function AccountMenu({ open, onToggle, onClose, label }: { open: boolean; onTogg
             <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.display_name ?? user.email}</span>
             {user.display_name && <span className="t12" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</span>}
           </div>
+          <Appearance />
           <span className="mdiv" />
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 6px 0 18px' }}>
             <span className="lbl">Alerts{unread ? ` · ${fmtInt(unread)} unread` : ''}</span>
@@ -272,8 +274,8 @@ function AccountMenu({ open, onToggle, onClose, label }: { open: boolean; onTogg
                   }}
                 >
                   <span style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
-                    {!a.read_at && !done && <span className={a.severity === 'critical' ? 'rdot' : 'gdot'} style={a.severity === 'info' ? { background: '#A3A7AE' } : a.severity === 'warning' ? { background: '#DD6248' } : undefined} aria-hidden="true" />}
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, ...(done ? { color: '#5F646C' } : {}) }}>{a.title}</span>
+                    {!a.read_at && !done && <span className={a.severity === 'critical' ? 'rdot' : `gdot${a.severity === 'info' ? ' dot-info' : a.severity === 'warning' ? ' dot-warn' : ''}`} aria-hidden="true" />}
+                    <span className={done ? 'muted' : undefined} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{a.title}</span>
                   </span>
                   <small>{done ? `${a.risk_status === 'resolved' ? 'Resolved' : 'Dismissed'} · ` : ''}{ago(a.created_at)}</small>
                 </button>
@@ -297,6 +299,51 @@ function AccountMenu({ open, onToggle, onClose, label }: { open: boolean; onTogg
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+const THEMES: { id: ThemeChoice; label: string }[] = [
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'system', label: 'System' },
+];
+
+/** Light / Dark / System (src/lib/theme.ts): kept on this device, applied before first paint. */
+function Appearance() {
+  const choice = useThemeChoice();
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  // Three menu radio items in a group: arrows move the choice, as in any segmented control.
+  const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const i = THEMES.findIndex((t) => t.id === choice);
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = (i + step + THEMES.length) % THEMES.length;
+    setThemeChoice(THEMES[next].id);
+    refs.current[next]?.focus();
+  };
+  return (
+    <div className="appear">
+      <span className="lbl" id="appear-l">Appearance</span>
+      <div className="segw" role="group" aria-labelledby="appear-l" onKeyDown={onKey}>
+        {THEMES.map((t, i) => (
+          <button
+            key={t.id}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="menuitemradio"
+            aria-checked={choice === t.id}
+            tabIndex={choice === t.id ? 0 : -1}
+            className={`sg${choice === t.id ? ' on' : ''}`}
+            onClick={() => setThemeChoice(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

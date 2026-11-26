@@ -7,8 +7,13 @@ export type RiskCategory = components['schemas']['RiskCategory'];
 export type EntityKind = components['schemas']['EntityKind'];
 
 export type Level = 'low' | 'med' | 'high' | 'crit';
+/**
+ * Level names and their light-theme colours (styles.css has both themes as `--<lvl>-fill`,
+ * `-tint`, `-text`; UI should use the `l-<lvl>` / `tx-<lvl>` classes, and the map reads the
+ * fills from the theme's palette). Low is neutral grey: only Medium and up are coloured.
+ */
 export const LEVELS: Record<Level, { name: string; fill: string; tint: string; text: string }> = {
-  low: { name: 'Low', fill: '#F1D3CC', tint: '#FBF1EF', text: '#8A3B2E' },
+  low: { name: 'Low', fill: '#9AA1A9', tint: '#EEF0F2', text: '#5F646C' },
   med: { name: 'Medium', fill: '#E9A190', tint: '#FBEAE6', text: '#9C3522' },
   high: { name: 'High', fill: '#DD6248', tint: '#FCE5E0', text: '#A42D16' },
   crit: { name: 'Critical', fill: '#B3200F', tint: '#FADBD5', text: '#8F1A0B' },

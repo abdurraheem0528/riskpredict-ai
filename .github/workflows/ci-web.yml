@@ -1,6 +1,7 @@
 # The dashboard (web/): types from the contract, lint, unit tests, a production build,
 # the check that no design sample content or test fixture reaches the bundle, and
-# Playwright screenshots of every screen at 1360×900, 900 and 375 wide against the MSW
+# Playwright screenshots of every screen at 1360×900, 900 and 375 wide (and 1360 and 375 in
+# the dark theme), and the live sequence with motion on, against the MSW
 # fixtures in web/tests (uploaded as the `web-screenshots` artifact).
 name: ci-web
 
@@ -52,7 +53,8 @@ jobs:
 
   screenshots:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Five projects (three widths, and 1360 and 375 again in the dark theme) on SwiftShader.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,7 +71,7 @@ jobs:
           VITE_API_URL: http://api.test
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
-      - name: Screens at 1360×900, 900 and 375 wide
+      - name: Screens at 1360×900, 900 and 375 wide, light and dark; the live sequence
         run: npm run e2e
         env:
           CI: "true"

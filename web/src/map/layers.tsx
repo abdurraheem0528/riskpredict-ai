@@ -6,9 +6,23 @@ import { createPortal } from 'react-dom';
 import type { FeatureCollection, Point } from 'geojson';
 import type { ExpressionSpecification, GeoJSONSource, GeoJSONSourceSpecification, LayerSpecification, Marker, MapLayerMouseEvent } from 'maplibre-gl';
 import { useMap } from './MapRoot';
-import { LEVELS, levelOf } from '../lib/format';
-import { countryName, portName } from './geo';
+import { levelOf } from '../lib/format';
 import { FONT, FONT_SEMIBOLD, raiseSymbols, useViewportAnchors, type LabelSpec } from './labels';
+import { slotId, type Slot } from './slots';
+import { usePalette } from '../lib/theme';
+
+/** #rgb / #rrggbb / rgb() → [r, g, b]. */
+function rgb(c: string): [number, number, number] {
+  const h = c.trim();
+  if (h.startsWith('#')) {
+    const x = h.length === 4 ? h.slice(1).split('').map((d) => d + d).join('') : h.slice(1, 7);
+    const n = parseInt(x, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const m = /rgba?\(([^)]+)\)/.exec(h);
+  const [r = 0, g = 0, b = 0] = m ? m[1].split(',').map((v) => Number.parseFloat(v)) : [];
+  return [r, g, b];
+}
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
 type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -22,31 +36,54 @@ function safe(fn: () => void) {
   }
 }
 
+export type LayerMeta = { click?: boolean; slot?: Slot };
+
+/**
+ * A GeoJSON source and its layers, added on mount and removed on unmount. Data changes
+ * call `setData`; paint changes (a theme switch, a zoom ramp) call `setPaintProperty`, so
+ * layers are only re-added when their structure changes. Layers go into `slot`'s band, or
+ * each into its own `metadata.slot` band (./slots).
+ */
 export function useGeoJson(
   id: string,
   data: FeatureCollection | null | undefined,
   layers: LayerDef[],
   opts: Partial<GeoJSONSourceSpecification> = {},
   onClick?: (e: MapLayerMouseEvent) => void,
+  /** The band of the layer stack to add the layers in (./slots); on top when omitted. */
+  slot?: Slot,
 ) {
   const { map } = useMap();
   const optsKey = JSON.stringify(opts);
-  const layersKey = JSON.stringify(layers);
+  const structKey = JSON.stringify(layers.map((l) => ({ ...l, paint: undefined })));
+  const paintKey = JSON.stringify(layers.map((l) => ('paint' in l ? (l.paint ?? null) : null)));
   const click = useRef(onClick);
+  const latest = useRef(layers);
+  const applied = useRef<string | null>(null);
   useEffect(() => {
     click.current = onClick;
+    latest.current = layers;
   });
 
   useEffect(() => {
     if (!map) return;
     const spec = JSON.parse(optsKey) as Partial<GeoJSONSourceSpecification>;
-    const defs = JSON.parse(layersKey) as LayerDef[];
-    map.addSource(id, { type: 'geojson', data: EMPTY, ...spec } as GeoJSONSourceSpecification);
-    for (const l of defs) map.addLayer({ ...l, source: id } as LayerSpecification);
+    const defs = latest.current;
+    const before = (l: LayerDef) => {
+      const s = (l as { metadata?: LayerMeta }).metadata?.slot ?? slot;
+      return s && map.getLayer(slotId(s)) ? slotId(s) : undefined;
+    };
+    try {
+      map.addSource(id, { type: 'geojson', data: EMPTY, ...spec } as GeoJSONSourceSpecification);
+      for (const l of defs) map.addLayer({ ...l, source: id } as LayerSpecification, before(l));
+    } catch {
+      return; // the style is being replaced
+    }
+    applied.current = JSON.stringify(defs.map((l) => ('paint' in l ? (l.paint ?? null) : null)));
     if (defs.some((l) => l.type === 'symbol')) raiseSymbols(map);
     const handlers: [string, (e: MapLayerMouseEvent) => void, () => void, () => void][] = [];
     for (const l of defs) {
-      if (!(l as { metadata?: { click?: boolean } }).metadata?.click) continue;
+      if (!(l as { metadata?: LayerMeta }).metadata?.click) continue;
       const h = (e: MapLayerMouseEvent) => click.current?.(e);
       const enter = () => (map.getCanvas().style.cursor = 'pointer');
       const leave = () => (map.getCanvas().style.cursor = '');
@@ -64,13 +101,31 @@ export function useGeoJson(
         }
         for (const l of [...defs].reverse()) if (map.getLayer(l.id)) map.removeLayer(l.id);
         if (map.getSource(id)) map.removeSource(id);
+        applied.current = null;
       });
-  }, [map, id, optsKey, layersKey]);
+  }, [map, id, optsKey, structKey, slot]);
+
+  // Paint only: set it in place.
+  useEffect(() => {
+    if (!map || applied.current === null || applied.current === paintKey) return;
+    const prev = JSON.parse(applied.current) as (Record<string, unknown> | null)[];
+    applied.current = paintKey;
+    safe(() => {
+      latest.current.forEach((l, i) => {
+        if (!map.getLayer(l.id)) return;
+        const now = ('paint' in l ? (l.paint as Record<string, unknown> | undefined) : undefined) ?? {};
+        const was = prev[i] ?? {};
+        for (const k of new Set([...Object.keys(was), ...Object.keys(now)])) {
+          if (JSON.stringify(was[k]) !== JSON.stringify(now[k])) map.setPaintProperty(l.id, k, now[k] as never);
+        }
+      });
+    });
+  }, [map, paintKey, structKey]);
 
   useEffect(() => {
     if (!map) return;
     safe(() => (map.getSource(id) as GeoJSONSource | undefined)?.setData(data ?? EMPTY));
-  }, [map, id, data, layersKey, optsKey]);
+  }, [map, id, data, structKey, optsKey]);
 }
 
 // --- HTML markers (decorative pulses only; all text is drawn by MapLibre) -------------
@@ -107,7 +162,9 @@ export function Markers({ items }: { items: MarkerItem[] }) {
       el.style.zIndex = String(it.z ?? 0);
       let m = markers.current.get(it.key);
       if (!m) {
-        m = new lib.Marker({ element: el, anchor: it.anchor ?? 'center', offset: it.offset ?? [0, 0] }).setLngLat(it.at).addTo(map);
+        // Hidden, not faded, when the globe turns it away (MapLibre owns the root's opacity:
+        // state classes go on the child node).
+        m = new lib.Marker({ element: el, anchor: it.anchor ?? 'center', offset: it.offset ?? [0, 0], opacityWhenCovered: '0', subpixelPositioning: true }).setLngLat(it.at).addTo(map);
         markers.current.set(it.key, m);
       } else {
         m.setLngLat(it.at);
@@ -130,37 +187,6 @@ export function Markers({ items }: { items: MarkerItem[] }) {
 }
 
 // --- the layers the screens use -------------------------------------------------------
-
-/** Global feed signals: quiet grey dots, clustered where dense (Empty, Main). */
-export function SignalsLayer({ data, faint = false }: { data: FeatureCollection<Point> | null; faint?: boolean }) {
-  const op = faint ? 0.55 : 1;
-  useGeoJson(
-    'signals',
-    data,
-    [
-      { id: 'signals-cluster', type: 'circle', filter: ['has', 'point_count'], paint: { 'circle-color': '#7D838B', 'circle-opacity': 0.22 * op, 'circle-radius': ['step', ['get', 'point_count'], 6, 10, 9, 50, 12, 200, 15] } },
-      { id: 'signals-cluster-core', type: 'circle', filter: ['has', 'point_count'], paint: { 'circle-color': '#7D838B', 'circle-opacity': op, 'circle-radius': 3.5 } },
-      { id: 'signals-dot', type: 'circle', filter: ['!', ['has', 'point_count']], paint: { 'circle-color': '#7D838B', 'circle-opacity': op, 'circle-radius': ['interpolate', ['linear'], ['coalesce', ['get', 'severity'], 0], 0, 2.5, 1, 3.5] } },
-    ],
-    { cluster: true, clusterRadius: 28, clusterMaxZoom: 6 },
-  );
-  return null;
-}
-
-/** Soft pulsing rings on the strongest signals (CSS; still under reduced motion). */
-export function Pulses({ points, color = '#7D838B' }: { points: { key: string; at: [number, number] }[]; color?: string }) {
-  const items = useMemo(
-    () =>
-      points.map((p, i) => ({
-        key: `pulse:${p.key}`,
-        at: p.at,
-        z: -1,
-        node: <span className={`halo d${(i % 3) + 1}`} style={{ background: color }} aria-hidden="true" />,
-      })),
-    [points, color],
-  );
-  return <Markers items={items} />;
-}
 
 type EntityProps = { kind: string; name: string; _id: string; max_score?: number | null; open_risk_count?: number };
 
@@ -207,7 +233,8 @@ export function EntitiesLayer({
   onPick?: (entityId: string) => void;
 }) {
   const { map } = useMap();
-  const ink = muted ? '#A3A7AE' : '#141518';
+  const P = usePalette();
+  const ink = muted ? P.off : P.ink;
   const spec = labels === 'strong' ? STRONG_LABEL : NAME_LABEL;
   const anchored = useViewportAnchors(map, labels === 'none' ? null : data, spec);
   useGeoJson(
@@ -216,13 +243,13 @@ export function EntitiesLayer({
     [
       { id: `${id}-cluster`, type: 'circle', filter: ['has', 'point_count'], paint: { 'circle-color': ink, 'circle-opacity': 0.12, 'circle-radius': ['step', ['get', 'point_count'], 12, 10, 15, 50, 18] } },
       ...(ring
-        ? [{ id: `${id}-ring`, type: 'circle', filter: ['!', ['has', 'point_count']], paint: { 'circle-color': 'rgba(0,0,0,0)', 'circle-radius': 8, 'circle-stroke-color': '#1766F0', 'circle-stroke-width': 1.5 } } as LayerDef]
+        ? [{ id: `${id}-ring`, type: 'circle', filter: ['!', ['has', 'point_count']], paint: { 'circle-color': 'rgba(0,0,0,0)', 'circle-radius': 8, 'circle-stroke-color': P.accent, 'circle-stroke-width': 1.5 } } as LayerDef]
         : []),
       {
         id: `${id}-dot`,
         type: 'circle',
         filter: ['all', ['!', ['has', 'point_count']], ['!=', ['get', 'kind'], 'site']],
-        paint: { 'circle-color': ink, 'circle-radius': 4, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 1.5 },
+        paint: { 'circle-color': ink, 'circle-radius': 4, 'circle-stroke-color': P.dotStroke, 'circle-stroke-width': 1.5 },
         metadata: { click: true },
       },
       {
@@ -249,7 +276,7 @@ export function EntitiesLayer({
                 'text-padding': 3,
                 'symbol-sort-key': ['-', ['coalesce', ['get', 'max_score'], 0]],
               },
-              paint: { 'text-color': labels === 'strong' ? '#141518' : '#5F646C', 'text-halo-color': '#FFFFFF', 'text-halo-width': 1.5 },
+              paint: { 'text-color': labels === 'strong' ? P.ink : P.tx2, 'text-halo-color': P.halo, 'text-halo-width': 1.5 },
             } as LayerDef,
           ]),
       {
@@ -266,7 +293,7 @@ export function EntitiesLayer({
           'text-allow-overlap': true,
           'icon-allow-overlap': true,
         },
-        paint: { 'text-color': muted ? '#5F646C' : '#141518' },
+        paint: { 'text-color': muted ? P.tx2 : P.ink },
         metadata: { click: true },
       },
     ],
@@ -290,9 +317,10 @@ export function EntitiesLayer({
 
 function useSquareImages() {
   const { map } = useMap();
+  const P = usePalette();
   useEffect(() => {
     if (!map) return;
-    const make = (fill: string) => {
+    const make = (fill: string, outline: string) => {
       const s = 2;
       const size = 14 * s;
       const data = new Uint8Array(size * size * 4);
@@ -302,20 +330,23 @@ function useSquareImages() {
         const cy = Math.min(Math.max(y, lo + r), hi - r);
         return x >= lo && x <= hi && y >= lo && y <= hi && (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
       };
-      const [fr, fg, fb] = [1, 3, 5].map((i) => parseInt(fill.slice(i, i + 2), 16));
+      const [fr, fg, fb] = rgb(fill);
+      const [lr, lg, lb] = rgb(outline);
       for (let y = 0; y < size; y++)
         for (let x = 0; x < size; x++) {
           const o = (y * size + x) * 4;
           if (inner(x, y, 4, 5)) [data[o], data[o + 1], data[o + 2], data[o + 3]] = [fr, fg, fb, 255];
-          else if (inner(x, y, 0, 7)) [data[o], data[o + 1], data[o + 2], data[o + 3]] = [255, 255, 255, 255];
+          else if (inner(x, y, 0, 7)) [data[o], data[o + 1], data[o + 2], data[o + 3]] = [lr, lg, lb, 255];
         }
       return { width: size, height: size, data };
     };
     safe(() => {
-      if (!map.hasImage('rp-square')) map.addImage('rp-square', make('#141518'), { pixelRatio: 2 });
-      if (!map.hasImage('rp-square-muted')) map.addImage('rp-square-muted', make('#A3A7AE'), { pixelRatio: 2 });
+      for (const [id, img] of [['rp-square', make(P.ink, P.land)], ['rp-square-muted', make(P.off, P.land)]] as const) {
+        if (map.hasImage(id)) map.updateImage(id, img);
+        else map.addImage(id, img, { pixelRatio: 2 });
+      }
     });
-  }, [map]);
+  }, [map, P]);
 }
 
 type PlaceProps = {
@@ -329,112 +360,43 @@ type PlaceProps = {
   top_risk_ids?: string[];
 };
 
-/** Score pill + place name in a white capsule (Main.dc.html), drawn as one symbol. */
-const CALLOUT_LABEL: LabelSpec = {
-  font: `600 13px "${FONT_SEMIBOLD}"`,
-  text: (p) => (p._co ? `${p._score}\u2002\u2002\u2002${p._label}` : null),
-  extra: 26,
-  anchors: [
-    ['left', [2, 0]],
-    ['right', [-1.85, 0]],
-    ['bottom', [0, -1.77]],
-    ['top', [0, 1.77]],
-  ],
-  box: (a, w) => (a === 'left' ? [12, -17, 12 + w, 17] : a === 'right' ? [-12 - w, -17, -12, 17] : a === 'bottom' ? [-w / 2, -48, w / 2, -14] : [-w / 2, 14, w / 2, 48]),
-};
-
-const placeName = (p: PlaceProps) =>
-  p.label ?? (p.place_type === 'country' ? countryName(p.place_key) : p.place_type === 'port' ? portName(p.place_key) : placeCount(p));
-const placeCount = (p: PlaceProps) => {
-  const n = p.story_count ?? p.risk_count; // one story reaching several entities here counts once
-  return `${n} ${n === 1 ? 'risk' : 'risks'}`;
-};
-
 /**
- * Risk hotspots: red halos whose strength follows the level (System-Color), with a callout
- * on the strongest few. Callouts are symbols: they give way to cluster counts and to each
- * other, flip side to stay on the map, and hide when there is no room.
+ * The place a risk sits (Risk): a soft halo in its level's fill, with a dot. On the
+ * Overview the scored entity dots, heat and tint (EntityLayers) show risks instead.
  */
-export function RiskPlacesLayer({
-  data,
-  callouts = 0,
-  selected = null,
-  onPick,
-}: {
-  data: FeatureCollection<Point, PlaceProps> | null;
-  callouts?: number;
-  selected?: string | null;
-  onPick?: (riskId: string) => void;
-}) {
-  const { map } = useMap();
+export function RiskPlacesLayer({ data, onPick }: { data: FeatureCollection<Point, PlaceProps> | null; onPick?: (riskId: string) => void }) {
+  const P = usePalette();
   const colored = useMemo(() => {
     if (!data) return null;
-    const top = new Set([...data.features].sort((a, b) => b.properties.max_score - a.properties.max_score).slice(0, callouts).map((f) => f.properties._id));
+    const fill = { low: P.low, med: P.med, high: P.high, crit: P.crit };
     return {
       ...data,
-      features: data.features.map((f) => {
-        const p = f.properties;
-        const ids = p.top_risk_ids ?? [];
-        const lvl = levelOf(p.max_score);
-        const score = String(Math.round(p.max_score));
-        return {
-          ...f,
-          properties: {
-            ...p,
-            _fill: LEVELS[lvl].fill,
-            _co: top.has(p._id),
-            _lvl: lvl,
-            _tc: LEVELS[lvl].text,
-            _score: score.length === 1 ? `\u2009${score}\u2009` : score,
-            _label: placeName(p),
-            _on: !!selected && ids.includes(selected),
-            _top: ids[0] ?? '',
-          },
-        };
-      }),
+      features: data.features.map((f) => ({
+        ...f,
+        properties: { ...f.properties, _fill: fill[levelOf(f.properties.max_score)], _top: f.properties.top_risk_ids?.[0] ?? '' },
+      })),
     };
-  }, [data, callouts, selected]);
-  const anchored = useViewportAnchors(map, callouts ? colored : null, CALLOUT_LABEL);
+  }, [data, P]);
   useGeoJson(
     'riskplaces',
-    callouts ? anchored : colored,
+    colored,
     [
       { id: 'riskplaces-halo', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-opacity': 0.2, 'circle-radius': ['interpolate', ['linear'], ['get', 'max_score'], 0, 12, 100, 18] } },
-      { id: 'riskplaces-dot', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-radius': 4.5, 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2 }, metadata: { click: true } },
-      ...(callouts
-        ? [
-            {
-              id: 'riskplaces-callout',
-              type: 'symbol',
-              filter: ['all', ['==', ['get', '_co'], true], visible],
-              layout: {
-                'icon-image': ['concat', 'rp-callout-', ['get', '_lvl'], ['case', ['get', '_on'], '-on', '']],
-                'icon-text-fit': 'both',
-                'text-field': ['format', ['get', '_score'], { 'font-scale': 12 / 13, 'text-color': ['get', '_tc'] }, '\u2002\u2002\u2002', {}, ['get', '_label'], {}],
-                'text-font': [FONT_SEMIBOLD],
-                'text-size': 13,
-                'text-max-width': 100,
-                'text-variable-anchor-offset': ['get', '_vao'],
-                'text-padding': 4,
-                'symbol-sort-key': ['case', ['get', '_on'], -1000, ['-', ['get', 'max_score']]],
-              },
-              paint: { 'text-color': '#141518' },
-              metadata: { click: true },
-            } as LayerDef,
-          ]
-        : []),
+      { id: 'riskplaces-dot', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-radius': 4.5, 'circle-stroke-color': P.dotStroke, 'circle-stroke-width': 2 }, metadata: { click: true } },
     ],
     {},
     (e) => {
       const id = e.features?.[0]?.properties?._top;
       if (id && onPick) onPick(String(id));
     },
+    'dots',
   );
   return null;
 }
 
 /** Plain points in one colour (evidence, affected entities, preview rows). */
-export function DotsLayer({ id, data, color, radius = 4, stroke = '#FFFFFF' }: { id: string; data: FeatureCollection<Point> | null; color: string; radius?: number; stroke?: string }) {
-  useGeoJson(id, data, [{ id: `${id}-dot`, type: 'circle', paint: { 'circle-color': color, 'circle-radius': radius, 'circle-stroke-color': stroke, 'circle-stroke-width': 1.5 } }]);
+export function DotsLayer({ id, data, color, radius = 4, stroke, slot = 'dots' }: { id: string; data: FeatureCollection<Point> | null; color: string; radius?: number; stroke?: string; slot?: Slot }) {
+  const P = usePalette();
+  useGeoJson(id, data, [{ id: `${id}-dot`, type: 'circle', paint: { 'circle-color': color, 'circle-radius': radius, 'circle-stroke-color': stroke ?? P.dotStroke, 'circle-stroke-width': 1.5 } }], {}, undefined, slot);
   return null;
 }

@@ -31,6 +31,21 @@ export const STREAM_EVENTS = [
 export type StreamStatus = 'connecting' | 'live' | 'retrying' | 'off';
 type Handler = <K extends StreamEventName>(name: K, data: StreamEvents[K]) => void;
 
+/**
+ * Everything one poll brought, for a caller that plays live changes (src/live/player.ts).
+ * `initial`: the first poll after start (the page was just loaded). `catchUp`: the first
+ * poll after the tab was hidden. `resync`: the cursor fell out of retention (refetch all).
+ * `partial`: a later page of the poll failed; these are the events of the pages read before
+ * it (the cursor is already past them), to apply at once, without animation.
+ */
+export type StreamBatch = {
+  events: { name: StreamEventName; data: unknown }[];
+  initial: boolean;
+  catchUp: boolean;
+  resync: boolean;
+  partial: boolean;
+};
+
 export const POLL_MS = 15_000;
 const MAX_PAGES = 10; // per poll, when the API says `more`
 
@@ -47,13 +62,20 @@ export class LiveStream {
   private attempt = 0;
   private stopped = true;
   private polling = false;
+  private wasHidden = false;
   status: StreamStatus = 'off';
 
+  /**
+   * `onEvent` gets each event as it is read. With `onBatch`, each poll's events are passed
+   * to it instead, once the poll has read every page (or, when a later page fails, the
+   * pages read before it, marked `partial`).
+   */
   constructor(
     private workspaceId: string,
     private onEvent: Handler,
     private onStatus: (s: StreamStatus) => void,
     private doc: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'> = document,
+    private onBatch?: (batch: StreamBatch) => void,
   ) {}
 
   start() {
@@ -80,6 +102,7 @@ export class LiveStream {
     if (this.visible()) {
       void this.poll(); // catch up at once
     } else {
+      this.wasHidden = true;
       this.clear();
       this.set('off');
     }
@@ -107,28 +130,45 @@ export class LiveStream {
     this.polling = true;
     this.clear();
     if (this.status !== 'live') this.set(this.attempt === 0 ? 'connecting' : 'retrying');
+    // A tab hidden while this poll runs makes the next one a catch-up too.
+    const batch: StreamBatch = { events: [], initial: this.cursor === null, catchUp: this.wasHidden, resync: false, partial: false };
+    this.wasHidden = false;
+    let delivered = false;
+    const deliver = (partial: boolean) => {
+      if (delivered || !this.onBatch || !(batch.events.length || batch.resync)) return;
+      delivered = true;
+      this.onBatch(partial ? { ...batch, partial: true } : batch);
+    };
     try {
       for (let page = 0; page < MAX_PAGES; page++) {
         const query = this.cursor === null ? {} : { after: this.cursor };
         const res = await unwrap(api.GET('/v1/events', { params: { header: wsh(this.workspaceId), query } }));
         if (this.stopped) return;
         if (res.resync) {
-          this.onEvent('resync', {});
+          if (this.onBatch) batch.resync = true;
+          else this.onEvent('resync', {});
         } else {
           for (const e of res.items) {
-            if (KNOWN.has(e.event)) this.onEvent(e.event, e.data as StreamEvents[typeof e.event]);
+            if (!KNOWN.has(e.event)) continue;
+            if (this.onBatch) batch.events.push({ name: e.event, data: e.data });
+            else this.onEvent(e.event, e.data as StreamEvents[typeof e.event]);
           }
         }
         this.cursor = res.next;
         if (!res.more) break;
       }
+      deliver(false);
       this.attempt = 0;
       this.set(this.visible() ? 'live' : 'off');
       this.schedule(POLL_MS);
     } catch {
       if (this.stopped) return;
+      this.wasHidden ||= batch.catchUp; // the catch-up has not happened yet
       this.set('retrying');
       this.schedule(backoffMs(this.attempt++));
+      // Pages read before the failure moved the cursor past their events, so the retry will
+      // not see them again: hand them over now, at once (as the per-event path does).
+      deliver(true);
     } finally {
       this.polling = false;
     }

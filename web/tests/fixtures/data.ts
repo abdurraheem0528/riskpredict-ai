@@ -132,7 +132,11 @@ export const mapEntities: S['EntityFeatureCollection'] = {
       type: 'Feature' as const,
       id: e.id,
       geometry: e.lat != null && e.lon != null ? { type: 'Point' as const, coordinates: [e.lon, e.lat] } : null,
-      properties: { kind: e.kind, name: e.name, countries: e.countries, ports: e.ports, criticality: e.exposure.criticality, open_risk_count: e.open_risk_count, max_score: e.max_score },
+      properties: {
+        kind: e.kind, name: e.name, countries: e.countries, ports: e.ports, criticality: e.exposure.criticality, open_risk_count: e.open_risk_count, max_score: e.max_score,
+        // routes carry their declared chokepoints, in order (the API resolves them to ids)
+        ...(e.kind === 'route' ? { chokepoints: (e.attrs as { chokepoints?: string[] }).chokepoints ?? [] } : {}),
+      },
     })),
 };
 

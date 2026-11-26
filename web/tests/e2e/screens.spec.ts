@@ -87,6 +87,24 @@ test.describe('active workspace', () => {
     await shot(page, '5-register-entity', info.project.name);
   });
 
+  test('register to a risk and back', async ({ page }, info) => {
+    // Going back while the risk screen's map work is still in flight removes its layers under
+    // running tweens and pending writes: no console errors (the fixture fails the test on any).
+    // The code is the same at every width, and three screens on SwiftShader are slow on CI.
+    test.skip(info.project.name !== 'desktop', 'one width is enough');
+    test.slow();
+    await page.goto('/register');
+    await expect(page.getByText('6 open stories')).toBeVisible();
+    await mapSettled(page);
+    const row = page.getByRole('link', { name: /Name matches a sanctions entry/ });
+    await row.hover();
+    await row.click();
+    await expect(page.getByText('What to do')).toBeVisible();
+    await page.goBack();
+    await expect(page.getByText('6 open stories')).toBeVisible();
+    await mapSettled(page);
+  });
+
   test('risk', async ({ page }, info) => {
     const r = risks.find((x) => x.category === 'logistics')!;
     await page.goto(`/risks/${r.id}`);
@@ -125,7 +143,7 @@ test.describe('active workspace', () => {
   });
 
   test('jump to', async ({ page, network }, info) => {
-    test.skip(info.project.name === 'phone', 'Jump to opens from the sections menu on phones');
+    test.skip(info.project.name.startsWith('phone'), 'Jump to opens from the sections menu on phones');
     // a long title stays on one line, cut with an ellipsis, with no sideways scroll
     const long = `${risks[0].title}: a long headline from the feed that runs well past the width of the palette`;
     network.use(http.get(`${API}/v1/risks`, () => HttpResponse.json({ items: [{ ...risks[0], title: long }, ...risks.slice(1)], next_cursor: null })));

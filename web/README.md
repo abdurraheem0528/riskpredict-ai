@@ -54,10 +54,13 @@ the same headers, so Playwright runs every screen under the production policy. S
 src/
   api/        openapi-fetch client, auth (tokens), live-update polling, React Query hooks, generated types
   app/        session (user, workspace, role), top row (capsules and menus), Jump to, toast
-  map/        the one MapLibre map, layers as components, placing features, static lookups
+  lib/        formatting, router, theme (Light/Dark/System), motion (the one animation loop)
+  live/       the live sequence: what a poll plays, map effects, count-ups, list motion, live dot
+  map/        the one MapLibre map (globe or flat), layers as components, camera, sea lanes,
+              placing features, static lookups
   screens/    SignIn, Empty, Connect, Confirm, Main (Overview and Register), RiskView, Scenario
   ui/         icons (copied from System-Icons), shared parts
-  styles.css  tokens and parts copied from the design files
+  styles.css  tokens (light and night) and parts; map/map.css and live/live.css beside their code
 ```
 
 - **Auth** (contract decision 6). The access token lives only in memory. The refresh token
@@ -76,6 +79,21 @@ src/
   older than the API's 24 h retention) refetches the workspace's queries. Errors back off
   1 s → 30 s with jitter. Each event invalidates only what it changes
   (`applyStreamEvent` in `api/queries.ts`).
+- **Live motion** (`live/`). Each poll's events go to `LivePlayer`. A risk that is new, or
+  whose score rose, plays in order: a ripple where its evidence is, a caption, a line along
+  the great circle to each entity the story reaches, a pulse there, and only then the list
+  update (count-ups, rows sliding with FLIP, a flash on the changed row). At most 3 stories
+  per poll, highest first, 400 ms apart; the rest apply at once with only the count-up.
+  Nothing plays on the first poll, after a resync, on the poll that catches up after a
+  hidden tab, or under reduced motion: the state is applied at once.
+- **Theme.** Light, Dark or System from the account menu, kept in `localStorage`
+  (`rp.theme`) and applied before first paint by `public/theme-init.js` (a file, as the CSP
+  allows no inline script). Every colour is a token on `:root`; the dark set is a night
+  map, not an inversion. The map repaints in place (paint properties and sky) on a change.
+- **Motion.** One `requestAnimationFrame` loop (`lib/motion.ts`) drives feature-state
+  tweens, the sea-lane dash flow, idle rotation and travelling lines; it stops while the
+  tab is hidden. Reduced motion turns off rotation, flow, ripples, lines, pulses, the
+  breathing dot and View Transitions, and makes flights jumps.
 - **Roles.** Viewers see everything but no editing controls; editors confirm mappings,
   change risk status and run what-ifs; only admins connect or disconnect tools (the API
   enforces all of this too).
@@ -83,19 +101,24 @@ src/
 ## The map
 
 No tiles, no keys, no glyph server. The base map is Natural Earth (public domain) served
-from `public/map/` and drawn with three layers in the System-Color surface tokens: sea
-`#E7ECF1`, land `#FFFFFF`, coast `#CFD5DC`. Everything else is a layer from the API's
-GeoJSON endpoints, clustered where dense (signals, entities).
+from `public/map/`, on a globe by default (Globe / Flat on the map controls, remembered in
+`rp.projection`, switched with a 200 ms crossfade from a snapshot of the last frame). The
+layers are added in bands (`map/slots.ts`), bottom to top: sea, graticule, land, borders,
+coast; the tint of countries with open stories; sea lanes; the risk heatmap; entity dots by
+score (Low grey, Medium and up coloured), with feature-state tweens for hover, selection
+and dimming; labels; short-lived effects.
 
-All map text is MapLibre symbols, so it takes part in symbol collision (`map/labels.ts`):
-risk callouts (score pill and place in a capsule), cluster counts and entity names. The
-style has no `glyphs` URL, so MapLibre draws the glyphs itself with TinySDF from two
-FontFace aliases of the self-hosted Inter, loaded before the first label. Each label gets
-only the anchors (`text-variable-anchor-offset`) under which it stays inside the open map,
-clear of the edges, the top row, the sheet, corner card, legend and map controls. MapLibre
-places it at the first of those that does not collide, or hides it. Cluster counts are
-placed first, then callouts, then names. The only HTML markers left are the decorative
-pulses on Empty.
+The 3 highest-scored entities, and the hovered or selected one, show a glass pill (score
+and city). These, sites, chokepoints and the live effects are HTML markers that hide when
+the globe turns them away; everything else (city labels, cluster counts on Connect and
+Confirm) is MapLibre symbols drawn from the self-hosted Inter with TinySDF, placed only
+where they stay inside the open map (`map/labels.ts`).
+
+**Sea lanes** are drawn only for declared routes: the shortest path through a simplified
+Eurostat MARNET network (`public/map/lanes.json`, EUPL-1.2) from the route's first port,
+through its declared chokepoints in order, to its last port. Shared stretches are drawn
+once, with a dash flow toward the destination; the selected route is drawn on top.
+Chokepoints under watch say how many drawn lanes pass them.
 
 Features without a position are placed as the contract says: by their first port (World
 Port Index UN/LOCODE) or first country (Natural Earth label point). `/v1/map/risks` places
@@ -106,6 +129,7 @@ of type `country`/`port` are joined on `place_key` the same way.
 | `countries.geojson` | Natural Earth 1:50m admin-0, simplified to 12 %, 0.01° | 217 KiB | 70 KiB |
 | `ports.json` | NGA World Port Index (Pub 150), 3,282 ports by UN/LOCODE | 117 KiB | 53 KiB |
 | `centroids.json` | Natural Earth label points and names, 246 codes | 8 KiB | 4 KiB |
+| `lanes.json` | Eurostat SeaRoute MARNET (100 km), simplified: 4,023 nodes, 6,200 edges | 56 KiB | 22 KiB |
 
 The 1:50m set is used (not 1:110m) because 1:110m has no Singapore, Hong Kong, Bahrain or
 Malta. `ports.json` and `centroids.json` load once, in parallel with MapLibre.
@@ -116,11 +140,11 @@ From `npm run check:bundle` on the production build:
 
 | Chunk | Raw | gzip | When |
 |---|---:|---:|---|
-| App (React, React Query, openapi-fetch, screens) | 376 KiB | 116 KiB | first load |
+| App (React, React Query, openapi-fetch, screens) | 438 KiB | 139 KiB | first load |
 | MapLibre GL JS | 1,030 KiB | 278 KiB | loaded in parallel, after the shell paints; cached separately |
-| CSS (app + MapLibre) | 92 KiB | 15 KiB | first load |
+| CSS (app + MapLibre) | 113 KiB | 19 KiB | first load |
 | Inter (variable, optical sizes), Latin subset | 71 KiB | 71 KiB | first load; other subsets only if the page needs them |
-| Map data (`public/map/`) | 342 KiB | 127 KiB | first map |
+| Map data (`public/map/`) | 433 KiB | 162 KiB | first map |
 
 A first visit downloads about 600 KiB compressed, more than half of it MapLibre.
 
@@ -131,9 +155,11 @@ A first visit downloads about 600 KiB compressed, more than half of it MapLibre.
   the stream (ticket per connection, reconnect with a new ticket, refetch after
   reconnect), placement, formatting, and each screen against the fixtures, including
   their empty and error states.
-- **Playwright** (`tests/e2e/`): every screen at 1360×900, 900 and 375 wide, against the
-  same MSW handlers routed with `@msw/playwright`. CI uploads them as the
-  `web-screenshots` artifact. WebGL runs on SwiftShader.
+- **Playwright** (`tests/e2e/`): every screen at 1360×900, 900 and 375 wide, and at 1360
+  and 375 again in the dark theme (`desktop-dark`, `phone-dark`), against the same MSW
+  handlers routed with `@msw/playwright`, with reduced motion so the pictures are stable.
+  CI uploads them as the `web-screenshots` artifact. `live.spec.ts` turns motion on and
+  checks the live sequence for a mocked `risk.created`. WebGL runs on SwiftShader.
 - Fixtures (`tests/fixtures/`) describe an invented company. They are never imported by
   `src/`, and `check:bundle` fails if any of their names reach `dist/`.
 

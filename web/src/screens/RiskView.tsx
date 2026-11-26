@@ -11,13 +11,22 @@ import { useSession, canEdit } from '../app/Session';
 import { useToast } from '../app/Toast';
 import { useDismiss } from '../app/TopBar';
 import { navigate } from '../lib/router';
-import { CATEGORIES, KINDS, LEVELS, levelOf, ago, fmtDate, feedName, outOf5, plural } from '../lib/format';
+import { CATEGORIES, KINDS, levelOf, ago, fmtDate, feedName, outOf5, plural } from '../lib/format';
 import { placeOf, countryName, portName } from '../map/geo';
-import { useMap, fitTo, sheetPadding, reducedMotion } from '../map/MapRoot';
-import { DotsLayer, EntitiesLayer, RiskPlacesLayer } from '../map/layers';
+import { useMap, reducedMotion } from '../map/MapRoot';
+import { sheetPadding, useFit, boxOfPoints, type LonLat } from '../map/camera';
+import { DotsLayer, RiskPlacesLayer } from '../map/layers';
+import { EntityMap } from '../map/EntityLayers';
+import { Chokepoints } from '../map/Chokepoints';
+import { LanesLayer } from '../map/LanesLayer';
+import { useLanes } from '../map/lanes';
+import { MapControls } from '../map/MapControls';
+import { Legend } from '../map/Legend';
+import { clearFocus, setSelected } from '../map/focus';
+import { usePalette } from '../lib/theme';
 import { usePlaced, useGazetteer } from '../map/data';
 import { Icon } from '../ui/Icon';
-import { ErrorState, LevelChip, MapControls, Pct, SheetHead, SkeletonRows, Spark } from '../ui/parts';
+import { ErrorState, LevelChip, Pct, SheetHead, SkeletonRows, Spark } from '../ui/parts';
 import { Grab } from '../ui/Grab';
 
 type Status = 'open' | 'acknowledged' | 'mitigating' | 'dismissed';
@@ -55,34 +64,37 @@ export function RiskView({ id }: { id: string }) {
       .map((c) => ({ type: 'Feature' as const, properties: {}, geometry: { type: 'Point' as const, coordinates: c } }));
     return { type: 'FeatureCollection', features };
   }, [r, ready]);
-  const affected = useMemo(() => {
-    if (!placedEntities || !r) return null;
-    return { ...placedEntities.fc, features: placedEntities.fc.features.filter((f) => f.properties._id === r.entity.id) };
-  }, [placedEntities, r]);
-  const others = useMemo(() => {
-    if (!placedEntities || !r) return null;
-    return { ...placedEntities.fc, features: placedEntities.fc.features.filter((f) => f.properties._id !== r.entity.id) };
-  }, [placedEntities, r]);
   const hotspot = useMemo<FeatureCollection<Point, never> | null>(() => {
     if (!where || !r) return null;
     return { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { _id: r.id, max_score: r.score } as never, geometry: { type: 'Point', coordinates: where } }] };
   }, [where, r]);
 
-  const entityAt = (affected?.features[0]?.geometry.coordinates as [number, number] | undefined) ?? null;
+  // The affected entity (and the others the same story reaches) stay bright, selected: its
+  // pill, ring and lanes. The rest of the business is dimmed.
+  const P = usePalette();
+  const entityId = r?.entity.id ?? null;
+  const disruptionsFc = useDisruptions();
+  const lanes = useLanes(entities.data, disruptionsFc.data);
+  const bright = useMemo(() => (r ? new Set([r.entity.id, ...r.story.entities.map((e) => e.id)]) : null), [r]);
   useEffect(() => {
-    if (!map || !where) return;
-    const pts: [number, number][] = [where, ...(entityAt ? [entityAt] : []), ...(evidencePoints?.features.map((f) => f.geometry.coordinates as [number, number]) ?? [])];
-    let w = 180, s = 90, e = -180, n = -90;
-    for (const [x, y] of pts) { w = Math.min(w, x); e = Math.max(e, x); s = Math.min(s, y); n = Math.max(n, y); }
-    fitTo(map, [[w, s], [e, n]], sheetPadding('left', 440), 4);
-  }, [map, where, entityAt, evidencePoints]);
+    setSelected(entityId);
+  }, [entityId]);
+  useEffect(() => () => clearFocus(), []);
+
+  const entityAt = (placedEntities?.fc.features.find((f) => f.properties._id === entityId)?.geometry.coordinates as LonLat | undefined) ?? null;
+  const box = useMemo(() => {
+    if (!where) return null;
+    return boxOfPoints([where, ...(entityAt ? [entityAt] : []), ...(evidencePoints?.features.map((f) => f.geometry.coordinates as LonLat) ?? [])]);
+  }, [where, entityAt, evidencePoints]);
+  useFit(map, box, () => sheetPadding('left', 440), 4);
 
   return (
     <>
-      <EntitiesLayer id="others" data={others} muted />
-      <DotsLayer id="evidence" data={evidencePoints} color="#7D838B" radius={3.5} />
+      <LanesLayer lanes={lanes} selected={entityId} />
+      <EntityMap data={placedEntities?.fc ?? null} dimmed={bright} heat={false} pills={0} />
+      <Chokepoints laneCounts={lanes?.counts} />
+      <DotsLayer id="evidence" data={evidencePoints} color={P.signal} radius={3.5} />
       <RiskPlacesLayer data={hotspot} />
-      <EntitiesLayer id="affected" data={affected} labels="strong" />
 
       <aside className="sheet w440 split glass" aria-label={r ? `Risk: ${r.title}` : 'Risk'}>
         <Grab />
@@ -105,13 +117,8 @@ export function RiskView({ id }: { id: string }) {
         )}
       </aside>
 
-      <MapControls low />
-      <div className="legend glass">
-        <span className="k"><span className="sw" style={{ background: r ? LEVELS[levelOf(r.score)].fill : '#DD6248' }} />At risk</span>
-        <span className="k"><span className="sw" style={{ background: '#141518' }} />Affected entity</span>
-        <span className="k"><span className="sw" style={{ background: '#7D838B' }} />Signal</span>
-        <span className="k"><span className="sw" style={{ background: '#A3A7AE' }} />Not affected</span>
-      </div>
+      <MapControls fit={box} fitLabel="Fit this risk" sheet={440} />
+      <Legend sheet={440} marks={['signal', 'lane', 'choke']} />
     </>
   );
 }
@@ -189,7 +196,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
         <span className="lbl">
           {CATEGORIES[r.category].name} · {KINDS[r.entity.kind].one} · opened {fmtDate(r.first_seen_at)}
         </span>
-        <h1 className="h1">{r.title}</h1>
+        <h1 className="h1" data-vt-title={r.id}>{r.title}</h1>
         <span className="body15">{r.explanation}</span>
       </div>
 
@@ -203,7 +210,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
         </div>
         {history.length > 1 && first ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-            <Spark values={history} area color={LEVELS[levelOf(r.score)].fill} label={`Score moved from ${Math.round(first.score)} to ${Math.round(r.score)} since ${fmtDate(first.recorded_at)}`} />
+            <Spark values={history} area color={`var(--${levelOf(r.score)}-fill)`} label={`Score moved from ${Math.round(first.score)} to ${Math.round(r.score)} since ${fmtDate(first.recorded_at)}`} />
             <div style={{ display: 'flex', justifyContent: 'space-between' }} className="t12 tnum">
               <span>{Math.round(first.score)} on {fmtDate(first.recorded_at)}</span>
               <span>{Math.round(r.score)} now</span>
