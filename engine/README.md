@@ -48,6 +48,17 @@ its position, countries and ports; a software entity on purl or CPE only. Every
 comparison is an exact code match except names, which are fuzzy. Each (entity, item)
 pair counts once, with its best match.
 
+**Anchors (engine 1.2.0, contract §5.9).** A commodity, HS-chapter or currency match
+never makes a risk on its own for an entity with a place: it only strengthens a match of
+the same item on a country, port, position, chokepoint, company name or sanctions name.
+So a story about chip export rules and China reaches the supplier *in* China (and says
+"chips like those it supplies"), not every supplier of HS chapter 85. Market-wide moves
+(an `fx.rate` flag, a `market.*` event) may make a risk alone, capped at score 50.
+Suppliers, sites and ports get chokepoints inferred from their port's country
+(`engine/data/sea_lanes.json`) or position, at half a declared route's confidence. One
+feed item that reaches several entities shares `factors.story`, so the API can show it
+once.
+
 | Rule | Example | `c` |
 |---|---|---|
 | `geo_radius` | Earthquake M6.5 (R = 50 × 2^1.5 = 141 km) 15 km from *Osaka plant* | 1 − 15/141 = **0.892** |
@@ -55,8 +66,9 @@ pair counts once, with its best match.
 | position beats country | M6 quake in Hokkaido, plant near Tokyo with lat/lon: 1,000 km away | no match |
 | `port` | PortWatch disruption listing NLRTM, route CNSHA → NLRTM | **1.0** |
 | `chokepoint` | Cyclone inside the Strait of Malacca radius, route via `malacca`; news place "Suez Canal" (conf 0.8) | 1 − d/R; 0.6 × 0.8 = **0.48** |
+| `chokepoint` (inferred) | supplier with port TWKHH (East Asia lane: Taiwan Strait, Singapore, Malacca, Bab el-Mandeb, Suez, Panama), news place "Red Sea" (0.9) | 0.6 × 0.9 × 0.5 = **0.27** |
 | `currency` | `EUR/TRY` robust-z flag, workspace base EUR; base USD → in-memory `USD/TRY` from the two EUR pairs | **1.0**; cross **0.9** |
-| `commodity` | supplier HS 7403, tagged "refined copper" (0.9); supplier commodity "cobalt", tagged "Cobalt" (0.7) | 0.6 × 0.9 = **0.54**; 0.8 × 0.7 = **0.56** |
+| `commodity` (support) | supplier in CHL with HS 7403, news on Chile (country 0.6 × 0.6 = 0.36) tagged "refined copper" (0.6 × 0.9 = 0.54) | 1 − (1 − 0.36)(1 − 0.5 × 0.54) = **0.533**; without the Chile mention: **no risk** |
 | `software` | `pkg:pypi/Requests@2.31.0` → `PyPI:requests` = OSV row; CPE `microsoft:exchange_server` = KEV `Microsoft:Exchange Server` | **1.0**; **0.9** |
 | `sanctions_name` | supplier "Acme Trading LLC" vs OFAC "ACME TRADING L.L.C." (both → `acme trading`, sim 1.0) | 0.7 + 0.3 × (1 − 0.92)/0.08 = **1.0** |
 | `company_name` | news company "Nordwind Logistik" (0.8) vs supplier "Nordwind Logistik GmbH" (sim 1.0 ≥ 0.95) | 0.7 × 0.8 = **0.56** |

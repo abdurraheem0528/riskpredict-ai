@@ -1,0 +1,20 @@
+{
+  "_about": "Main sea lanes, coarse (risk-engine.md §5.9). For a supplier, site or port with no declared route, the chokepoints its goods most likely pass on the main lanes to Europe and the Americas, by the country of its port (or its own country when it has no port). Countries with coasts on two oceans (USA, CAN, MEX, COL, CRI, PAN, SAU, EGY, TUR, RUS, ZAF and others) are left out on purpose: the engine has no port coordinates, so it cannot tell which coast a port is on, and it does not guess. Inferred chokepoints count at inferred_chokepoint_factor of a declared route's confidence.",
+  "regions": [
+    {"id": "east_asia", "name": "East Asia",
+     "countries": ["CHN", "TWN", "HKG", "MAC", "KOR", "PRK", "JPN"],
+     "chokepoints": ["taiwan_strait", "singapore", "malacca", "bab_el_mandeb", "suez", "panama"]},
+    {"id": "southeast_asia", "name": "Southeast Asia",
+     "countries": ["VNM", "THA", "KHM", "PHL", "MYS", "SGP", "IDN", "BRN"],
+     "chokepoints": ["singapore", "malacca", "bab_el_mandeb", "suez", "panama"]},
+    {"id": "south_asia", "name": "South Asia",
+     "countries": ["IND", "PAK", "BGD", "LKA", "MDV", "MMR"],
+     "chokepoints": ["bab_el_mandeb", "suez"]},
+    {"id": "persian_gulf", "name": "Persian Gulf",
+     "countries": ["ARE", "QAT", "KWT", "BHR", "IRQ", "IRN"],
+     "chokepoints": ["hormuz", "bab_el_mandeb", "suez"]},
+    {"id": "west_coast_south_america", "name": "West coast of South America",
+     "countries": ["CHL", "PER", "ECU"],
+     "chokepoints": ["panama"]}
+  ]
+}

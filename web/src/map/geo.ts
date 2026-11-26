@@ -5,7 +5,8 @@ import type { Feature, FeatureCollection, Point } from 'geojson';
 
 export type LonLat = [number, number];
 type Centroids = Record<string, [number, number, string]>;
-type Ports = Record<string, [number, number, string]>;
+// [lon, lat, World Port Index name] or [lon, lat, WPI name, UN/LOCODE name] (scripts/build-map-data.mjs).
+type Ports = Record<string, [number, number, string] | [number, number, string, string]>;
 
 let centroids: Centroids | null = null;
 let ports: Ports | null = null;
@@ -53,8 +54,24 @@ export function portPoint(locode: string): LonLat | null {
   const p = ports?.[locode];
   return p ? [p[0], p[1]] : null;
 }
+/** The port's display name: "Kaohsiung", "Tokyo", "Penang", "Chennai" (not "Kao-Hsiung", "Tokyo Ko", …). */
 export function portName(locode: string): string {
-  return ports?.[locode]?.[2] ?? locode;
+  const p = ports?.[locode];
+  return p ? cleanPortName(p[3] ?? p[2]) : locode;
+}
+/**
+ * A display name from a UN/LOCODE or World Port Index name: drops parenthesised former or
+ * local names ("Chennai (ex Madras)"), a region after a comma ("Tegal, Java"), and the
+ * WPI's harbour suffixes ("Tokyo Ko", "Hualien Hsien") and the UN/LOCODE's "Pt".
+ */
+export function cleanPortName(raw: string): string {
+  const s = raw
+    .replace(/\s*\([^)]*\)/g, '')
+    .replace(/,.*$/, '')
+    .replace(/[\s-]+(?:Ko|Kou|Hsien|Pt)$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return s || raw.trim();
 }
 
 export function placeOf(p: {

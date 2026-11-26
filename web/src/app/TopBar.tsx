@@ -88,7 +88,7 @@ export function TopBar({ onJump }: { onJump: () => void }) {
   const { ready, broken } = useWorkspaceState();
   const [open, setOpen] = useState<null | 'ws' | 'nav' | 'acct'>(null);
   const close = () => setOpen(null);
-  const count = summary.data?.open_count ?? null;
+  const count = summary.data?.story_count ?? null;
   const toggle = (m: 'ws' | 'nav' | 'acct') => setOpen((o) => (o === m ? null : m));
   const sectionName = { overview: 'Overview', register: 'Register', scenarios: 'Scenarios', sources: 'Sources' }[section];
 

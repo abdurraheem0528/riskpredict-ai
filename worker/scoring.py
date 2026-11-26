@@ -155,9 +155,12 @@ def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSumm
         if i < ctx.settings.advice_per_run and ctx.settings.groq_api_key and ctx.settings.groq_advice_model:
             messages = eng.advice_messages(a, entity)
             try:
-                reply = chat(ctx.settings, ctx.settings.groq_advice_model, messages, max_tokens=400).strip()
+                reply = chat(ctx.settings, ctx.settings.groq_advice_model, messages, purpose="advice",
+                             may_wait=True).strip()  # fmt: skip
                 if valid_advice(reply, messages):
                     text, source, model = reply, "groq", f"groq:{ctx.settings.groq_advice_model}"
+                else:
+                    log.info("advice falls back to the template (reply failed the checks)")
             except GroqUnavailable as exc:
                 log.info("advice falls back to the template (%s)", exc)
         if text is None:

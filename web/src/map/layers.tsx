@@ -324,6 +324,7 @@ type PlaceProps = {
   place_key: string;
   max_score: number;
   risk_count: number;
+  story_count?: number;
   label?: string | null;
   top_risk_ids?: string[];
 };
@@ -343,7 +344,11 @@ const CALLOUT_LABEL: LabelSpec = {
 };
 
 const placeName = (p: PlaceProps) =>
-  p.label ?? (p.place_type === 'country' ? countryName(p.place_key) : p.place_type === 'port' ? portName(p.place_key) : `${p.risk_count} ${p.risk_count === 1 ? 'risk' : 'risks'}`);
+  p.label ?? (p.place_type === 'country' ? countryName(p.place_key) : p.place_type === 'port' ? portName(p.place_key) : placeCount(p));
+const placeCount = (p: PlaceProps) => {
+  const n = p.story_count ?? p.risk_count; // one story reaching several entities here counts once
+  return `${n} ${n === 1 ? 'risk' : 'risks'}`;
+};
 
 /**
  * Risk hotspots: red halos whose strength follows the level (System-Color), with a callout

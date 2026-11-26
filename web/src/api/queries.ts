@@ -126,10 +126,10 @@ export function useRiskSummary(ws: string) {
 }
 
 export type RiskSort = '-score' | '-last_seen_at';
-export function useRisks(ws: string, opts: { category?: string | null; sort?: RiskSort; limit?: number; entityId?: string | null } = {}) {
-  const { category = null, sort = '-score', limit = 50, entityId = null } = opts;
+export function useRisks(ws: string, opts: { category?: string | null; sort?: RiskSort; limit?: number; entityId?: string | null; group?: 'story' | null } = {}) {
+  const { category = null, sort = '-score', limit = 50, entityId = null, group = null } = opts;
   return useInfiniteQuery({
-    queryKey: [ws, 'risks', { category, sort, limit, entityId }],
+    queryKey: [ws, 'risks', { category, sort, limit, entityId, group }],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       unwrap(
@@ -141,6 +141,7 @@ export function useRisks(ws: string, opts: { category?: string | null; sort?: Ri
               limit,
               ...(category ? { category } : {}),
               ...(entityId ? { entity_id: entityId } : {}),
+              ...(group ? { group } : {}),
               ...(pageParam ? { cursor: pageParam } : {}),
             },
           },

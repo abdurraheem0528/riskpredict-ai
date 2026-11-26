@@ -71,8 +71,10 @@ disconnect its Git repository so it does not use your Hobby build minutes.
 Optional repository **variables** (not secrets): `VERCEL_TEAM_ID` (only to use a Vercel
 team other than the token's default one; a Hobby account's default team is its own,
 "<name>'s projects", and that is what Deploy uses), `GROQ_MAPPING_MODEL`, `GROQ_ADVICE_MODEL`
-(Groq model ids; without them column mapping is manual and advice uses the engine's
-templates).
+(Groq model ids). When they are unset, Deploy sets the free plan's models,
+`openai/gpt-oss-120b` for mapping and `openai/gpt-oss-20b` for advice, so a retired model
+id is never left on Vercel. Without `GROQ_API_KEY` working, column mapping falls back to
+the header heuristics and advice to the engine's templates.
 
 ### Where the API's secrets live, and how the worker gets them
 

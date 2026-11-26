@@ -318,7 +318,9 @@ function Results({ result, running }: { result: ScenarioT | null; running: boole
     );
   }
   const { baseline, scenario, changes } = result.results;
-  const delta = scenario.portfolio_score - baseline.portfolio_score;
+  // The index (0–100, the same scale and bands as a risk score) and its level always
+  // describe the same number: the scenario's. The change is shown next to it.
+  const delta = Math.round(scenario.portfolio_score) - Math.round(baseline.portfolio_score);
   const lvl = levelOf(scenario.portfolio_score);
   return (
     <>
@@ -328,7 +330,8 @@ function Results({ result, running }: { result: ScenarioT | null; running: boole
           <span className="tnum" style={{ fontSize: 28, lineHeight: '32px', fontWeight: 600, letterSpacing: '-0.02em', color: '#A3A7AE' }}>{Math.round(baseline.portfolio_score)}</span>
           <svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="#5F646C" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 7h15M12 2l5 5-5 5" /></svg>
           <span className="tnum" style={{ fontSize: 40, lineHeight: '44px', fontWeight: 600, letterSpacing: '-0.03em' }}>{Math.round(scenario.portfolio_score)}</span>
-          <span className={`lvl l-${lvl}`}>{signed(delta)} · {LEVELS[lvl].name}</span>
+          <span className={`lvl l-${lvl}`}>{LEVELS[lvl].name}</span>
+          <span className="t12 tnum">{delta === 0 ? 'no change' : `${signed(delta)} from today`}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <div className="tile"><span className="fig s">{scenario.risk_count}</span><span className="t12">risks touch you, {baseline.risk_count} today</span></div>

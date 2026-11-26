@@ -213,17 +213,43 @@ def test_world_bank_and_portwatch_anomalies_match_by_country():
 # --- commodity -----------------------------------------------------------------------------------------------
 
 
-def test_commodity_by_hs_chapter_and_by_text():
+def test_commodity_alone_creates_no_risk_for_a_supplier():
+    """A commodity or HS-chapter match only supports an anchor of the same item (§5.9)."""
     sup = ent("s", "supplier", hs_codes=["7403"], commodities=["cobalt"])
     copper = news("n1", tag("trade_policy", 0.8, commodities=[("refined copper", 0.9)]))
-    a = only([sup], [copper])
-    assert (a.evidence[0].match_value, a.evidence[0].match_confidence) == ("HS 74", round(0.6 * 0.9, 3))
-    assert a.category == "trade_policy"
     cobalt = news("n2", tag("trade_policy", 0.8, commodities=[("Cobalt", 0.7)]))
+    assert run([sup], [copper, cobalt]) == []
+
+
+def test_commodity_strengthens_a_country_match():
+    sup = ent("s", "supplier", countries=["CHL"], hs_codes=["7403"], commodities=["cobalt"])
+    copper = news("n1", tag("trade_policy", 0.8, commodities=[("refined copper", 0.9)], countries=["CHL"]))
+    a = only([sup], [copper])
+    ev = a.evidence[0]
+    assert a.fingerprint.endswith("|trade_policy|country:CHL") and ev.match_type == "country"
+    anchor, support = round(0.6 * 0.6, 3), round(0.6 * 0.9, 3)
+    assert ev.match_confidence == round(1 - (1 - anchor) * (1 - 0.5 * support), 3)
+    assert ev.snapshot["supported_by"]["match_value"] == "HS 74"
+    assert a.explanation == (
+        "A recent news report about trade policy involving Chile mentions refined copper like those s supplies (HS 7403)."
+    )
+    cobalt = news("n2", tag("trade_policy", 0.8, commodities=[("Cobalt", 0.7)], countries=["CHL"]))
     b = only([sup], [cobalt])
-    assert (b.evidence[0].match_value, b.evidence[0].match_confidence) == ("cobalt", round(0.8 * 0.7, 3))
-    # whole words only: "copperhead" is not copper
-    assert run([sup], [news("n3", tag("trade_policy", 0.8, commodities=[("copperhead", 0.9)]))]) == []
+    assert b.evidence[0].match_confidence == round(1 - (1 - anchor) * (1 - 0.5 * round(0.8 * 0.7, 3)), 3)
+    # whole words only: "copperhead" is not copper, so only the country counts
+    c = only([sup], [news("n3", tag("trade_policy", 0.8, commodities=[("copperhead", 0.9)], countries=["CHL"]))])
+    assert c.evidence[0].match_confidence == anchor and "supported_by" not in c.evidence[0].snapshot
+
+
+def test_a_market_move_in_a_commodity_may_create_a_capped_risk():
+    sup = ent("s", "supplier", hs_codes=["7403"], criticality="critical", annual_spend=1_000_000)
+    moves = [event("markets", f"cu-{i}", "market.commodity_price", commodities=["copper"], severity=1.0,
+                   tag=tag("financial_stress", 1.0)) for i in range(4)]  # fmt: skip
+    a = only([sup], moves)
+    assert a.category == "financial" and a.evidence[0].match_type == "commodity"
+    assert a.score <= 50.0 and a.factors["likelihood"]["capped_from"] > a.likelihood
+    assert a.title == "Market move in copper affecting s"
+    assert [s["label"] for s in a.factors["explain"]["steps"]][-3:] == ["Market-only cap", "Impact", "Score"]
 
 
 def test_commodity_from_event_commodities_and_not_for_sites():

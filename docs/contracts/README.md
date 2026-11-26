@@ -52,8 +52,13 @@ Redocly, generates TypeScript types with `openapi-typescript`, and type-checks t
    (`biz.worker_state.lease_until`), so a burst of notifications runs the pass once.
    What the budget leaves stays `received` for the next worker run.
 9. **Scoring is deterministic:** `score = 100 × L × I` is a generated column. Groq
-   (Llama) does two things only: suggest column mappings (the user confirms them) and
-   word the advice text. It never produces a number that is stored as a score.
+   (`openai/gpt-oss-120b` for mapping, `openai/gpt-oss-20b` for advice by default; the
+   free plan's models) does two things only: suggest column mappings (the user confirms
+   them) and word the advice text. It never produces a number that is stored as a score.
+   A commodity, HS-chapter or currency match alone never creates a risk; it only
+   strengthens a match on a place, port, chokepoint, company or sanctions name
+   (`risk-engine.md` §5.9). One feed item that reaches several entities is one *story*
+   (`Risk.story`); the Overview and the map count stories, not copies.
 10. **Serverless API on Vercel Hobby, Neon free tier.** Each request may run on a
     different short-lived instance: no shared memory, no background loop, no stream,
     no long poll, and startup hooks may not run (the pool opens on first use; the
@@ -77,6 +82,24 @@ Redocly, generates TypeScript types with `openapi-typescript`, and type-checks t
     value that cannot be normalised is reported, never guessed.
 12. **Public repository:** logs show counts and statuses only, never row contents,
     tokens or connection strings. Problem `detail` texts are safe to show.
+
+## The What-if risk index (`ScenarioSide.portfolio_score`, engine 1.2.0)
+
+```
+per entity e:  worst_c(e) = the highest score of e's risks in category c (0 if none)
+               E(e)       = 100 × (1 − Π_c (1 − worst_c(e) / 100))
+index         = Σ_e w(e) · E(e) / Σ_e w(e)
+                w = criticality weight: low 0.25, medium 0.5, high 0.75, critical 1.0, unset 0.5
+```
+
+Over every entity on that side (the scenario side after its overrides; an entity no risk
+touches counts as 0), rounded to one decimal. Many risks of one kind do not add up (the
+worst counts) while different kinds do, so the index does not reach 100 just because
+there are many risks; a scenario that adds exposure anywhere raises it; and it is on the
+same 0–100 scale as a risk score, so the dashboard's level (Low < 40 ≤ Medium < 60 ≤
+High < 80 ≤ Critical) names the index it shows. The old formula,
+`100 × (1 − Π(1 − score_i/100))` over every risk, gave 100 for 77 risks whose highest
+score was 64. Details and tests: `risk-engine.md` §12, `tests/test_engine_sample.py`.
 
 ## Environment variables
 

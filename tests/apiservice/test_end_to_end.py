@@ -92,8 +92,18 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
 
         # --- risks and evidence ----------------------------------------------------------
         risks = client.get("/v1/risks", headers=hdr(me), params={"limit": 50}).json()["items"]
-        by_cat = {r["category"]: r for r in risks}
+        by_cat = {r["category"]: r for r in risks if r["entity"]["name"] != "Kansai Precision Parts" or r["category"] != "logistics"}
         assert set(by_cat) == {"natural_hazard", "sanctions", "cyber", "logistics"}, risks
+        # The Suez closure reaches the route (declared) and the Japanese supplier (its lane to
+        # Europe is inferred from its country): one story, two risks.
+        assert len(risks) == 5
+        [inferred] = [r for r in risks if r["category"] == "logistics" and r["entity"]["name"] == "Kansai Precision Parts"]
+        assert inferred["story"] == by_cat["logistics"]["story"]
+        assert inferred["story"]["risk_count"] == 2 and inferred["story"]["key"] == "logistics|event:portwatch:pw-e2e-1"
+        assert {e["name"] for e in inferred["story"]["entities"]} == {"Kansai Precision Parts", "Asia-Europe lane"}
+        assert inferred["score"] < by_cat["logistics"]["score"]  # inferred counts at half a declared route
+        grouped = client.get("/v1/risks", headers=hdr(me), params={"group": "story"}).json()["items"]
+        assert len(grouped) == 4 and by_cat["logistics"]["id"] in {r["id"] for r in grouped}
         assert {r["entity"]["name"] for r in risks} == {name for _, name, _ in ENTITIES}
         for r in risks:
             assert r["status"] == "open" and r["score"] == round(100 * r["likelihood"] * r["impact"], 1)
@@ -115,6 +125,11 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         assert quake["factors"]["likelihood"]["method"] == "noisy_or"
         lane = client.get(f"/v1/risks/{by_cat['logistics']['id']}", headers=hdr(me)).json()
         assert lane["evidence"][0]["match_type"] == "chokepoint" and lane["evidence"][0]["match_value"] == "suez"
+        assert lane["factors"]["explain"]["matched"]["inferred_from"] is None
+        far = client.get(f"/v1/risks/{inferred['id']}", headers=hdr(me)).json()
+        assert far["evidence"][0]["snapshot"]["inferred_from"] == "country JPN"
+        assert far["factors"]["explain"]["matched"]["inferred_from"] == "country JPN"
+        assert "likely pass (inferred from Japan)" in far["explanation"]
         cyber = client.get(f"/v1/risks/{by_cat['cyber']['id']}", headers=hdr(me)).json()
         assert cyber["evidence"][0]["match_value"] == "PyPI:requests"
 
@@ -122,7 +137,7 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         alerts = client.get("/v1/alerts", headers=hdr(me)).json()["items"]
         assert ("sanctions_match", "critical") in {(a["kind"], a["severity"]) for a in alerts}
         names = event_names(owner_db, ws)
-        assert names.count("risk.created") == 4 and "alert.created" in names
+        assert names.count("risk.created") == 5 and "alert.created" in names
 
         # --- GeoJSON ------------------------------------------------------------------------
         r = client.get("/v1/map/risks", headers=hdr(me))
@@ -130,7 +145,8 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         places = {f["id"]: f for f in r.json()["features"]}
         point = places[f"point:{ids['Kansai Precision Parts']}"]
         assert point["geometry"] == {"type": "Point", "coordinates": [135.5, 34.6]}
-        assert point["properties"]["top_risk_ids"] == [by_cat["natural_hazard"]["id"]]
+        assert point["properties"]["top_risk_ids"] == [by_cat["natural_hazard"]["id"], inferred["id"]]
+        assert point["properties"]["story_count"] == 2
         assert places["country:ARE"]["properties"]["top_categories"] == ["sanctions"]
         assert places["port:NLRTM"]["properties"]["top_categories"] == ["logistics"]  # a route's ports: sorted
         assert len(places) == 3  # the software risk has no place
@@ -140,13 +156,20 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         suez = dis["chokepoint:suez"]
         assert suez["status"] == "disrupted" and suez["event_ids"] == ["portwatch:pw-e2e-1"]
         summary = client.get("/v1/risks/summary", headers=hdr(me)).json()
-        assert summary["open_count"] == 4 and summary["by_category"]["sanctions"] == 1
+        assert summary["open_count"] == 5 and summary["by_category"]["sanctions"] == 1
+        assert summary["story_count"] == 4 and summary["stories_by_category"]["logistics"] == 1
 
         # --- the next pass with nothing new changes nothing ----------------------------------
         before = len(event_names(owner_db, ws))
         feeds_ran(owner_db)
         Worker(settings).db_pass()  # a fresh process, as each `--once` run is
         assert event_names(owner_db, ws)[before:] == ["feeds.updated"]
+
+        # --- a new ENGINE_VERSION re-scores the workspace on the next run, with no new feed rows --
+        owner_db.execute("UPDATE biz.risks SET engine_version = '1.1.0' WHERE workspace_id = %s", (ws,))
+        Worker(settings).db_pass()
+        versions = owner_db.execute("SELECT DISTINCT engine_version FROM biz.risks WHERE workspace_id = %s", (ws,))
+        assert [r["engine_version"] for r in versions.fetchall()] == [engine.ENGINE_VERSION]
 
         # --- delisting: the full-list job deletes the entry; the risk is resolved --------------
         owner_db.execute("DELETE FROM feeds.sanctions_entries WHERE entity_id = '36001'")
@@ -156,6 +179,6 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         gone = client.get(f"/v1/risks/{by_cat['sanctions']['id']}", headers=hdr(me)).json()
         assert gone["status"] == "resolved" and gone["evidence"][0]["still_in_feeds"] is False
         assert [h["reason"] for h in gone["history"]] == ["created", "resolved_by_engine"]
-        assert client.get("/v1/risks/summary", headers=hdr(me)).json()["open_count"] == 3
+        assert client.get("/v1/risks/summary", headers=hdr(me)).json()["open_count"] == 4
     finally:
         worker.db.close()

@@ -102,23 +102,37 @@ def list_risks(
     port: Locode = None,
     since: datetime | None = None,
     sort: Literal["-score", "-last_seen_at", "-first_seen_at", "-likelihood", "-impact"] = "-score",
+    group: Literal["story"] | None = None,
 ) -> dict:
     statuses = csv_enum(status, ser.RISK_STATUSES, ser.OPEN_STATUSES, "status")
     categories = csv_enum(category, ser.CATEGORIES, ser.CATEGORIES, "category")
     col = SORTS[sort]
     after = pagination.decode(cursor, 2)
+    where = (
+        " WHERE r.status = ANY(%(st)s) AND r.category = ANY(%(cat)s)"
+        " AND (%(min)s::real IS NULL OR r.score >= %(min)s)"
+        " AND (%(eid)s::uuid IS NULL OR r.entity_id = %(eid)s)"
+        " AND (%(ek)s::text IS NULL OR e.kind = %(ek)s)"
+        " AND (%(c)s::text IS NULL OR r.countries @> ARRAY[%(c)s::text])"
+        " AND (%(p)s::text IS NULL OR r.ports @> ARRAY[%(p)s::text])"
+        " AND (%(since)s::timestamptz IS NULL OR r.last_seen_at >= %(since)s)"
+    )
+    page_sql = (
+        f" (%(av)s::text IS NULL OR (x.{col}, x.id) < (%(av)s::{CASTS[col]}, %(ai)s::uuid))"
+        f" ORDER BY x.{col} DESC, x.id DESC LIMIT %(n)s"
+    )
+    if group == "story":
+        # One row per story: its highest-scored risk among those that match the filters.
+        sql = (
+            f"SELECT * FROM (SELECT q.*, row_number() OVER (PARTITION BY q.story_key ORDER BY q.score DESC, q.id DESC)"
+            f" AS story_rank FROM (SELECT x.*, {ser.STORY_KEY.replace('r.', 'x.')} AS story_key"
+            f" FROM ({ser.RISK_SELECT}{where}) x) q) x WHERE x.story_rank = 1 AND" + page_sql
+        )
+    else:
+        sql = f"SELECT * FROM ({ser.RISK_SELECT}{where}) x WHERE" + page_sql
     with ctx.tx() as conn:
         rows = conn.execute(
-            ser.RISK_SELECT
-            + " WHERE r.status = ANY(%(st)s) AND r.category = ANY(%(cat)s)"
-            " AND (%(min)s::real IS NULL OR r.score >= %(min)s)"
-            " AND (%(eid)s::uuid IS NULL OR r.entity_id = %(eid)s)"
-            " AND (%(ek)s::text IS NULL OR e.kind = %(ek)s)"
-            " AND (%(c)s::text IS NULL OR r.countries @> ARRAY[%(c)s::text])"
-            " AND (%(p)s::text IS NULL OR r.ports @> ARRAY[%(p)s::text])"
-            " AND (%(since)s::timestamptz IS NULL OR r.last_seen_at >= %(since)s)"
-            f" AND (%(av)s::text IS NULL OR (r.{col}, r.id) < (%(av)s::{CASTS[col]}, %(ai)s::uuid))"
-            f" ORDER BY r.{col} DESC, r.id DESC LIMIT %(n)s",
+            sql,
             {"st": statuses, "cat": categories, "min": min_score, "eid": entity_id, "ek": entity_kind,
              "c": country, "p": port, "since": since, "av": str(after[0]) if after else None,
              "ai": after[1] if after else None, "n": limit + 1},
@@ -130,13 +144,19 @@ def list_risks(
 def risk_summary(ctx: WsCtx) -> dict:
     with ctx.tx() as conn:
         counts = conn.execute("SELECT category, status, count(*) AS n FROM biz.risks GROUP BY category, status").fetchall()
+        stories = conn.execute(
+            f"SELECT r.category, count(DISTINCT {ser.STORY_KEY}) AS n FROM biz.risks r"
+            " WHERE r.status IN ('open', 'acknowledged', 'mitigating') GROUP BY r.category"
+        ).fetchall()
         top = conn.execute(
             ser.RISK_SELECT + " WHERE r.status IN ('open', 'acknowledged', 'mitigating') ORDER BY r.score DESC, r.id LIMIT 5"
         ).fetchall()
         agg = conn.execute(
             "SELECT (SELECT max(score) FROM biz.risks WHERE status IN ('open', 'acknowledged', 'mitigating')) AS max_score,"
             " (SELECT max(last_scored_at) FROM biz.risks) AS last_scored_at,"
-            " (SELECT max(last_success_at) FROM feeds.source_health) AS feeds_as_of"
+            " (SELECT max(last_success_at) FROM feeds.source_health) AS feeds_as_of,"
+            f" (SELECT count(DISTINCT {ser.STORY_KEY}) FROM biz.risks r"
+            "   WHERE r.status IN ('open', 'acknowledged', 'mitigating')) AS story_count"
         ).fetchone()
     by_category = {c: 0 for c in ser.CATEGORIES}
     by_status = {s: 0 for s in ser.RISK_STATUSES}
@@ -144,9 +164,14 @@ def risk_summary(ctx: WsCtx) -> dict:
         by_status[r["status"]] += r["n"]
         if r["status"] in ser.OPEN_STATUSES:
             by_category[r["category"]] += r["n"]
+    stories_by_category = {c: 0 for c in ser.CATEGORIES}
+    for r in stories:
+        stories_by_category[r["category"]] = r["n"]
     return {
         "open_count": sum(by_status[s] for s in ser.OPEN_STATUSES),
+        "story_count": int(agg["story_count"] or 0),
         "by_category": by_category,
+        "stories_by_category": stories_by_category,
         "by_status": by_status,
         "max_score": ser.r1(agg["max_score"]),
         "top": [ser.risk(r) for r in top],

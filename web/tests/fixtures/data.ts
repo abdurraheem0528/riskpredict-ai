@@ -141,13 +141,18 @@ type R = S['Risk'];
 const risk = (i: number, e: E, category: S['RiskCategory'], title: string, L: number, I: number, extra: Partial<R> = {}): R => ({
   id: `7d1f3c2a-0000-4000-8000-00000000f00${i}`,
   entity: { id: e.id, kind: e.kind, name: e.name },
+  story: { key: `risk:7d1f3c2a-0000-4000-8000-00000000f00${i}`, risk_count: 1, entities: [{ id: e.id, name: e.name }] },
   category, title, likelihood: L, impact: I, score: Math.round(1000 * L * I) / 10, status: 'open',
   countries: e.countries, ports: e.ports, lat: null, lon: null, evidence_count: 3,
   first_seen_at: iso((10 - i) * D), last_seen_at: iso(i * H), status_changed_at: iso((10 - i) * D), ...extra,
 });
 export const risks: R[] = [
   risk(1, byName('Anatolia Fasteners'), 'sanctions', 'Name matches a sanctions entry', 0.9, 0.9, { evidence_count: 1 }),
-  risk(2, byName('Yantian to Rotterdam'), 'logistics', 'Bab el-Mandeb transits down', 0.82, 0.9, { lat: 12.58, lon: 43.33 }),
+  risk(2, byName('Yantian to Rotterdam'), 'logistics', 'Bab el-Mandeb transits down', 0.82, 0.9, {
+    lat: 12.58, lon: 43.33,
+    // One story that reaches two entities: the route, and a supplier whose lane is inferred from its port.
+    story: { key: 'logistics|event:portwatch:pw-1', risk_count: 2, entities: [{ id: byName('Yantian to Rotterdam').id, name: 'Yantian to Rotterdam' }, { id: byName('Lumen Display Co').id, name: 'Lumen Display Co' }] },
+  }),
   risk(3, byName('Lumen Display Co'), 'geopolitical', 'Military exercises near Kaohsiung', 0.66, 1.0),
   risk(4, byName('Edge gateway'), 'cyber', 'Exploited flaw in your edge gateway', 0.76, 0.8, { countries: [], ports: [] }),
   risk(5, byName('Turkish lira payables'), 'financial', 'Turkish lira down 6% in 30 days', 0.65, 0.8, { countries: ['TUR'] }),
@@ -156,7 +161,9 @@ export const risks: R[] = [
 
 export const summary: S['RiskSummary'] = {
   open_count: risks.length,
+  story_count: risks.length,
   by_category: { natural_hazard: 1, logistics: 1, geopolitical: 1, sanctions: 1, trade_policy: 0, cyber: 1, financial: 1, labour: 0, other: 0 },
+  stories_by_category: { natural_hazard: 1, logistics: 1, geopolitical: 1, sanctions: 1, trade_policy: 0, cyber: 1, financial: 1, labour: 0, other: 0 },
   by_status: { open: risks.length, acknowledged: 0, mitigating: 0, resolved: 0, dismissed: 0 },
   max_score: risks[0].score,
   top: risks.slice(0, 5),
@@ -176,6 +183,7 @@ export const mapRisks: S['RiskPlaceFeatureCollection'] = (() => {
     const f = places.get(id);
     if (f) {
       f.properties.risk_count++;
+      f.properties.story_count++;
       f.properties.max_score = Math.max(f.properties.max_score, r.score);
       f.properties.top_risk_ids.push(r.id);
       f.properties.top_categories.push(r.category);
@@ -185,7 +193,7 @@ export const mapRisks: S['RiskPlaceFeatureCollection'] = (() => {
       type: 'Feature',
       id,
       geometry: point ? { type: 'Point', coordinates: [r.lon!, r.lat!] } : null,
-      properties: { place_type, place_key, label: point ? 'Bab el-Mandeb' : null, risk_count: 1, max_score: r.score, top_categories: [r.category], top_risk_ids: [r.id] },
+      properties: { place_type, place_key, label: point ? 'Bab el-Mandeb' : null, risk_count: 1, story_count: 1, max_score: r.score, top_categories: [r.category], top_risk_ids: [r.id] },
     });
   }
   return { type: 'FeatureCollection', features: [...places.values()] };
@@ -210,6 +218,17 @@ export function riskDetail(r: R): S['RiskDetail'] {
       likelihood: { method: 'noisy_or', value: r.likelihood, items: [{ evidence_key: 'event:portwatch:1', signal: 0.8, recency: 0.95, match_confidence: 0.9, contribution: 0.68 }] },
       impact: { value: r.impact, criticality: 'high', criticality_weight: 0.85, exposure_share: 0.22, exposure_norm: 0.9, category_multiplier: 1 },
       engine_version: 'test',
+      story: r.story.key,
+      explain: {
+        matched: { match_type: 'chokepoint', match_value: 'bab_el_mandeb', label: 'chokepoint: Bab el-Mandeb', matched_text: null, inferred_from: null, supported_by: null },
+        strongest: { evidence_key: 'event:portwatch:1', title: 'Transit calls at Bab el-Mandeb down week on week', source: 'portwatch', published_at: iso(D) },
+        item_count: 2,
+        steps: [
+          { label: 'Strongest signal', formula: 'signal 0.800 × recency 0.950 × match 0.900 = 0.684', value: 0.684 },
+          { label: 'Likelihood', formula: 'noisy-OR of 2 items: 1 − (1 − 0.684) × (1 − 0.210) = 0.750', value: 0.75 },
+          { label: 'Score', formula: `100 × ${r.likelihood.toFixed(3)} × ${r.impact.toFixed(3)} = ${r.score.toFixed(1)}`, value: r.score },
+        ],
+      },
     },
     advice: {
       text: 'Ask the carriers on this route for a quote around the Cape of Good Hope.\nOrder four weeks of the parts that run out first.\nCheck which contracts put the cost of late delivery on you.',
@@ -243,7 +262,7 @@ export const sourcePending: S['Source'] = {
     col(1, 'Origin', ['Taiwan', 'China', 'Vietnam']),
     col(2, 'Port of loading', ['TW KHH', 'CN YTN', 'VN SGN']),
     col(3, 'Item', ['LCD panels', 'ABS housings', 'machined shafts']),
-    col(4, 'Unit cost', ['4.20', '0.85', '12.10']),
+    col(4, 'Annual spend (USD)', ['420000', '85000', '121000']),
     col(5, 'Pay ccy', ['TWD', 'CNY', 'VND']),
     col(6, 'Buyer', ['M. Okafor', 'D. Lindqvist', 'S. Haddad']),
   ],
@@ -269,7 +288,7 @@ export const suggestion: S['ColumnMapping'] = {
       { column: 'Origin', field: 'country', confidence: 0.98 },
       { column: 'Port of loading', field: 'port', confidence: 0.96 },
       { column: 'Item', field: 'commodity', confidence: 0.93 },
-      { column: 'Unit cost', field: 'annual_spend', confidence: 0.71 },
+      { column: 'Annual spend (USD)', field: 'annual_spend', currency: 'USD', confidence: 0.71 },
       { column: 'Pay ccy', field: 'currency', confidence: 0.99 },
       { column: 'Buyer', field: 'ignore', confidence: 0.34 },
     ],

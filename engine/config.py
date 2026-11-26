@@ -109,7 +109,23 @@ class EngineConfig:
     company_tag_factor: float = 0.7
     company_anomaly_confidence: float = 0.8
     legal_forms: frozenset[str] = LEGAL_FORMS
-    # --- impact (§6) ------------------------------------------------------------------
+    # --- anchoring (§5.9, engine 1.2.0) -------------------------------------------------
+    # A commodity, HS-chapter or currency match is *support*: it never creates a risk on its
+    # own for an entity that has a place (supplier, customer, site, route, port). It only
+    # strengthens a match of the same item on an anchor (country, port, position,
+    # chokepoint, company name, sanctions name):  c = 1 − (1 − c_anchor)(1 − w × c_support).
+    support_match_types: frozenset[str] = frozenset({"commodity", "currency"})
+    support_weight: float = 0.5  # w
+    # Except a market-wide move (an fx.rate anomaly, or an event of type market.*): it is
+    # global for that currency or commodity, so it may create a risk alone, but such a risk
+    # is capped below "High": its likelihood is lowered until 100 × L × I ≤ this.
+    market_event_prefix: str = "market."
+    market_only_score_cap: float = 50.0
+    # A supplier, site or port with no declared route gets chokepoints inferred from its
+    # port's country (engine/data/sea_lanes.json) or its position; those matches count at
+    # this share of a declared route's confidence.
+    inferred_chokepoint_factor: float = 0.5
+    # --- impact (§6)------------------------------------------------------------------
     criticality_weights: Mapping[str, float] = field(
         default_factory=lambda: _frozen({"low": 0.25, "medium": 0.5, "high": 0.75, "critical": 1.0})
     )

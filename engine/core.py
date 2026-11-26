@@ -24,17 +24,20 @@ from engine import names, scoring as S, software as sw, texts
 from engine.config import DEFAULT_CONFIG, EngineConfig
 from engine.geo import EARTH_RADIUS_KM, geo_confidence, haversine_km, radius_km
 from engine.models import Anomaly, Assessment, Entity, Evidence, FeedEvent, FeedSnapshot
-from engine.reference import chokepoint_by_alias, chokepoint_id, chokepoints, hs_chapter_keywords, keyword_in
+from engine.reference import (
+    chokepoint_by_alias, chokepoint_id, chokepoints, hs_chapter_keywords, keyword_in, lane_for_country,
+)
 
-ENGINE_VERSION = "1.1.0"
+ENGINE_VERSION = "1.2.0"
 
-# §5.1: which keys each entity kind is matched on.
+# §5.1: which keys each entity kind is matched on. Routes declare their chokepoints;
+# suppliers, sites and ports get them inferred from their port or position (§5.9).
 KIND_KEYS: Mapping[str, frozenset[str]] = {
-    "supplier": frozenset({"geo", "country", "port", "name", "commodity", "currency"}),
-    "site": frozenset({"geo", "country", "port"}),
+    "supplier": frozenset({"geo", "country", "port", "name", "commodity", "currency", "chokepoint"}),
+    "site": frozenset({"geo", "country", "port", "chokepoint"}),
     "customer": frozenset({"country", "name", "currency"}),
     "route": frozenset({"port", "country", "chokepoint"}),
-    "port": frozenset({"port", "geo", "country"}),
+    "port": frozenset({"port", "geo", "country", "chokepoint"}),
     "currency": frozenset({"currency"}),
     "commodity": frozenset({"commodity"}),
     "software": frozenset({"software"}),
@@ -46,10 +49,46 @@ PRECEDENCE = {
 }  # fmt: skip
 GEO_CATEGORIES = {"natural_hazard", "logistics"}
 MAX_FINGERPRINT = 200
+# Kinds whose only key *is* a commodity or currency: for them that match is the anchor.
+SELF_ANCHORED_KINDS = frozenset({"commodity", "currency"})
 
 
 def has_key(entity: Entity, key: str) -> bool:
     return key in KIND_KEYS.get(entity.kind, frozenset())
+
+
+def entity_chokepoints(entity: Entity) -> list[tuple[str, str | None]]:
+    """``(chokepoint id, inferred_from)`` for an entity; ``inferred_from`` is ``None`` when declared.
+
+    Declared chokepoints (``attrs.chokepoints``, routes) always win. A supplier, site or port
+    without them gets the chokepoints of the main sea lanes from its first port's country
+    (or, with no port, its first country), plus any chokepoint whose radius holds its
+    position (§5.9). ``inferred_from`` says what it was inferred from: ``port TWKHH``,
+    ``country TWN`` or ``position``.
+    """
+    if not has_key(entity, "chokepoint"):
+        return []
+    raw = entity.attrs.get("chokepoints") if isinstance(entity.attrs, Mapping) else None
+    declared = [c for c in dict.fromkeys(chokepoint_id(v) for v in (raw if isinstance(raw, list) else [])) if c]
+    if declared or entity.kind == "route":
+        return [(c, None) for c in declared]
+    out: dict[str, str] = {}
+    origin, via = None, None
+    if entity.ports:
+        from jobs.codes import country_alpha3
+
+        origin, via = country_alpha3(entity.ports[0][:2]), f"port {entity.ports[0]}"
+    elif entity.countries:
+        origin, via = entity.countries[0], f"country {entity.countries[0]}"
+    lane = lane_for_country(origin) if origin else None
+    if lane is not None:
+        for c in lane.chokepoints:
+            out.setdefault(c, via)
+    if entity.has_position:
+        for cp in chokepoints():
+            if haversine_km(entity.lat, entity.lon, cp.lat, cp.lon) <= cp.radius_km:
+                out.setdefault(cp.id, "position")
+    return sorted(out.items())
 
 
 def watch_term(entity: Entity, config: EngineConfig = DEFAULT_CONFIG) -> str | None:
@@ -81,6 +120,14 @@ class _Match:
     detail: dict[str, Any] = field(default_factory=dict)
 
 
+def _choke_match(cid: str, via: str | None, c: float, cfg: EngineConfig, detail: dict | None = None) -> _Match:
+    detail = dict(detail or {})
+    if via is not None:
+        c *= cfg.inferred_chokepoint_factor
+        detail["inferred_from"] = via
+    return _Match("chokepoint", cid, c, f"chokepoint:{cid}", "logistics", detail)
+
+
 @dataclass(slots=True)
 class _Item:
     entity: Entity
@@ -97,6 +144,7 @@ class _Item:
     anomaly: Anomaly | None
     detail: dict[str, Any]
     snapshot: dict[str, Any] = field(default_factory=dict)
+    market_only: bool = False  # a market-wide move with no anchor: capped (§5.9)
 
     def rank(self) -> tuple:
         return (self.p, self.confidence, -PRECEDENCE[self.match_type], self.match_value)
@@ -109,7 +157,7 @@ class _Index:
         self.entities = entities
         self.by_country: dict[str, list[Entity]] = defaultdict(list)
         self.by_port: dict[str, list[Entity]] = defaultdict(list)
-        self.by_choke: dict[str, list[Entity]] = defaultdict(list)
+        self.by_choke: dict[str, list[tuple[Entity, str | None]]] = defaultdict(list)
         self.by_osv: dict[str, list[Entity]] = defaultdict(list)
         self.by_cpe: dict[str, list[Entity]] = defaultdict(list)
         self.by_currency: dict[str, list[Entity]] = defaultdict(list)
@@ -124,11 +172,8 @@ class _Index:
             if has_key(e, "port"):
                 for p in e.ports:
                     self.by_port[p].append(e)
-            if has_key(e, "chokepoint"):
-                raw = e.attrs.get("chokepoints") if isinstance(e.attrs, Mapping) else None
-                for cid in dict.fromkeys(chokepoint_id(v) for v in (raw if isinstance(raw, list) else [])):
-                    if cid:
-                        self.by_choke[cid].append(e)
+            for cid, via in entity_chokepoints(e):
+                self.by_choke[cid].append((e, via))
             if has_key(e, "software"):
                 for kind, key, _ in sw.entity_keys(e.software):
                     (self.by_osv if kind == "osv" else self.by_cpe)[key].append(e)
@@ -197,19 +242,45 @@ class _Assessor:
         self.entities = sorted(entities, key=lambda e: str(e.id))
         self.idx = _Index(self.entities, config)
         self.best: dict[tuple[UUID, str], _Item] = {}
+        # Support-only matches (commodity / currency, §5.9), applied after every anchor is in.
+        self.support: dict[tuple[UUID, str], _Item] = {}
 
     # --- offering a match -----------------------------------------------------------------
 
     def _offer(self, entity: Entity, m: _Match, *, category: str, signal: float, rec: float,
-               key: str, event: FeedEvent | None = None, anomaly: Anomaly | None = None) -> None:  # fmt: skip
+               key: str, event: FeedEvent | None = None, anomaly: Anomaly | None = None,
+               market: bool = False) -> None:  # fmt: skip
         c = S.r3(S.clamp(m.confidence, 0.0, 1.0))
         s, r = S.r3(signal), S.r3(rec)
         item = _Item(entity, category, m.match_type, m.match_value, m.driver, c, s, r,
                      S.contribution(s, r, c), key, event, anomaly, m.detail)  # fmt: skip
         k = (entity.id, key)
-        cur = self.best.get(k)
+        support = m.match_type in self.cfg.support_match_types and entity.kind not in SELF_ANCHORED_KINDS
+        if support and not market:
+            target = self.support  # only strengthens an anchor of the same item (§5.9)
+        else:
+            item.market_only = market
+            target = self.best
+        cur = target.get(k)
         if cur is None or item.rank() > cur.rank():
-            self.best[k] = item
+            target[k] = item
+
+    def _apply_support(self) -> None:
+        """Fold each support match into the anchor match of the same (entity, item), or drop it."""
+        w = self.cfg.support_weight
+        for k in sorted(self.support, key=lambda t: (str(t[0]), t[1])):
+            sup = self.support[k]
+            anchor = self.best.get(k)
+            if anchor is None or anchor.market_only:
+                continue  # a commodity or currency match alone is not a risk
+            c = S.r3(S.clamp(1.0 - (1.0 - anchor.confidence) * (1.0 - w * sup.confidence), 0.0, 1.0))
+            anchor.detail = {**anchor.detail, "supported_by": {
+                "match_type": sup.match_type, "match_value": sup.match_value,
+                "matched_text": sup.detail.get("matched_text"), "confidence": sup.confidence,
+                "anchor_confidence": anchor.confidence}}  # fmt: skip
+            anchor.confidence = c
+            anchor.p = S.contribution(anchor.signal, anchor.recency, c)
+        self.support.clear()
 
     def _offer_event(self, ev: FeedEvent, entity: Entity, m: _Match, base_category: str, signal: float) -> None:
         category = m.category or base_category
@@ -222,7 +293,8 @@ class _Assessor:
             rec = S.recency(S.event_age_hours(ev, self.now), hl, self.cfg)
             if rec is None:
                 return
-        self._offer(entity, m, category=category, signal=signal, rec=rec, key=ev.key, event=ev)
+        self._offer(entity, m, category=category, signal=signal, rec=rec, key=ev.key, event=ev,
+                    market=ev.type.startswith(self.cfg.market_event_prefix))  # fmt: skip
 
     # --- events ---------------------------------------------------------------------------
 
@@ -262,6 +334,7 @@ class _Assessor:
             for entity, m in self._event_matches(ev, cat, cls):
                 self._offer_event(ev, entity, m, cat, signal)
         self._sanctions(sanctions)
+        self._apply_support()
 
     def _removals(self) -> dict[str, datetime]:
         out: dict[str, datetime] = {}
@@ -300,14 +373,13 @@ class _Assessor:
                 d = haversine_km(ev.lat, ev.lon, cp.lat, cp.lon)
                 c = geo_confidence(d, cp.radius_km, cfg)
                 if c is not None:
-                    for e in idx.by_choke[cp.id]:
-                        yield e, _Match("chokepoint", cp.id, c, f"chokepoint:{cp.id}", "logistics",
-                                        {"distance_km": round(d, 1), "radius_km": cp.radius_km})  # fmt: skip
+                    for e, via in idx.by_choke[cp.id]:
+                        yield e, _choke_match(cp.id, via, c, cfg, {"distance_km": round(d, 1), "radius_km": cp.radius_km})
         if cls == "scenario":
             for raw in ev.attrs.get("chokepoints") or ():
                 cid = chokepoint_id(raw)
-                for e in idx.by_choke.get(cid or "", ()):
-                    yield e, _Match("chokepoint", cid, 1.0, f"chokepoint:{cid}", "logistics")
+                for e, via in idx.by_choke.get(cid or "", ()):
+                    yield e, _choke_match(cid, via, 1.0, cfg)
         # countries (position beats country for hazards/logistics with a positioned event)
         if news:
             countries = dict.fromkeys([*ev.countries, *self._tag_countries(ev)])
@@ -355,9 +427,9 @@ class _Assessor:
             cp = chokepoint_by_alias(place["text"])
             if cp is None:
                 continue
-            for e in self.idx.by_choke.get(cp.id, ()):
-                yield e, _Match("chokepoint", cp.id, self.cfg.chokepoint_text_factor * _conf(place),
-                                f"chokepoint:{cp.id}", "logistics", {"matched_text": place["text"]})  # fmt: skip
+            for e, via in self.idx.by_choke.get(cp.id, ()):
+                yield e, _choke_match(cp.id, via, self.cfg.chokepoint_text_factor * _conf(place), self.cfg,
+                                      {"matched_text": place["text"]})  # fmt: skip
 
     def _companies(self, ev: FeedEvent) -> Iterable[tuple[Entity, _Match]]:
         cfg = self.cfg
@@ -461,7 +533,8 @@ class _Assessor:
                 continue
             signal = S.anomaly_signal(a, cfg)
             for e, m in matches:
-                self._offer(e, m, category=cat, signal=signal, rec=rec, key=a.evidence_key, anomaly=a)
+                self._offer(e, m, category=cat, signal=signal, rec=rec, key=a.evidence_key, anomaly=a,
+                            market=a.series == "fx.rate")  # fmt: skip
 
     def _cross_fx(self) -> list[Anomaly]:
         """Spike detection on ``<base>/<CCY>`` cross rates, in memory (never stored in feeds)."""
@@ -507,6 +580,10 @@ class _Assessor:
                 ifac["criticality_weight"] if ifac["exposure_norm"] is None
                 else 0.5 * ifac["criticality_weight"] + 0.5 * ifac["exposure_norm"]
             )  # fmt: skip
+            uncapped = None
+            if all(i.market_only for i in items) and 100 * likelihood * impact > cfg.market_only_score_cap:
+                uncapped = likelihood
+                likelihood = math.floor(cfg.market_only_score_cap / (100 * impact) * 1000) / 1000
             if round(100 * likelihood * impact, 1) < cfg.min_score:
                 continue
             for i in items:
@@ -515,11 +592,12 @@ class _Assessor:
                     else texts.anomaly_snapshot(i.anomaly, i.detail)
                 )  # fmt: skip
             out.append(self._assessment(fp, entity, category, items, likelihood, impact, ifac,
-                                        clamped=not (cfg.impact_min <= raw <= cfg.impact_max)))  # fmt: skip
+                                        clamped=not (cfg.impact_min <= raw <= cfg.impact_max),
+                                        uncapped=uncapped))  # fmt: skip
         out.sort(key=lambda a: (-a.score, a.fingerprint))
         return out
 
-    def _assessment(self, fp, entity, category, items, likelihood, impact, ifac, clamped) -> Assessment:
+    def _assessment(self, fp, entity, category, items, likelihood, impact, ifac, clamped, uncapped) -> Assessment:
         evidence = tuple(
             Evidence(
                 kind="event" if i.event is not None else "anomaly",
@@ -539,18 +617,25 @@ class _Assessor:
             )
             for i in items
         )
+        lfac: dict[str, Any] = {
+            "method": "noisy_or",
+            "value": likelihood,
+            "items": [
+                {"evidence_key": i.key, "signal": i.signal, "recency": i.recency,
+                 "match_confidence": i.confidence, "contribution": i.p}
+                for i in items
+            ],  # fmt: skip
+        }
+        if uncapped is not None:
+            lfac["capped_from"] = uncapped
         factors = {
-            "likelihood": {
-                "method": "noisy_or",
-                "value": likelihood,
-                "items": [
-                    {"evidence_key": i.key, "signal": i.signal, "recency": i.recency,
-                     "match_confidence": i.confidence, "contribution": i.p}
-                    for i in items
-                ],  # fmt: skip
-            },
+            "likelihood": lfac,
             "impact": ifac,
             "engine_version": ENGINE_VERSION,
+            # One news story (or hazard, or listing) hitting several entities shares this key,
+            # so lists and counts can show it once (§5.9).
+            "story": f"{category}|{items[0].key}",
+            "explain": texts.how_scored(category, entity, items, likelihood, ifac, clamped, uncapped, self.cfg),
         }
         matched_c = [i.match_value for i in items if i.match_type == "country"]
         matched_p = [i.match_value for i in items if i.match_type == "port"]
@@ -561,7 +646,7 @@ class _Assessor:
             entity_id=entity.id,
             category=category,
             title=texts.title(category, entity, items[0]),
-            explanation=texts.explanation(category, entity, items, likelihood, ifac, clamped),
+            explanation=texts.explanation(category, entity, items),
             likelihood=likelihood,
             impact=impact,
             factors=factors,

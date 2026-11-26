@@ -66,6 +66,35 @@ def chokepoint_by_alias(text: str) -> Chokepoint | None:
     return None
 
 
+@dataclass(frozen=True, slots=True)
+class SeaLane:
+    id: str
+    name: str
+    countries: tuple[str, ...]
+    chokepoints: tuple[str, ...]
+
+
+@lru_cache(maxsize=1)
+def sea_lanes() -> tuple[SeaLane, ...]:
+    """The coarse sea-lane table (§5.9): origin region → chokepoints on its main lanes."""
+    raw = json.loads((DATA / "sea_lanes.json").read_text(encoding="utf-8"))["regions"]
+    known = {c.id for c in chokepoints()}
+    out = tuple(SeaLane(r["id"], r["name"], tuple(r["countries"]), tuple(r["chokepoints"])) for r in raw)
+    seen: set[str] = set()
+    for lane in out:
+        if set(lane.chokepoints) - known:
+            raise ValueError(f"sea lane {lane.id}: unknown chokepoint")
+        if seen & set(lane.countries):
+            raise ValueError(f"sea lane {lane.id}: a country is in two regions")
+        seen |= set(lane.countries)
+    return out
+
+
+@lru_cache(maxsize=512)
+def lane_for_country(alpha3: str) -> SeaLane | None:
+    return next((lane for lane in sea_lanes() if alpha3 in lane.countries), None)
+
+
 @lru_cache(maxsize=1)
 def hs_chapter_keywords() -> dict[str, tuple[str, ...]]:
     raw = json.loads((DATA / "hs_chapters.json").read_text(encoding="utf-8"))["chapters"]

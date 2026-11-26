@@ -82,12 +82,14 @@ def map_risks(
     categories = csv_enum(category, ser.CATEGORIES, ser.CATEGORIES, "category")
     with ctx.tx() as conn:
         rows = conn.execute(
-            "SELECT r.id, r.entity_id, r.category, r.score, r.countries, r.ports, r.lat, r.lon, e.name AS entity_name"
+            f"SELECT r.id, r.entity_id, r.category, r.score, r.countries, r.ports, r.lat, r.lon, e.name AS entity_name,"
+            f" {ser.STORY_KEY} AS story"
             " FROM biz.risks r JOIN biz.entities e ON e.workspace_id = r.workspace_id AND e.id = r.entity_id"
             " WHERE r.status = ANY(%s) AND r.category = ANY(%s) AND r.score >= %s ORDER BY r.score DESC, r.id",
             (statuses, categories, min_score),
         ).fetchall()
     places: dict[str, dict] = {}
+    stories: dict[str, set[str]] = {}
     for r in rows:
         if r["lat"] is not None:
             key, ptype, pkey, label = f"point:{r['entity_id']}", "point", str(r["entity_id"]), r["entity_name"]
@@ -99,15 +101,21 @@ def map_risks(
         else:
             continue
         p = places.setdefault(key, {"type": "Feature", "id": key, "geometry": geom, "properties": {
-            "place_type": ptype, "place_key": pkey, "label": label, "risk_count": 0, "max_score": 0.0,
-            "top_categories": [], "top_risk_ids": []}})  # fmt: skip
+            "place_type": ptype, "place_key": pkey, "label": label, "risk_count": 0, "story_count": 0,
+            "max_score": 0.0, "top_categories": [], "top_risk_ids": []}})  # fmt: skip
         props = p["properties"]
         props["risk_count"] += 1
         props["max_score"] = max(props["max_score"], ser.r1(r["score"]) or 0.0)
         if r["category"] not in props["top_categories"]:
             props["top_categories"].append(r["category"])
-        if len(props["top_risk_ids"]) < 5:
-            props["top_risk_ids"].append(str(r["id"]))
+        # One story reaching several entities at this place counts once (rows are score-ordered,
+        # so its highest-scored risk is the one listed).
+        seen = stories.setdefault(key, set())
+        if r["story"] not in seen:
+            seen.add(r["story"])
+            props["story_count"] += 1
+            if len(props["top_risk_ids"]) < 5:
+                props["top_risk_ids"].append(str(r["id"]))
     return geo({"type": "FeatureCollection", "features": list(places.values())})
 
 

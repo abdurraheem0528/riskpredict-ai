@@ -345,3 +345,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .feedst.has-tip { cursor: default; }
 .tip { position: absolute; left: 50%; bottom: calc(100% + 14px); transform: translateX(-50%); display: none; flex-direction: column; gap: 2px; width: max-content; max-width: 320px; padding: 8px 12px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 12px; line-height: 16px; font-weight: 500; white-space: normal; box-shadow: var(--sh-float); z-index: 10; pointer-events: none; }
 .has-tip:hover .tip, .has-tip:focus-visible .tip, .has-tip:focus .tip { display: flex; }
+
+/* "How this was scored" on the Risk screen: collapsed by default. */
+.how { display: flex; flex-direction: column; border-top: 1px solid var(--rule); }
+.how > summary { display: flex; justify-content: space-between; align-items: center; min-height: 44px; cursor: pointer; list-style: none; }
+.how > summary::-webkit-details-marker { display: none; }
+.how > summary .chev { color: var(--tx2); transition: transform 0.15s; }
+.how[open] > summary .chev { transform: rotate(90deg); }
+.how .step { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule); font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }

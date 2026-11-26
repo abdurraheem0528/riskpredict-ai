@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ago, initials, levelOf, outOf5, pct, signed } from '../../src/lib/format';
-import { placeAll, placeLabel, placeOf } from '../../src/map/geo';
+import { __setGazetteer, cleanPortName, placeAll, placeLabel, placeOf, portName } from '../../src/map/geo';
 import { backoffMs } from '../../src/api/stream';
 import { adviceSteps } from '../../src/screens/RiskView';
 import { feedSummary } from '../../src/lib/feeds';
@@ -46,6 +46,17 @@ describe('placing features', () => {
   });
   it('names places', () => {
     expect(placeLabel({ ports: ['CNYTN'], countries: ['CHN'] })).toBe('Yantian, China');
+  });
+});
+
+describe('port names', () => {
+  it('cleans World Port Index and UN/LOCODE names for display', () => {
+    expect(['Tokyo Ko', 'Kao-Hsiung', 'Chennai (Madras)', 'Chennai (ex Madras)', 'Penang (Georgetown)', 'Yantian Pt', 'Tegal, Java', 'Hualien Hsien', 'Busan'].map(cleanPortName))
+      .toEqual(['Tokyo', 'Kao-Hsiung', 'Chennai', 'Chennai', 'Penang', 'Yantian', 'Tegal', 'Hualien', 'Busan']);
+  });
+  it('prefers the UN/LOCODE name and keeps the raw WPI name in the table', () => {
+    __setGazetteer({}, { TWKHH: [120.25, 22.617, 'Kao-Hsiung', 'Kaohsiung'], MYPEN: [100.35, 5.417, 'Pulau Pinang', 'Penang (Georgetown)'], JPXXX: [139, 35, 'Somewhere Ko'] });
+    expect([portName('TWKHH'), portName('MYPEN'), portName('JPXXX'), portName('NLRTM')]).toEqual(['Kaohsiung', 'Penang', 'Somewhere', 'NLRTM']);
   });
 });
 
