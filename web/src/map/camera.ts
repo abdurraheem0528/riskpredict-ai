@@ -39,6 +39,35 @@ export function sheetPadding(side: 'left' | 'right' | 'none' = 'left', width = 3
   return pad;
 }
 
+/** The inhabited world (the flat map's first view, and "fit" with nothing to fit). */
+export const WORLD: Box = [[-125, -40], [150, 66]];
+const NO_PAD: Pad = { top: 0, bottom: 0, left: 0, right: 0 };
+
+/** The globe as large as the whole viewport holds it (sign-in, a new workspace). */
+export function fullDisc(W: number, H: number) {
+  W = W || 1360;
+  H = H || 900;
+  const D = 1.5 * H, rho = (Math.min(W, H) / 2) * 0.86;
+  const R = (rho * rho + rho * Math.sqrt(rho * rho + D * D)) / D;
+  return { center: [20, 22] as LonLat, zoom: Math.max(0.6, Math.log2((R * 2 * Math.PI * Math.cos((22 * Math.PI) / 180)) / 512)) };
+}
+
+/** The whole world behind a centred card (Empty): the full disc, or the flat world. */
+export function useWorldView(map: MlMap | null) {
+  useEffect(() => {
+    if (!map) return;
+    const go = (duration: number) => {
+      if (getProjection() === 'flat') return fitTo(map, WORLD, { top: 80, bottom: 80, left: 40, right: 40 }, 3, duration);
+      const c = map.getContainer();
+      const cam = fullDisc(c.clientWidth, c.clientHeight);
+      if (reducedMotion() || duration <= 0) map.jumpTo({ ...cam, padding: NO_PAD });
+      else map.easeTo({ ...cam, padding: NO_PAD, duration, easing: EASE, essential: true });
+    };
+    go(800);
+    return onProjectionApplied(() => go(0));
+  }, [map]);
+}
+
 // --- shared camera state ------------------------------------------------------------------------
 
 /**
@@ -152,7 +181,7 @@ function discZoom(bw: number, bh: number, H: number, lat: number, phone: boolean
  * the group fits the free area and the whole disc stays inside it (the rest comes round
  * as the globe turns). MapLibre's globe radius is worldSize / (2π cos lat).
  */
-export function globeFraming(group: readonly LonLat[], W: number, H: number, pad: Pad, phone = false): { center: LonLat; zoom: number } {
+export function globeFraming(group: readonly LonLat[], W: number, H: number, pad: Pad, phone = false, opts: { disc?: boolean; maxZoom?: number } = {}): { center: LonLat; zoom: number } {
   const bw = Math.max(160, W - pad.left - pad.right), bh = Math.max(160, H - pad.top - pad.bottom);
   if (!group.length) return { center: [20, 25], zoom: discZoom(bw, bh, H, 25, phone) };
   const ref = group[0][0];
@@ -174,9 +203,11 @@ export function globeFraming(group: readonly LonLat[], W: number, H: number, pad
       if (den > 0) R = Math.min(R, (h * D) / den);
     }
   }
-  const rho = (Math.min(bw, bh) / 2) * (phone ? 1.25 : 0.92);
-  R = Math.min(R, (rho * rho + rho * Math.sqrt(rho * rho + D * D)) / D);
-  const zoom = clamp(Math.log2((R * 2 * Math.PI * Math.cos(p0)) / 512), 0.6, 4);
+  if (opts.disc !== false) {
+    const rho = (Math.min(bw, bh) / 2) * (phone ? 1.25 : 0.92);
+    R = Math.min(R, (rho * rho + rho * Math.sqrt(rho * rho + D * D)) / D);
+  }
+  const zoom = clamp(Math.log2((R * 2 * Math.PI * Math.cos(p0)) / 512), 0.6, opts.maxZoom ?? 4);
   return { center: [lon0, lat0], zoom };
 }
 
@@ -202,8 +233,7 @@ function cameraFor(map: MlMap, b: Box, pad: Pad, maxZoom: number) {
   const cur = map.getPadding();
   try {
     map.setPadding(pad);
-    // The globe's fit is approximate at the edges of the disc: a little more room there.
-    const cam = map.cameraForBounds(safeBox(b), { padding: getProjection() === 'globe' ? 44 : 24, maxZoom });
+    const cam = map.cameraForBounds(safeBox(b), { padding: 24, maxZoom });
     return cam ? { center: cam.center as unknown as LonLat, zoom: cam.zoom } : null;
   } catch {
     return null; // padding larger than the viewport
@@ -232,9 +262,21 @@ export function moveTo(map: MlMap, opts: { center: LonLat; zoom?: number; paddin
   else map.flyTo({ ...cam, padding, duration: clamp(duration, 600, 900), easing: EASE, essential: true });
 }
 
-/** Fit a box into the free area under `padding`. */
+/** The box's corners and edge midpoints, for framing it on the globe. */
+function boxPoints(b: Box): LonLat[] {
+  const [[w, s], [e, n]] = safeBox(b);
+  const mx = (w + e) / 2, my = (s + n) / 2;
+  return [[w, s], [mx, s], [e, s], [e, my], [e, n], [mx, n], [w, n], [w, my]];
+}
+
+/** Fit a box into the free area under `padding` (on the globe, with the perspective worked out exactly). */
 export function fitTo(map: MlMap, b: Box, padding: Pad = sheetPadding(), maxZoom = 5, duration = 800) {
-  const cam = cameraFor(map, b, padding, maxZoom);
+  const c = map.getContainer();
+  // A box wider than a hemisphere view holds: the whole disc around its centre.
+  const wide = b[1][0] - b[0][0] > 150 || b[1][1] - b[0][1] > 100;
+  const cam = getProjection() === 'globe'
+    ? globeFraming(boxPoints(b), c.clientWidth, c.clientHeight, padding, isPhone(), { disc: wide, maxZoom })
+    : cameraFor(map, b, padding, maxZoom);
   if (!cam) return;
   if (reducedMotion() || duration <= 0) map.jumpTo({ ...cam, padding });
   else map.easeTo({ ...cam, padding, duration, easing: EASE, essential: true });
@@ -280,6 +322,7 @@ export function useOpeningMove(map: MlMap | null, pts: readonly LonLat[] | null,
     let moving = false;
     const off = onInput((kind) => {
       if (kind !== 'down') return;
+      opened = true; // the visitor took over: no opening move later either
       cancelTimer?.();
       if (moving) map.stop();
     });

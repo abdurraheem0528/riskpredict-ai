@@ -8,6 +8,8 @@ import { fmtInt } from '../lib/format';
 import { FeedDots } from '../live/FeedDots';
 import { FeedStatus } from '../ui/parts';
 import { usePlaced } from '../map/data';
+import { useMap } from '../map/MapRoot';
+import { useWorldView } from '../map/camera';
 
 export function Empty({ pending, hasConnection }: { pending: Source | null; hasConnection: boolean }) {
   const { workspace, role } = useSession();
@@ -19,6 +21,8 @@ export function Empty({ pending, hasConnection }: { pending: Source | null; hasC
   const tools = (providers.data?.items ?? []).filter((p) => p.available).map((p) => p.name);
   const step = pending ? 2 : 1;
   const editor = canEdit(role);
+  // the whole globe behind the card
+  useWorldView(useMap().map);
 
   const intro = health.isSuccess && feeds.total > 0
     ? `The grey dots are what ${fmtInt(feeds.total)} global feeds see right now.`

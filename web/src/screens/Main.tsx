@@ -3,7 +3,7 @@
 // risk. The map shows the business's entities, its routes and the places risks sit.
 import { useEffect, useMemo, useState } from 'react';
 import type { FeatureCollection, Point } from 'geojson';
-import { prefetchRiskDetail, useMapEntities, useRisk, useRiskSummary, useRisks, useFeedHealth, type Risk, type RiskSort } from '../api/queries';
+import { prefetchRiskDetail, useDisruptions, useMapEntities, useRisk, useRiskSummary, useRisks, useFeedHealth, type Risk, type RiskSort } from '../api/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../app/Session';
 import { useWorkspaceState } from '../app/TopBar';
@@ -14,6 +14,8 @@ import { useMap } from '../map/MapRoot';
 import { fitTo, moveTo, sheetPadding, useIdleRotation, useOpeningMove, type LonLat } from '../map/camera';
 import { EntityMap } from '../map/EntityLayers';
 import { Chokepoints } from '../map/Chokepoints';
+import { LanesLayer } from '../map/LanesLayer';
+import { useLanes } from '../map/lanes';
 import { MapControls } from '../map/MapControls';
 import { Legend } from '../map/Legend';
 import { clearFocus, setHovered, setSelected, useFocus } from '../map/focus';
@@ -100,6 +102,9 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
 
   // Linked hover and selection: a row and its entity's dot, pill and lanes.
   const focus = useFocus();
+  // Sea lanes of the declared routes, and how many pass each chokepoint.
+  const disruptions = useDisruptions();
+  const lanes = useLanes(entities.data, disruptions.data);
   // Only a pick selects on the map (the card shows the top story either way, and nothing
   // selected lets the globe turn); Esc or a click on open map lets go.
   const selectedEntity = picked ? (selected?.entity.id ?? null) : null;
@@ -155,8 +160,9 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
 
   return (
     <>
+      <LanesLayer lanes={lanes} selected={focus.selected} />
       <EntityMap data={placedEntities?.fc ?? null} dimmed={dimmed} onPick={pickEntity} />
-      <Chokepoints />
+      <Chokepoints laneCounts={lanes?.counts} />
 
       <aside className="sheet w344 glass" aria-label={mode === 'overview' ? 'Risks' : 'Risk register'}>
         <Grab />

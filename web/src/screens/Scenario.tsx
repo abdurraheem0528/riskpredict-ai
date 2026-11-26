@@ -17,6 +17,8 @@ import { sheetPadding, useFit, boxOfPoints, type LonLat } from '../map/camera';
 import { DotsLayer } from '../map/layers';
 import { EntityMap } from '../map/EntityLayers';
 import { Chokepoints } from '../map/Chokepoints';
+import { LanesLayer } from '../map/LanesLayer';
+import { useLanes } from '../map/lanes';
 import { MapControls } from '../map/MapControls';
 import { Legend } from '../map/Legend';
 import { slotId } from '../map/slots';
@@ -165,6 +167,7 @@ export function Scenario() {
   );
   const { map } = useMap();
   const P = usePalette();
+  const lanes = useLanes(mapEntities.data, disruptions.data);
   const box = useMemo(
     () => boxOfPoints([...(shockAt ? [shockAt] : []), ...((affected?.features ?? []).map((f) => f.geometry.coordinates as LonLat))]),
     [shockAt, affected],
@@ -180,8 +183,9 @@ export function Scenario() {
     <>
       <CountryShade iso={kind === 'country' ? country : null} />
       {/* who it reaches stays bright; pills, heat and tint would show today's scores, not the what-if's */}
+      <LanesLayer lanes={lanes} />
       <EntityMap data={placed?.fc ?? null} dimmed={res ? affectedIds : null} pills={0} heat={false} tint={false} />
-      <Chokepoints />
+      <Chokepoints laneCounts={lanes?.counts} />
       <DotsLayer id="sc-shock" data={shockFc} color={P.high} radius={6} />
 
       <aside className="sheet right split glass" aria-label="What if">

@@ -18,6 +18,8 @@ import { sheetPadding, useFit, boxOfPoints, type LonLat } from '../map/camera';
 import { DotsLayer, RiskPlacesLayer } from '../map/layers';
 import { EntityMap } from '../map/EntityLayers';
 import { Chokepoints } from '../map/Chokepoints';
+import { LanesLayer } from '../map/LanesLayer';
+import { useLanes } from '../map/lanes';
 import { MapControls } from '../map/MapControls';
 import { Legend } from '../map/Legend';
 import { clearFocus, setSelected } from '../map/focus';
@@ -71,6 +73,8 @@ export function RiskView({ id }: { id: string }) {
   // pill, ring and lanes. The rest of the business is dimmed.
   const P = usePalette();
   const entityId = r?.entity.id ?? null;
+  const disruptionsFc = useDisruptions();
+  const lanes = useLanes(entities.data, disruptionsFc.data);
   const bright = useMemo(() => (r ? new Set([r.entity.id, ...r.story.entities.map((e) => e.id)]) : null), [r]);
   useEffect(() => {
     setSelected(entityId);
@@ -86,8 +90,9 @@ export function RiskView({ id }: { id: string }) {
 
   return (
     <>
+      <LanesLayer lanes={lanes} selected={entityId} />
       <EntityMap data={placedEntities?.fc ?? null} dimmed={bright} heat={false} pills={0} />
-      <Chokepoints />
+      <Chokepoints laneCounts={lanes?.counts} />
       <DotsLayer id="evidence" data={evidencePoints} color={P.signal} radius={3.5} />
       <RiskPlacesLayer data={hotspot} />
 

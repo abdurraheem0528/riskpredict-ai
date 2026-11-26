@@ -13,7 +13,7 @@ import { addLabelImages, loadMapFonts } from './labels';
 import { SLOTS, slotId } from './slots';
 import { basePaint, graticule, skyFor, splitBorders } from './basemap';
 import { getProjection, projectionSpec, subscribeProjection, type Projection } from './projection';
-import { getRamps, markLoaded, noteInput, projectionApplied, setSwitching, subscribeRamps, updateRamps } from './camera';
+import { WORLD, fullDisc, getRamps, markLoaded, noteInput, projectionApplied, setSwitching, subscribeRamps, updateRamps } from './camera';
 
 export { reducedMotion } from '../lib/motion';
 export { moveTo, fitTo, sheetPadding } from './camera';
@@ -55,8 +55,7 @@ function style(proj: Projection): StyleSpecification {
 
 /** The view the overview's opening move starts from: the globe far out, turned a little west. */
 export const WIDE_START = { center: [20, 22] as [number, number], zoom: 0.8 };
-/** The inhabited world (the flat map's first view, and "fit" with nothing to fit). */
-export const WORLD: [[number, number], [number, number]] = [[-125, -40], [150, 66]];
+export { WORLD } from './camera';
 
 /** The overview (signed in, on / or /register) opens wide, for the opening move. */
 function opensOnOverview() {
@@ -68,15 +67,21 @@ function opensOnOverview() {
   }
 }
 
-/** The globe as large as the whole viewport holds it (sign-in, empty and other first views). */
-function fullDisc(el: HTMLElement) {
-  const W = el.clientWidth || 1360, H = el.clientHeight || 900;
-  const D = 1.5 * H, rho = (Math.min(W, H) / 2) * 0.86;
-  const R = (rho * rho + rho * Math.sqrt(rho * rho + D * D)) / D;
-  return { center: [20, 22] as [number, number], zoom: Math.max(0.6, Math.log2((R * 2 * Math.PI * Math.cos((22 * Math.PI) / 180)) / 512)) };
-}
-
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** True when WebGL runs on the CPU (SwiftShader, llvmpipe): no GPU to spend on MSAA. */
+function softwareGl(): boolean {
+  if (typeof WebGLRenderingContext === 'undefined') return false;
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+    const name = gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : '';
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return /swiftshader|llvmpipe|softpipe|software/i.test(name);
+  } catch {
+    return false;
+  }
+}
 
 /** Paint the last frame of the map into the snapshot canvas (drawn right after a render). */
 function snapshot(map: MlMap, snap: HTMLCanvasElement): Promise<boolean> {
@@ -122,13 +127,12 @@ export function MapRoot({ children, veil = false }: { children?: ReactNode; veil
     let cancelled = false;
     const offs: (() => void)[] = [];
     void loadGazetteer().catch(() => undefined);
-    const countries = fetch('/map/countries.geojson').then((r) => (r.ok ? (r.json() as Promise<FeatureCollection<Polygon | MultiPolygon>>) : null)).catch(() => null);
     import('maplibre-gl')
       .then((lib) => {
         if (cancelled || !ref.current) return;
         const el = ref.current;
         const proj = getProjection();
-        const start = opensOnOverview() ? WIDE_START : proj === 'globe' ? fullDisc(el) : null;
+        const start = opensOnOverview() ? WIDE_START : proj === 'globe' ? fullDisc(el.clientWidth, el.clientHeight) : null;
         try {
           map = new lib.Map({
             container: el,
@@ -142,7 +146,9 @@ export function MapRoot({ children, veil = false }: { children?: ReactNode; veil
             touchPitch: false,
             renderWorldCopies: true,
             fadeDuration: 0,
-            canvasContextAttributes: { antialias: true },
+            // Smooth globe edges where pixels are large; on high-density screens the edge is fine
+            // without MSAA, and a software renderer cannot afford it.
+            canvasContextAttributes: { antialias: (window.devicePixelRatio || 1) < 2 && !softwareGl() },
           });
         } catch {
           setCtx({ map: null, lib, status: 'failed' });
@@ -153,6 +159,7 @@ export function MapRoot({ children, veil = false }: { children?: ReactNode; veil
         const m = map;
 
         // Base geometry: land, and borders and coastlines split out of the same polygons.
+        const countries = fetch('/map/countries.geojson').then((r) => (r.ok ? (r.json() as Promise<FeatureCollection<Polygon | MultiPolygon>>) : null)).catch(() => null);
         m.once('load', () => {
           void countries.then((fc) => {
             if (cancelled || !fc) return;
