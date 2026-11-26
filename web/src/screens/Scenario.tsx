@@ -114,7 +114,7 @@ export function Scenario() {
     switch (kind) {
       case 'route':
         return cp
-          ? { title: `${cp.name} closes`, sub: 'Routes you mapped through it count in full, at the severity you set. Suppliers, sites and ports whose usual sea lane passes it (inferred from their port, country or position) count at half weight.', shock: { type: 'event' as const, category: 'logistics' as const, severity: severity / 100, chokepoints: [cp.id], label: `${cp.name} closes` } }
+          ? { title: `${cp.name} closes`, sub: 'Routes you mapped through it count in full. Suppliers, sites and ports whose usual sea lane passes it (inferred from their port, country or position) count at half weight.', shock: { type: 'event' as const, category: 'logistics' as const, severity: severity / 100, chokepoints: [cp.id], label: `${cp.name} closes` } }
           : null;
       case 'country':
         return country
@@ -358,7 +358,7 @@ function Results({ result, running }: { result: ScenarioT | null; running: boole
         </div>
         {top !== undefined && (
           <span className="t12">
-            The index averages every entity’s exposure (all its risks combined), weighted by criticality, so it is never above the most exposed one. Highest single risk: {scoreText(scenario.max_score)}.
+            The average exposure of your entities (each one’s risks combined), weighted by criticality: never above the most exposed. Highest single risk: {scoreText(scenario.max_score)}.
           </span>
         )}
       </div>
