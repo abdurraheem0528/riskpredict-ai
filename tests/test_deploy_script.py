@@ -1,10 +1,12 @@
-"""infra/scripts/deploy.py: the pure rules, and render-up against an in-memory fake of the
-Render API (no network, no database). The values here are test values."""
+"""infra/scripts/deploy.py: the pure rules, and vercel-up / vercel-origin / vercel-destroy /
+worker-run against an in-memory fake of the Vercel REST API and CLI (no network, no
+database). The values here are test values."""
 
 from __future__ import annotations
 
 import base64
 import importlib.util
+import json
 import re
 import sys
 from pathlib import Path
@@ -43,19 +45,20 @@ def test_pooled_host(d, host, pooled):
 @pytest.mark.parametrize(
     "host, region",
     [
-        ("ep-x.us-east-2.aws.neon.tech", "ohio"),
-        ("ep-x-pooler.us-east-1.aws.neon.tech", "virginia"),
-        ("ep-x.c-3.us-west-2.aws.neon.tech", "oregon"),
-        ("ep-x.eu-central-1.aws.neon.tech", "frankfurt"),
-        ("ep-x.eu-west-2.aws.neon.tech", "frankfurt"),
-        ("ep-x.ap-southeast-1.aws.neon.tech", "singapore"),
-        ("ep-x.eastus2.azure.neon.tech", "virginia"),
-        ("db.example.org", "ohio"),
+        ("ep-x.us-east-2.aws.neon.tech", "cle1"),
+        ("ep-x-pooler.us-east-1.aws.neon.tech", "iad1"),
+        ("ep-x.c-3.us-west-2.aws.neon.tech", "pdx1"),
+        ("ep-x.eu-central-1.aws.neon.tech", "fra1"),
+        ("ep-x.eu-west-2.aws.neon.tech", "lhr1"),
+        ("ep-x.ap-southeast-1.aws.neon.tech", "sin1"),
+        ("ep-x.eastus2.azure.neon.tech", "iad1"),
+        ("db.example.org", "iad1"),
     ],
 )
-def test_render_region(d, host, region):
-    assert d.render_region(host) == region
-    assert d.render_region(host, "frankfurt") == "frankfurt"
+def test_vercel_region(d, host, region):
+    assert d.vercel_region(host) == region
+    assert d.vercel_region(host, "fra1") == "fra1"
+    assert region in d.VERCEL_REGIONS
 
 
 def test_app_url_uses_pooled_host_and_owner_tls(d):
@@ -76,72 +79,91 @@ def test_generated_secrets_have_the_formats_config_accepts(d):
     assert len(jwt) == 32
     ring = parse_key_ring(d.new_secret("TOKEN_ENCRYPTION_KEYS"))
     assert ring[0][0] == "k1" and len(ring[0][1]) == 32
-    assert len(d.new_secret("INTERNAL_TOKEN")) >= 40
-    assert d.new_secret("INTERNAL_TOKEN") != d.new_secret("INTERNAL_TOKEN")
-
-
-def test_forwarded_allow_ips_never_trusts_everyone(d):
-    v = d.forwarded_allow_ips([])
-    assert "*" not in v and "10.0.0.0/8" in v and "173.245.48.0/20" in v
+    assert d.new_secret("JWT_SIGNING_KEY") != d.new_secret("JWT_SIGNING_KEY")
+    assert d.GENERATED == ("JWT_SIGNING_KEY", "TOKEN_ENCRYPTION_KEYS")  # INTERNAL_TOKEN is gone
 
 
 def test_plan_env_never_overwrites_generated_keys(d):
     current = {"JWT_SIGNING_KEY": "old", "WEB_ORIGIN": "https://a.pages.dev", "GROQ_API_KEY": "g"}
     plan = d.plan_env(current, {"WEB_ORIGIN": "https://b.pages.dev", "GROQ_API_KEY": "g"},
-                      {"JWT_SIGNING_KEY": "new", "INTERNAL_TOKEN": "fresh"})  # fmt: skip
-    assert plan.set == {"WEB_ORIGIN": "https://b.pages.dev", "INTERNAL_TOKEN": "fresh"}
+                      {"JWT_SIGNING_KEY": "new", "TOKEN_ENCRYPTION_KEYS": "fresh"})  # fmt: skip
+    assert plan.set == {"WEB_ORIGIN": "https://b.pages.dev", "TOKEN_ENCRYPTION_KEYS": "fresh"}
     assert plan.kept == ["JWT_SIGNING_KEY"]
 
 
-# --- render-up against a fake Render API ----------------------------------------------------
+def test_production_url_is_the_stable_alias(d):
+    aliases = ["riskpredict-api-git-main-me.vercel.app", "riskpredict-api.vercel.app", "riskpredict-api-me.vercel.app"]
+    assert d.production_url("riskpredict-api", aliases) == "https://riskpredict-api.vercel.app"
+    taken = ["riskpredict-api-xyz-me.vercel.app", "riskpredict-api-three.vercel.app"]
+    assert d.production_url("riskpredict-api", taken) == "https://riskpredict-api-three.vercel.app"
+    with pytest.raises(d.DeployError):
+        d.production_url("riskpredict-api", [])
 
 
-class FakeRender:
+# --- a fake Vercel ------------------------------------------------------------------------
+
+
+class FakeVercel:
+    """Just the REST endpoints deploy.py uses, plus `vercel deploy --prod` (run_cli)."""
+
     def __init__(self):
-        self.services: dict[str, dict] = {}
-        self.env: dict[str, dict[str, str]] = {}
+        self.projects: dict[str, dict] = {}
+        self.env: dict[str, dict[str, dict]] = {}  # project id → key → row
         self.calls: list[tuple[str, str]] = []
-        self.deploys = 0
+        self.deploys: list[dict] = []
+        self.patches: list[dict] = []
 
     def call(self, method, path, body=None, *, ok404=False, tries=5):
-        self.calls.append((method, path.split("?")[0]))
         p = path.split("?")[0]
-        if p == "/owners":
-            return 200, [{"owner": {"id": "tea-1", "name": "me"}, "cursor": "c"}]
-        if p == "/services" and method == "GET":
-            return 200, [{"service": s, "cursor": "c"} for s in self.services.values()]
-        if p == "/services" and method == "POST":
-            sid = f"srv-{len(self.services) + 1}"
-            details = dict(body["serviceDetails"], url=f"https://riskpredict-api-x{len(self.services)}.onrender.com")
-            self.services[sid] = {"id": sid, "name": body["name"], "serviceDetails": details}
-            self.env[sid] = {e["key"]: e["value"] for e in body["envVars"]}
-            self.create_body = body
-            return 201, {"service": self.services[sid], "deployId": "dep-auto"}
-        m = re.fullmatch(r"/services/(srv-\d+)(/.*)?", p)
-        sid, rest = m.group(1), m.group(2) or ""
-        if rest == "/env-vars":
-            return 200, [{"envVar": {"key": k, "value": v}, "cursor": k} for k, v in self.env[sid].items()]
-        if rest.startswith("/env-vars/") and method == "PUT":
-            self.env[sid][rest.split("/")[-1]] = body["value"]
-            return 200, {"key": rest.split("/")[-1], "value": body["value"]}
-        if rest == "/deploys" and method == "POST":
-            self.deploys += 1
-            self.last_commit = body.get("commitId")
-            return 201, {"id": f"dep-{self.deploys}", "status": "created"}
-        if rest.startswith("/deploys/") and rest.endswith("/cancel"):
-            return 200, {"id": "dep-auto", "status": "canceled"}
-        if rest.startswith("/deploys/"):
-            return 200, {"id": rest.split("/")[2], "status": "live"}
-        if method == "PATCH" and rest == "":
-            return 200, self.services[sid]
+        self.calls.append((method, p))
+        by_name = {v["name"]: v for v in self.projects.values()}
+        if method == "GET" and (m := re.fullmatch(r"/v9/projects/([\w-]+)", p)):
+            proj = self.projects.get(m.group(1)) or by_name.get(m.group(1))
+            return (200, proj) if proj else (404, None)
+        if method == "POST" and p == "/v11/projects":
+            pid = f"prj_{len(self.projects) + 1}"
+            self.projects[pid] = {"id": pid, "name": body["name"], "accountId": "team_me", **body}
+            self.env[pid] = {}
+            return 200, self.projects[pid]
+        if method == "PATCH" and (m := re.fullmatch(r"/v9/projects/(prj_\d+)", p)):
+            self.patches.append(body)
+            self.projects[m.group(1)].update(body)
+            return 200, self.projects[m.group(1)]
+        if method == "DELETE" and (m := re.fullmatch(r"/v9/projects/(prj_\d+)", p)):
+            del self.projects[m.group(1)]
+            return 204, None
+        if (m := re.fullmatch(r"/v10/projects/(prj_\d+)/env", p)):
+            rows = self.env[m.group(1)]
+            if method == "GET":
+                assert "decrypt=true" in path
+                return 200, {"envs": [dict(r, decrypted=r["key"] != "UNDECRYPTED") for r in rows.values()]}
+            assert "upsert=true" in path and body["type"] == "encrypted" and body["target"] == ["production"]
+            rows[body["key"]] = {"id": f"env_{body['key']}", "key": body["key"], "value": body["value"],
+                                 "type": "encrypted", "target": ["production"]}  # fmt: skip
+            return 201, {"created": {"key": body["key"]}, "failed": []}
+        if method == "GET" and (m := re.fullmatch(r"/v1/projects/(prj_\d+)/env/env_(\w+)", p)):
+            return 200, self.env[m.group(1)][m.group(2)]
+        if method == "GET" and (m := re.fullmatch(r"/v13/deployments/([\w.-]+)", p)):
+            dep = next(x for x in self.deploys if x["url"] == m.group(1))
+            return 200, {"id": dep["id"], "readyState": "READY", "aliasAssigned": True,
+                         "alias": ["riskpredict-api-git-main-me.vercel.app", "riskpredict-api.vercel.app"]}  # fmt: skip
         raise AssertionError(f"unexpected {method} {path}")
+
+    def cli(self, directory: Path, proj: dict) -> str:
+        files = {str(f.relative_to(directory)) for f in directory.rglob("*") if f.is_file()}
+        n = len(self.deploys) + 1
+        self.deploys.append({"id": f"dpl_{n}", "url": f"riskpredict-api-{n}abc-me.vercel.app", "project": proj["id"],
+                             "files": files, "vercel_json": json.loads((directory / "vercel.json").read_text()),
+                             "env": dict(self.env[proj["id"]])})  # fmt: skip
+        return f"https://riskpredict-api-{n}abc-me.vercel.app"
 
 
 @pytest.fixture
-def fake(d, monkeypatch, capsys):
-    fr = FakeRender()
-    state = {"role": False, "script": []}
-    monkeypatch.setattr(d.Api, "call", lambda self, *a, **k: fr.call(*a, **k))
+def fake(d, monkeypatch):
+    fv = FakeVercel()
+    state = {"role": False, "script": [], "health": []}
+    monkeypatch.setattr(d.Api, "call", lambda self, *a, **k: fv.call(*a, **k))
+    monkeypatch.setattr(d, "run_cli", fv.cli)
     monkeypatch.setattr(d, "app_role_exists", lambda: state["role"])
 
     def roles(*extra, password=None):
@@ -149,90 +171,164 @@ def fake(d, monkeypatch, capsys):
         state["role"] = True
 
     monkeypatch.setattr(d, "run_roles_script", roles)
-    monkeypatch.setattr(d, "wait_healthy", lambda url: {"status": "ok", "schema_version": "041_x", "version": "1"})
-    monkeypatch.setattr(d, "cloudflare_ranges", lambda: d.CLOUDFLARE_FALLBACK)
+    monkeypatch.setattr(d, "wait_healthy", lambda url: state["health"].append(url) or {"status": "ok", "version": "1"})
+    real = d._bundle_module()
+    report = {"total_mb": 271.8, "limit_mb": 500, "largest": ["scipy 80 MB"]}
+    monkeypatch.setattr(real, "check", lambda out, guard: report)  # sizes: tested in tests/test_vercel_bundle.py
+    monkeypatch.setattr(d, "_bundle_module", lambda: real)
     monkeypatch.setattr(d.time, "sleep", lambda s: None)
-    for k, v in {"RENDER_API_KEY": "rk", "DATABASE_URL_OWNER": OWNER, "GROQ_API_KEY": "gk",
-                 "GITHUB_REPOSITORY": "o/r", "GITHUB_SHA": "abc123", "GOOGLE_OAUTH_CLIENT_ID": "",
-                 "RENDER_OWNER_ID": "", "COMPOSIO_API_KEY": ""}.items():  # fmt: skip
+    for k, v in {"VERCEL_TOKEN": "vtok-test-value", "DATABASE_URL_OWNER": OWNER, "GROQ_API_KEY": "gk-test-value",
+                 "GOOGLE_OAUTH_CLIENT_ID": "", "COMPOSIO_API_KEY": "", "VERCEL_TEAM_ID": ""}.items():  # fmt: skip
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
-    return fr, state
+    return fv, state
 
 
 def up(d, *extra):
-    assert d.main(["render-up", "--web-origin", "https://riskpredict.pages.dev", *extra]) == 0
+    assert d.main(["vercel-up", "--web-origin", "https://riskpredict.pages.dev", *extra]) == 0
 
 
-def test_first_run_creates_everything_once(d, fake, capsys):
-    fr, state = fake
+def env_of(fv) -> dict[str, str]:
+    [pid] = fv.env
+    return {k: r["value"] for k, r in fv.env[pid].items()}
+
+
+def test_first_run_creates_everything_and_prints_no_secret(d, fake, capsys):
+    fv, state = fake
     up(d)
     out = capsys.readouterr().out
-    body = fr.create_body
-    assert body["serviceDetails"]["plan"] == "free" and body["serviceDetails"]["runtime"] == "docker"
-    assert body["serviceDetails"]["region"] == "ohio" and body["autoDeployTrigger"] == "off"
-    assert body["serviceDetails"]["envSpecificDetails"]["dockerfilePath"] == "./infra/render/Dockerfile"
-    assert body["repo"] == "https://github.com/o/r" and body["branch"] == "main"
-    env = fr.env["srv-1"]
-    assert env["PUBLIC_API_URL"] == "https://riskpredict-api-x0.onrender.com"
-    assert env["WEB_ORIGIN"] == "https://riskpredict.pages.dev"
-    assert env["API_INTERNAL_URL"] == "http://127.0.0.1:10000" and env["PORT"] == "10000"
+    [proj] = fv.projects.values()
+    assert proj["name"] == "riskpredict-api" and proj["framework"] == "fastapi"
+    assert proj["ssoProtection"] is None and proj["passwordProtection"] is None  # public: no Deployment Protection
+    env = env_of(fv)
+    assert env["WEB_ORIGIN"] == "https://riskpredict.pages.dev" and env["CLIENT_IP_HEADER"] == "x-real-ip"
+    assert env["PUBLIC_API_URL"] == "https://riskpredict-api.vercel.app"
     assert "-pooler." in env["DATABASE_URL_APP"] and "GOOGLE_OAUTH_CLIENT_ID" not in env
-    for k in ("JWT_SIGNING_KEY", "TOKEN_ENCRYPTION_KEYS", "INTERNAL_TOKEN", "DATABASE_URL_APP"):
+    assert "INTERNAL_TOKEN" not in env and "API_INTERNAL_URL" not in env
+    for k in ("JWT_SIGNING_KEY", "TOKEN_ENCRYPTION_KEYS", "DATABASE_URL_APP"):
         assert f"::add-mask::{env[k]}" in out  # masked ...
         assert out.count(env[k]) == 1  # ... and never printed anywhere else
-    assert ("POST", "/services/srv-1/deploys/dep-auto/cancel") in fr.calls
-    assert fr.deploys == 1 and fr.last_commit == "abc123"
+    assert "gk-test-value" not in out and "vtok-test-value" not in out and "ownerpw" not in out
+    # Two deploys on the first run: PUBLIC_API_URL is only known once the project has its address.
+    assert len(fv.deploys) == 2
+    assert "PUBLIC_API_URL" not in fv.deploys[0]["env"] and "PUBLIC_API_URL" in fv.deploys[1]["env"]
+    files = fv.deploys[0]["files"]
+    assert {"app.py", "pyproject.toml", "vercel.json", "pkg/api/main.py", "pkg/engine/__init__.py",
+            "pkg/worker/passes.py", "pkg/jobs/codes.py"} <= files  # fmt: skip
+    assert not [f for f in files if f.startswith(("web/", "design/", "tests/", "api/", "pkg/jobs/connectors"))]
+    assert "pkg/worker/main.py" not in files and "pkg/jobs/analyse/tagging.py" not in files
+    assert fv.deploys[0]["vercel_json"]["regions"] == ["cle1"]  # next to us-east-2
+    assert fv.deploys[0]["vercel_json"]["functions"]["app.py"]["maxDuration"] <= 300
     assert state["script"] == [((), True)]  # created with --password-stdin
+    assert state["health"] == ["https://riskpredict-api.vercel.app"]
+    assert "bundle size: 271.8 MB of Vercel's 500 MB" in out
 
 
 def test_rerun_keeps_secrets_and_role_and_adds_optional_ones(d, fake, monkeypatch, capsys):
-    fr, state = fake
+    fv, state = fake
     up(d)
-    before = dict(fr.env["srv-1"])
+    before = env_of(fv)
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "cid.apps.googleusercontent.com")
     monkeypatch.setenv("GROQ_API_KEY", "gk2")
+    capsys.readouterr()
     up(d)
-    after = fr.env["srv-1"]
-    for k in ("JWT_SIGNING_KEY", "TOKEN_ENCRYPTION_KEYS", "INTERNAL_TOKEN", "DATABASE_URL_APP"):
+    out = capsys.readouterr().out
+    after = env_of(fv)
+    for k in ("JWT_SIGNING_KEY", "TOKEN_ENCRYPTION_KEYS", "DATABASE_URL_APP", "PUBLIC_API_URL"):
         assert after[k] == before[k], k
     assert after["GOOGLE_OAUTH_CLIENT_ID"] == "cid.apps.googleusercontent.com" and after["GROQ_API_KEY"] == "gk2"
     assert state["script"][-1] == (("--check",), False)
-    assert len(fr.services) == 1 and fr.deploys == 2
+    assert len(fv.projects) == 1 and len(fv.deploys) == 3  # one deploy: the address is known now
+    for k in ("JWT_SIGNING_KEY", "TOKEN_ENCRYPTION_KEYS", "DATABASE_URL_APP"):  # read back: masked first
+        assert out.count(before[k]) == 1 and f"::add-mask::{before[k]}" in out
 
 
 def test_rotate_changes_only_the_app_password(d, fake):
-    fr, state = fake
+    fv, state = fake
     up(d)
-    before = dict(fr.env["srv-1"])
+    before = env_of(fv)
     up(d, "--rotate-app-password")
-    after = fr.env["srv-1"]
+    after = env_of(fv)
     assert after["DATABASE_URL_APP"] != before["DATABASE_URL_APP"]
     assert after["TOKEN_ENCRYPTION_KEYS"] == before["TOKEN_ENCRYPTION_KEYS"]
     assert state["script"][-1] == (("--rotate",), True)
 
 
-def test_existing_role_without_render_value_is_rotated(d, fake):
-    fr, state = fake
-    state["role"] = True  # e.g. after Destroy without drop_app_role
+def test_a_role_left_by_render_is_rotated_on_the_first_vercel_deploy(d, fake):
+    fv, state = fake
+    state["role"] = True  # the failed Render run created it; nobody knows its password
     up(d)
     assert state["script"] == [(("--rotate",), True)]
-    assert "DATABASE_URL_APP" in fr.env["srv-1"]
+    assert "DATABASE_URL_APP" in env_of(fv)
 
 
-def test_refuses_a_paid_service(d, fake, capsys):
-    fr, _ = fake
+def test_protection_that_stays_on_is_an_error(d, fake, monkeypatch, capsys):
+    fv, _ = fake
+    orig = fv.call
+
+    def sticky(method, path, body=None, **k):
+        status, res = orig(method, path, body, **k)
+        if method == "PATCH":
+            res = dict(res, ssoProtection={"deploymentType": "all_except_custom_domains"})
+        return status, res
+
+    monkeypatch.setattr(d.Api, "call", lambda self, *a, **k: sticky(*a, **k))
+    assert d.main(["vercel-up", "--web-origin", "https://x.pages.dev"]) == 1
+    assert "Deployment Protection" in capsys.readouterr().out
+
+
+def test_vercel_origin_redeploys_only_on_change(d, fake):
+    fv, _ = fake
     up(d)
-    fr.services["srv-1"]["serviceDetails"]["plan"] = "starter"
-    assert d.main(["render-up", "--web-origin", "https://x.pages.dev"]) == 1
-    assert "not free" in capsys.readouterr().out
+    n = len(fv.deploys)
+    assert d.main(["vercel-origin", "--web-origin", "https://riskpredict.pages.dev", "--region", "cle1"]) == 0
+    assert len(fv.deploys) == n
+    assert d.main(["vercel-origin", "--web-origin", "https://riskpredict-9z.pages.dev", "--region", "cle1"]) == 0
+    assert len(fv.deploys) == n + 1 and env_of(fv)["WEB_ORIGIN"] == "https://riskpredict-9z.pages.dev"
+    assert fv.deploys[-1]["vercel_json"]["regions"] == ["cle1"]
 
 
-def test_render_origin_redeploys_only_on_change(d, fake):
-    fr, _ = fake
+def test_vercel_destroy_deletes_the_project_once(d, fake, capsys):
+    fv, _ = fake
     up(d)
-    n = fr.deploys
-    assert d.main(["render-origin", "--web-origin", "https://riskpredict.pages.dev"]) == 0
-    assert fr.deploys == n
-    assert d.main(["render-origin", "--web-origin", "https://riskpredict-9z.pages.dev"]) == 0
-    assert fr.deploys == n + 1 and fr.env["srv-1"]["WEB_ORIGIN"] == "https://riskpredict-9z.pages.dev"
+    assert d.main(["vercel-destroy"]) == 0
+    assert fv.projects == {}
+    assert d.main(["vercel-destroy"]) == 0
+    assert "already gone" in capsys.readouterr().out
+    assert not [c for c in fv.calls if "env" in c[1] and c[0] != "GET" and c[0] != "POST"]  # no env edits
+
+
+def test_worker_run_passes_only_the_worker_keys_masked(d, fake, monkeypatch, capsys):
+    fv, _ = fake
+    up(d)
+    pid = next(iter(fv.env))
+    fv.env[pid]["COMPOSIO_API_KEY"] = {"id": "env_COMPOSIO_API_KEY", "key": "COMPOSIO_API_KEY", "value": "cmp-secret",
+                                       "type": "encrypted", "target": ["production"]}  # fmt: skip
+    fv.env[pid]["UNDECRYPTED"] = {"id": "env_UNDECRYPTED", "key": "UNDECRYPTED", "value": "", "type": "encrypted",
+                                  "target": ["production"]}  # fmt: skip
+    seen = {}
+
+    def run(cmd, cwd=None, env=None, **k):
+        seen["cmd"], seen["env"] = cmd, env
+        return type("P", (), {"returncode": 0})()
+
+    monkeypatch.setattr(d.subprocess, "run", run)
+    monkeypatch.setenv("DATABASE_URL_FEEDS", "postgresql://not-for-the-worker")
+    capsys.readouterr()
+    assert d.main(["worker-run"]) == 0
+    out = capsys.readouterr().out
+    stored = env_of(fv)
+    assert seen["cmd"][1:] == ["-m", "worker", "--once"]
+    child = seen["env"]
+    assert child["DATABASE_URL_APP"] == stored["DATABASE_URL_APP"]
+    assert child["TOKEN_ENCRYPTION_KEYS"] == stored["TOKEN_ENCRYPTION_KEYS"] and child["COMPOSIO_API_KEY"] == "cmp-secret"
+    assert "JWT_SIGNING_KEY" not in child and "VERCEL_TOKEN" not in child and "WEB_ORIGIN" not in child
+    for v in (stored["DATABASE_URL_APP"], stored["TOKEN_ENCRYPTION_KEYS"], "cmp-secret", stored["GROQ_API_KEY"]):
+        assert f"::add-mask::{v}" in out and out.count(v) == 1
+
+
+def test_worker_run_skips_cleanly_before_the_first_deploy(d, fake, monkeypatch, capsys):
+    assert d.main(["worker-run"]) == 0
+    assert "Worker skipped" in capsys.readouterr().out
+    monkeypatch.setenv("VERCEL_TOKEN", "")
+    assert d.main(["worker-run"]) == 0

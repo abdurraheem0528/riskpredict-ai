@@ -1,94 +1,67 @@
-"""The worker loop: one process, no Redis, no long-lived database connection.
+"""The worker: one database pass over every workspace, then the content-hash re-read.
 
-    python -m worker
+    python -m worker --once   # GitHub Actions (.github/workflows/worker.yml), after each feeds run
+    python -m worker          # docker compose: the same work in a loop
 
-What wakes it:
+No web server, no Redis, no long-lived database connection. With ``--once`` it
+runs right after ``feeds.yml`` finishes, while Neon is still awake from the
+feed jobs, so it adds no wake-up of its own (contracts decision 10).
 
-* **Hints from the API** (long poll on ``GET /internal/work``, no database):
-  a webhook arrived, a mapping was confirmed, a sync or a re-score was asked for.
-  The worker then does one pass for that workspace.
-* **A database pass** every ``WORKER_DB_INTERVAL_SECONDS`` (default 30 min): for
-  every workspace (``biz.worker_workspace_ids()``) it processes queued webhooks,
-  renews Drive channels whose ``watch_renew_after`` passed, checks pending
-  Composio accounts, syncs changed sources, and re-scores when the feeds moved
-  on (``max(feeds.source_health.last_run_at)`` advanced). Hints are only an
-  optimisation; this pass recovers anything a lost hint missed.
-* **The re-read fallback** every ``SOURCE_RECHECK_SECONDS`` (default 15 min):
-  each active source is re-read from its tool *without* touching the database;
-  only when its content hash changed does a sync (and a re-score) follow.
+**The database pass**, for every workspace (``biz.worker_workspace_ids()``):
+queued webhooks, pending Composio accounts, Drive watch renewal, due syncs,
+housekeeping (including the 24 h retention of ``biz.events``), and a re-score
+when the feeds moved on since the workspace was last scored
+(``biz.worker_state.feeds_seen_at`` against ``max(feeds.source_health.last_run_at)``)
+or a request left ``score_pending``. A ``feeds.updated`` event follows.
 
-Between those the pool is empty, so Neon can scale to zero.
+**The re-read**: every active source is read again from its tool *without*
+touching the database; only a changed content hash leads to a sync and a
+re-score (the fallback for missed Drive / Composio notifications).
+
+The API does the urgent part itself, in the request (``api/work.py``); this
+pass picks up whatever a request left for later.
 """
 
 from __future__ import annotations
 
+import argparse
 import logging
 import signal
 import threading
 import time
-from datetime import datetime
 from uuid import UUID
 
 from api.core.config import Settings
 from api.core.db import Database
 from api.core.providers import CONNECTION_COLUMNS
-from worker import scoring, sync
-from worker.api_client import ApiClient
+from worker import passes, scoring, sync
 
 log = logging.getLogger("riskpredict.worker")
-LONG_POLL = 25.0
 
 
 class Worker:
-    def __init__(self, settings: Settings, db: Database | None = None, api: ApiClient | None = None):
+    def __init__(self, settings: Settings, db: Database | None = None):
         self.settings = settings
         self.db = db or Database(settings.database_url, max_size=2, max_idle=settings.db_max_idle_seconds,
                                  application_name="riskpredict-worker")  # fmt: skip
-        self.api = api or ApiClient(settings)
-        self.ctx = sync.Ctx(settings, self.db, self.api)
+        self.ctx = sync.Ctx(settings, self.db)
         self.stop = threading.Event()
-        self.feeds_seen: datetime | None = None
-        # source id → (workspace id, source row, connection row): for the re-read fallback
+        # source id → (workspace id, source row, connection row): for the re-read
         self.cache: dict[UUID, tuple[UUID, dict, dict]] = {}
 
     # --- units of work -------------------------------------------------------------
 
-    def workspace_pass(self, ws: UUID, reasons: set[str] | frozenset[str] = frozenset(), *, score: bool = False) -> None:
-        ctx = self.ctx
-        if "deleted" in reasons:
-            self._forget(ws)
-            return
+    def workspace_pass(self, ws: UUID, *, score: bool = False, budget: passes.Budget | None = None) -> passes.PassResult:
         try:
-            with self.db.workspace_tx(ws) as conn:
-                if conn.execute("SELECT 1 FROM biz.workspaces WHERE id = %s", (ws,)).fetchone() is None:
-                    self._forget(ws)
-                    return
-            # Each step is isolated: a Drive or Composio problem must not stop the syncs.
-            self._step("webhooks", sync.process_webhooks, ctx, ws)
-            conns = sync._connections(ctx, ws)
-            self._step("composio status", sync.check_pending_composio, ctx, ws, conns)
-            self._step("drive watch", sync.ensure_watches, ctx, ws, conns)
-            self._step("housekeeping", sync.housekeeping, ctx, ws)
-            changed = False
-            for src in sync.due_sources(ctx, ws):
-                result = self._step("source sync", sync.sync_source, ctx, ws, src["id"])
-                changed |= bool(result and result.changed)
-                ctx.flush()
-            if changed or score or "engine" in reasons:
-                self._step("engine run", scoring.run_workspace, ctx, ws)
-            self._refresh_cache(ws)
+            result = passes.workspace_pass(self.ctx, ws, housekeeping=True, score=score, budget=budget)
+            if not result.exists:
+                self._forget(ws)
+            else:
+                self._refresh_cache(ws)
+            return result
         except Exception as exc:  # one workspace must not stop the others
             log.warning("workspace pass failed (%s)", type(exc).__name__)
-        finally:
-            ctx.flush()
-
-    @staticmethod
-    def _step(name: str, fn, *args):
-        try:
-            return fn(*args)
-        except Exception as exc:  # logged by type only: messages can carry row values
-            log.warning("%s failed (%s)", name, type(exc).__name__)
-            return None
+            return passes.PassResult(incomplete=True)
 
     def _forget(self, ws: UUID) -> None:
         for sid in [k for k, v in self.cache.items() if v[0] == ws]:
@@ -103,32 +76,45 @@ class Worker:
             if (c := conns.get(s["connection_id"])) is not None and c["status"] == "active":
                 self.cache[s["id"]] = (ws, s, c)
 
-    def db_pass(self) -> None:
+    def db_pass(self, budget: passes.Budget | None = None) -> dict:
+        budget = budget or passes.Budget(None)
         with self.db.tx() as conn:
-            latest = conn.execute("SELECT max(last_run_at) AS t FROM feeds.source_health").fetchone()["t"]
-            advanced = [r["source"] for r in conn.execute(
-                "SELECT source FROM feeds.source_health WHERE %s::timestamptz IS NULL OR last_run_at > %s",
-                (self.feeds_seen, self.feeds_seen)).fetchall()]  # fmt: skip
+            health = {r["source"]: r["last_run_at"] for r in conn.execute(
+                "SELECT source, last_run_at FROM feeds.source_health WHERE last_run_at IS NOT NULL").fetchall()}  # fmt: skip
             workspaces = [r["workspace_id"] for r in conn.execute("SELECT workspace_id FROM biz.worker_workspace_ids()").fetchall()]
-        feeds_moved = latest is not None and (self.feeds_seen is None or latest > self.feeds_seen)
+        latest = max(health.values(), default=None)
+        stats = {"workspaces": len(workspaces), "done": 0, "scored": 0, "skipped": 0}
         for ws in workspaces:
-            if self.stop.is_set():
-                return
-            self.workspace_pass(ws, score=feeds_moved)
-            if feeds_moved and self.feeds_seen is not None:
-                self.ctx.outbox.add(ws, "feeds.updated", {"as_of": latest.isoformat().replace("+00:00", "Z"),
-                                                          "sources": sorted(advanced)})  # fmt: skip
-        self.ctx.flush()
-        if latest is not None:
-            self.feeds_seen = latest
-        log.info("database pass: %d workspaces, feeds %s", len(workspaces), "moved" if feeds_moved else "unchanged")
+            if self.stop.is_set() or budget.spent:
+                stats["skipped"] = len(workspaces) - stats["done"]
+                break
+            with self.db.workspace_tx(ws) as conn:
+                state = conn.execute("SELECT feeds_seen_at FROM biz.worker_state").fetchone()
+            seen = state["feeds_seen_at"] if state else None
+            moved = latest is not None and (seen is None or latest > seen)
+            result = self.workspace_pass(ws, score=moved, budget=budget)
+            stats["done"] += 1
+            if not result.exists:
+                continue
+            stats["scored"] += int(result.scored)
+            if moved and result.scored:
+                if seen is not None:
+                    advanced = sorted(s for s, t in health.items() if t > seen)
+                    self.ctx.outbox.add(ws, "feeds.updated", {"as_of": latest.isoformat().replace("+00:00", "Z"),
+                                                              "sources": advanced})  # fmt: skip
+                    self.ctx.flush()
+                passes.set_feeds_seen(self.ctx, ws, latest)
+        log.info("database pass: %(workspaces)d workspaces, %(done)d done, %(scored)d scored, %(skipped)d left for the next run",
+                 stats)  # fmt: skip
+        return stats
 
-    def recheck(self) -> None:
+    def recheck(self, budget: passes.Budget | None = None) -> int:
         """Re-read every cached source from its tool; sync only those that changed."""
+        budget = budget or passes.Budget(None)
         by_ws: dict[UUID, bool] = {}
         for sid, (ws, src, crow) in list(self.cache.items()):
-            if self.stop.is_set():
-                return
+            if self.stop.is_set() or budget.spent:
+                break
             table = sync.read_for_recheck(self.ctx, ws, src, crow)
             if table is None or table.content_hash() == src.get("content_hash"):
                 continue
@@ -144,12 +130,28 @@ class Worker:
                     scoring.run_workspace(self.ctx, ws)
                 except Exception as exc:
                     log.warning("engine run failed (%s)", type(exc).__name__)
+                    passes.set_score_pending(self.ctx, ws, True)
                 self.ctx.flush()
             self._refresh_cache(ws)
+        log.info("re-read: %d sources, %d changed", len(self.cache), len(by_ws))
+        return len(by_ws)
 
-    # --- the loop -----------------------------------------------------------------------
+    # --- entry points -------------------------------------------------------------------
+
+    def run_once(self) -> int:
+        """One database pass and one re-read, within WORKER_ONCE_BUDGET_SECONDS; then exit."""
+        budget = passes.Budget(self.settings.worker_once_budget_seconds)
+        self.db.open()
+        log.info("worker --once; integrations: %s", self.settings.describe())
+        try:
+            self.db_pass(budget)
+            self.recheck(budget)
+        finally:
+            self.db.close()
+        return 0
 
     def run_forever(self) -> None:
+        """docker compose: the same work on a timer (the API does the urgent part itself)."""
         self.db.open()
         log.info("worker started; integrations: %s", self.settings.describe())
         next_db = 0.0
@@ -165,28 +167,32 @@ class Worker:
             if now >= next_recheck:
                 self.recheck()
                 next_recheck = time.monotonic() + self.settings.source_recheck_seconds
-            wait = max(1.0, min(LONG_POLL, next_db - time.monotonic(), next_recheck - time.monotonic()))
-            hints = self.api.wait_for_work(wait)
-            if hints is None:
-                self.stop.wait(wait)
-                continue
-            for ws, reasons in hints.items():
-                try:
-                    self.workspace_pass(UUID(ws), set(reasons))
-                except ValueError:
-                    continue
+            self.stop.wait(max(1.0, min(next_db, next_recheck) - time.monotonic()))
         self.db.close()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="python -m worker", description="RiskPredict worker")
+    ap.add_argument("--once", action="store_true", help="one database pass and one re-read, then exit")
+    args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # its INFO lines include URLs
-    settings = Settings.from_env()
+    try:
+        settings = Settings.from_env()
+    except Exception as exc:  # ConfigError names the variable, never the value
+        log.error("configuration: %s", exc)
+        return 2
     if not settings.database_url:
         log.error("DATABASE_URL_APP is not set")
         return 2
     worker = Worker(settings)
     signal.signal(signal.SIGTERM, lambda *_: worker.stop.set())
     signal.signal(signal.SIGINT, lambda *_: worker.stop.set())
+    if args.once:
+        try:
+            return worker.run_once()
+        except Exception as exc:  # public repository: the type only
+            log.error("worker --once failed (%s)", type(exc).__name__)
+            return 1
     worker.run_forever()
     return 0

@@ -39,9 +39,10 @@ _spec.loader.exec_module(roles_script)
 APP_LOGIN, FEEDS_LOGIN = "test_rp_app_login", "test_rp_feeds_login"
 WORKSPACE_TABLES = [
     "workspaces", "memberships", "connections", "sources", "column_mappings", "entities", "risks",
-    "risk_evidence", "risk_history", "scenarios", "alerts", "audit_log", "webhook_events",
+    "risk_evidence", "risk_history", "scenarios", "alerts", "audit_log", "webhook_events", "events", "worker_state",
 ]  # fmt: skip
-ALL_TABLES = sorted([*WORKSPACE_TABLES, "users", "sessions"])
+ALL_TABLES = sorted([*WORKSPACE_TABLES, "users", "sessions"])  # what rp_app can reach (under RLS)
+DEFINER_ONLY = ["rate_limits"]  # rp_app has no privilege at all; only biz.rate_hit() touches it
 
 
 # --- connections ------------------------------------------------------------------
@@ -174,6 +175,8 @@ def make_workspace(app_dsn: str, label: str) -> dict:
             " VALUES (%s, %s, 'google_drive', %s, 'change')",
             (ws, ids["conn"], f"chan-{label}:1"),
         )
+        c.execute("INSERT INTO biz.events (workspace_id, event, data) VALUES (%s, 'source.synced', '{}')", (ws,))
+        c.execute("INSERT INTO biz.worker_state (workspace_id, score_pending) VALUES (%s, true)", (ws,))
     return ids
 
 
@@ -190,9 +193,9 @@ def test_migrations_apply_from_empty_and_rerun_is_a_noop(fresh):
     assert migrate.apply(DSN, status_only=True) == []
     with psycopg.connect(DSN) as conn:
         tables = {r[0] for r in conn.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'biz'")}
-        assert tables == set(ALL_TABLES)
+        assert tables == set(ALL_TABLES + DEFINER_ONLY)
         # Ships empty: no seed or demo rows anywhere in biz.
-        assert {t: count(conn, t) for t in ALL_TABLES} == {t: 0 for t in ALL_TABLES}
+        assert {t: count(conn, t) for t in ALL_TABLES + DEFINER_ONLY} == {t: 0 for t in ALL_TABLES + DEFINER_ONLY}
         # 005 creates cluster-wide roles, so its SQL must survive running again as is.
         conn.execute((migrate.MIGRATIONS_DIR / "005_roles.sql").read_text())
 
@@ -227,7 +230,7 @@ def test_every_biz_table_has_forced_rls_and_rp_app_owns_nothing(fresh):
             " (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid)"
             " FROM pg_class c WHERE c.relnamespace = 'biz'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm')"
         ).fetchall()
-        assert sorted(r[0] for r in rows) == ALL_TABLES
+        assert sorted(r[0] for r in rows) == sorted(ALL_TABLES + DEFINER_ONLY)
         for name, rls, force, owner, policies in rows:
             assert rls and force and policies >= 1, name
             assert not owner.startswith("rp_"), name
@@ -331,7 +334,7 @@ def test_settings_do_not_leak_between_transactions(two):
 
 def test_rp_feeds_cannot_touch_biz(two):
     logins, a, _ = two
-    for t in ALL_TABLES:
+    for t in ALL_TABLES + DEFINER_ONLY:
         with pytest.raises(errors.InsufficientPrivilege):
             with tx(logins["feeds"], workspace=a["ws"]) as c:
                 c.execute(sql.SQL("SELECT 1 FROM biz.{} LIMIT 1").format(sql.Identifier(t)))
@@ -367,6 +370,10 @@ def test_rp_app_cannot_bypass_rls(two):
         "INSERT INTO feeds.events (source, raw_id, type) VALUES ('x', '1', 't')",
         "UPDATE feeds.watch_terms SET enabled = false",
         "DELETE FROM feeds.watch_terms",
+        "SELECT count(*) FROM biz.rate_limits",
+        "DELETE FROM biz.rate_limits",
+        "UPDATE biz.events SET data = '{}'",
+        "DELETE FROM biz.worker_state",
     ]
     for stmt in attempts:
         with pytest.raises((errors.InsufficientPrivilege, errors.ProgrammingError)) as exc:
@@ -428,6 +435,51 @@ def test_definer_lookups_return_only_what_they_name(two):
         assert c.execute("SELECT * FROM biz.route_composio_account('missing')").fetchall() == []
         assert {r[0] for r in c.execute("SELECT workspace_id FROM biz.worker_workspace_ids()")} == {a["ws"], b["ws"]}
         assert c.execute("SELECT * FROM biz.auth_session_by_refresh_hash(%s)", (b"\0" * 32,)).fetchall() == []
+    with psycopg.connect(DSN) as conn:  # exactly six SECURITY DEFINER functions, all owned by rp_definer
+        rows = conn.execute("SELECT proname, pg_get_userbyid(proowner) FROM pg_proc"
+                            " WHERE pronamespace = 'biz'::regnamespace AND prosecdef ORDER BY 1").fetchall()  # fmt: skip
+        assert rows == [(n, "rp_definer") for n in ("auth_session_by_refresh_hash", "auth_user_by_email", "rate_hit",
+                                                    "route_composio_account", "route_drive_channel", "worker_workspace_ids")]
+
+
+def test_rate_hit_is_the_only_way_to_the_rate_limits(two):
+    logins, a, _ = two
+    key = secrets.token_bytes(32)
+    with tx(logins["app"]) as c:  # no context at all, as before sign-in
+        assert [c.execute("SELECT biz.rate_hit(%s, 2, 60)", (key,)).fetchone()[0] for _ in range(3)][:2] == [0, 0]
+        assert 1 <= c.execute("SELECT biz.rate_hit(%s, 2, 60)", (key,)).fetchone()[0] <= 60
+        assert c.execute("SELECT biz.rate_hit(%s, 2, 60)", (secrets.token_bytes(32),)).fetchone()[0] == 0  # own key
+    for bad in ((b"short", 2, 60), (key, 0, 60), (key, 2, 0), (key, 2, 86401)):
+        with pytest.raises(errors.InvalidParameterValue):
+            with tx(logins["app"]) as c:
+                c.execute("SELECT biz.rate_hit(%s, %s, %s)", bad)
+    with pytest.raises(errors.InsufficientPrivilege):
+        with tx(logins["feeds"]) as c:
+            c.execute("SELECT biz.rate_hit(%s, 2, 60)", (key,))
+    with psycopg.connect(DSN) as conn:  # an expired window starts again at one hit
+        conn.execute("UPDATE biz.rate_limits SET window_start = now() - interval '61 seconds' WHERE key_hash = %s", (key,))
+        conn.commit()
+    with tx(logins["app"]) as c:
+        assert c.execute("SELECT biz.rate_hit(%s, 2, 60)", (key,)).fetchone()[0] == 0
+    with pytest.raises(errors.InsufficientPrivilege):  # the counters themselves stay out of rp_app's reach
+        with tx(logins["app"]) as c:
+            c.execute("SELECT hits FROM biz.rate_limits")
+    with psycopg.connect(DSN) as conn:
+        assert conn.execute("SELECT hits FROM biz.rate_limits WHERE key_hash = %s", (key,)).fetchone()[0] == 1
+
+
+def test_event_ids_are_visible_only_in_their_workspace(two):
+    logins, a, b = two
+    with tx(logins["app"], workspace=b["ws"]) as c:
+        b_id = c.execute("INSERT INTO biz.events (workspace_id, event) VALUES (%s, 'risk.created') RETURNING id",
+                         (b["ws"],)).fetchone()[0]  # fmt: skip
+    with tx(logins["app"], workspace=a["ws"]) as c:
+        assert c.execute("SELECT count(*) FROM biz.events WHERE id = %s", (b_id,)).fetchone()[0] == 0
+        assert c.execute("DELETE FROM biz.events WHERE id = %s", (b_id,)).rowcount == 0
+        assert c.execute("SELECT last_value FROM biz.events_id_seq").fetchone()[0] >= b_id  # only the counter
+    with pytest.raises(errors.CheckViolation):  # only the documented names; resync is never stored
+        with tx(logins["app"], workspace=a["ws"]) as c:
+            c.execute("INSERT INTO biz.events (workspace_id, event) VALUES (%s, 'resync')", (a["ws"],))
 
 
 # --- behaviour the contracts rely on ----------------------------------------------------

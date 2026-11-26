@@ -4,6 +4,10 @@ Neon free tier (contracts decision 10): the pool starts empty (``min_size=0``)
 and closes connections idle for more than 60 s, so the compute can scale to
 zero. Nothing holds a connection open between requests or ticks.
 
+Serverless (Vercel): startup hooks may not run, so the pool opens itself on
+first use (``open()`` is idempotent), and every connection is checked before it
+is handed out: an instance that was frozen for a while finds its sockets dead.
+
 Row-level security context (decision 3) is always transaction-local:
 ``set_config('app.workspace_id', ..., true)`` inside the transaction, never a
 session-level ``SET`` (which would leak on a pooled connection).
@@ -12,6 +16,7 @@ session-level ``SET`` (which would leak on a pooled connection).
 from __future__ import annotations
 
 import logging
+import threading
 from contextlib import contextmanager
 from typing import Iterator
 from uuid import UUID
@@ -34,6 +39,7 @@ class Database:
             max_idle=max_idle,
             open=False,
             timeout=20,
+            check=ConnectionPool.check_connection,
             kwargs={
                 "autocommit": True,  # each `with conn.transaction()` is a real BEGIN/COMMIT
                 "row_factory": dict_row,
@@ -43,18 +49,35 @@ class Database:
             },
             name=application_name,
         )
+        self._lock = threading.Lock()
+        self._opened = False
+        self._closed = False
+        # Run once, on the first connection handed out (the API's schema check).
+        self.on_first_use = None
 
     def open(self) -> None:
-        self._pool.open(wait=False)
+        with self._lock:
+            if not self._opened and not self._closed:
+                self._pool.open(wait=False)
+                self._opened = True
 
     def close(self) -> None:
-        self._pool.close()
+        with self._lock:
+            self._closed = True
+            if self._opened:
+                self._pool.close()
 
     @contextmanager
     def tx(self) -> Iterator[psycopg.Connection]:
         """One transaction with no session context: only `feeds` and the lookups are visible."""
-        with self._pool.connection() as conn, conn.transaction():
-            yield conn
+        if not self._opened:
+            self.open()
+        with self._pool.connection() as conn:
+            hook = self.on_first_use
+            if hook is not None:
+                hook(conn)  # clears itself once it has succeeded
+            with conn.transaction():
+                yield conn
 
     @contextmanager
     def user_tx(self, user_id: UUID | str) -> Iterator[psycopg.Connection]:

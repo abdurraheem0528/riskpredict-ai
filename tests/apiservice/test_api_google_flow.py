@@ -1,7 +1,8 @@
 """Google Sheets end to end, with Google and Groq replaced by test handlers:
 OAuth (PKCE, drive.file) → encrypted refresh token → Picker token → source →
 Groq mapping suggestion (and the heuristic fallback) → preview → confirm →
-worker sync → Drive watch → change notification → re-sync → engine run."""
+sync and engine run in the request → Drive watch → change notification →
+re-sync in the webhook request → the worker's renewal and re-read."""
 
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ pytest.importorskip("fastapi")  # the repository-wide CI job does not install th
 import engine  # noqa: E402
 import httpx  # noqa: E402
 from apiservice_fixtures import *  # noqa: E402,F401,F403  (fixtures)
-from apiservice_helpers import groq_reply, hdr, sign_up  # noqa: E402
+from apiservice_helpers import event_names, groq_reply, hdr, sign_up  # noqa: E402
 
 from api.core import crypto, google  # noqa: E402
 
@@ -106,23 +107,6 @@ def groq(fake, mapping_status: int = 200, advice: str = "Confirm stock with the 
     fake.on("POST", "api.groq.com/openai/v1/chat/completions", handler)
 
 
-class RecordingApi:
-    enabled = True
-
-    def __init__(self):
-        self.events: list[dict] = []
-
-    def push(self, outbox):
-        self.events += outbox.events
-        outbox.events = []
-
-    def wait_for_work(self, wait):
-        return {}
-
-    def names(self) -> list[str]:
-        return [e["event"] for e in self.events]
-
-
 def connect_google(client, owner_db, me) -> str:
     r = client.post("/v1/connections/google/start", headers=hdr(me), json={"return_path": "/connect"})
     assert r.status_code == 201, r.text
@@ -182,12 +166,13 @@ def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings):
     r = client.post("/v1/sources", headers=hdr(me), json={"connection_id": conn_id, "external_id": SHEET_ID})
     assert r.status_code == 201, r.text
     src = r.json()
-    assert src["name"] == "Suppliers" and src["status"] == "new"
+    # The mapping suggestion ran inside the request (serverless: no background task).
+    assert src["name"] == "Suppliers" and src["status"] == "mapping_suggested"
     assert [c["name"] for c in src["columns"]] == GRID[0]
     assert src["columns"][2]["samples"] == ["Japan", "Narnia", "DE"]
     assert client.post("/v1/sources", headers=hdr(me), json={"connection_id": conn_id, "external_id": SHEET_ID}).status_code == 409
 
-    # The background suggestion ran (Groq); invalid entries were dropped, missing ones filled by heuristics.
+    # The suggestion came from Groq; invalid entries were dropped, missing ones filled by heuristics.
     m = client.get(f"/v1/sources/{src['id']}/mapping", headers=hdr(me)).json()
     assert m["confirmed"] is None and m["suggested"]["model"] == "groq:test-mapping-model"
     fields = {c["column"]: c["field"] for c in m["suggested"]["spec"]["columns"]}
@@ -206,10 +191,7 @@ def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings):
                       json={"entity_kind": None, "columns": [{"column": "Nope", "field": "name"}]})  # fmt: skip
     assert bad.status_code == 422 and {e["field"] for e in bad.json()["errors"]} >= {"/columns/0/column", "/entity_kind"}
     assert owner_db.execute("SELECT count(*) AS n FROM biz.entities").fetchone()["n"] == 0  # nothing written yet
-
-    ok = client.post(f"/v1/sources/{src['id']}/mapping/confirm", headers=hdr(me), json=SPEC)
-    assert ok.status_code == 200 and ok.json()["status"] == "confirmed" and ok.json()["version"] == 2
-    assert client.rp.hints.take() == {ws: ["connection", "sync"]}
+    assert event_names(owner_db, ws) == ["connection.updated", "mapping.suggested"]
 
     # A public feed event in Japan (test fixture) for the real engine to match by country: L = s 1.0
     # × r 1.0 × c 0.6 (supplier country match) = 0.6; I = 0.9 (natural_hazard) × 0.5 (default
@@ -217,17 +199,21 @@ def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings):
     owner_db.execute("INSERT INTO feeds.events (source, raw_id, type, title, countries, severity) VALUES"
                      " ('usgs', 'us1', 'hazard.earthquake', 'M6.1 near Osaka', '{JPN}', 1.0)")  # fmt: skip
     assert client.patch(f"/v1/workspaces/{ws}", headers=hdr(me), json={"alert_min_score": 25}).status_code == 200
-    api = RecordingApi()
-    worker = Worker(settings, api=api)
+
+    # Confirming syncs the sheet and runs the engine inside the request, then writes the events.
+    ok = client.post(f"/v1/sources/{src['id']}/mapping/confirm", headers=hdr(me), json=SPEC)
+    assert ok.status_code == 200 and ok.json()["status"] == "confirmed" and ok.json()["version"] == 2
+    worker = Worker(settings)
     worker.db.open()
     try:
-        worker.workspace_pass(UUID(ws), {"sync"})
         ents = client.get("/v1/entities", headers=hdr(me)).json()["items"]
         assert [(e["name"], e["countries"], e["exposure"]["annual_spend"]) for e in ents] == [
             ("Acme KK", ["JPN"], "1250000.00"), ("Beta GmbH", [], "10.00"), ("Gamma", ["DEU"], None)]
         assert ents[0]["lineage"]["row_key"] == "S1" and ents[0]["lineage"]["row_number"] == 2
         assert ents[0]["lineage"]["url"].endswith("#gid=0&range=A2")
-        assert "source.synced" in api.names() and "risk.created" in api.names() and "alert.created" in api.names()
+        names = event_names(owner_db, ws)
+        assert names.index("source.sync_started") < names.index("source.synced") < names.index("risk.created")
+        assert "alert.created" in names
         risks = client.get("/v1/risks", headers=hdr(me)).json()["items"]
         assert len(risks) == 1 and risks[0]["score"] == 27.0 and risks[0]["entity"]["name"] == "Acme KK"
         detail = client.get(f"/v1/risks/{risks[0]['id']}", headers=hdr(me)).json()
@@ -239,19 +225,18 @@ def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings):
         assert alerts["unread_count"] == 1 and alerts["items"][0]["kind"] == "risk_new"
         assert owner_db.execute("SELECT 1 FROM feeds.watch_terms WHERE origin = 'workspace'").fetchone() is None  # opt-in only
 
-        # Drive watch channel was opened for the connection.
+        # The Drive watch channel was opened in the OAuth callback request.
         row = owner_db.execute("SELECT * FROM biz.connections WHERE id = %s", (conn_id,)).fetchone()
         assert row["watch_resource_id"] == "res-9" and row["drive_page_token"] == "p1"
         assert row["watch_renew_after"] < row["watch_expires_at"]
         assert bytes(row["watch_token_hash"]) == crypto.sha256(g.last_watch["token"])
 
-        # Google says the file changed: the webhook queues it, the worker re-reads and removes the deleted row.
+        # Google says the file changed: the webhook request records it, re-reads and removes the deleted row.
         g.grid = GRID[:2] + GRID[4:]
         g.changed_files = [SHEET_ID]
         h = {"X-Goog-Channel-ID": row["watch_channel_id"], "X-Goog-Channel-Token": g.last_watch["token"],
              "X-Goog-Resource-ID": "res-9", "X-Goog-Resource-State": "change", "X-Goog-Message-Number": "2"}  # fmt: skip
         assert client.post("/v1/webhooks/google-drive", headers=h).status_code == 200
-        worker.workspace_pass(UUID(ws), {"webhook"})
         assert [e["name"] for e in client.get("/v1/entities", headers=hdr(me)).json()["items"]] == ["Acme KK", "Gamma"]
         assert owner_db.execute("SELECT status FROM biz.webhook_events").fetchone()["status"] == "processed"
         assert owner_db.execute("SELECT drive_page_token FROM biz.connections").fetchone()["drive_page_token"] == "p2"
@@ -262,10 +247,10 @@ def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings):
         assert owner_db.execute("SELECT watch_channel_id FROM biz.connections").fetchone()["watch_channel_id"] != row["watch_channel_id"]
         assert len(fake_http.sent_to("www.googleapis.com/drive/v3/channels/stop")) == 1
 
-        # The 15-minute re-read: unchanged content touches nothing, changed content syncs.
-        before = len(api.events)
+        # The worker's re-read: unchanged content touches nothing, changed content syncs.
+        before = len(event_names(owner_db))
         worker.recheck()
-        assert len(api.events) == before
+        assert len(event_names(owner_db)) == before
         g.grid = GRID[:2]
         worker.recheck()
         assert [e["name"] for e in client.get("/v1/entities", headers=hdr(me)).json()["items"]] == ["Acme KK"]
@@ -309,10 +294,10 @@ def test_advice_that_fails_validation_uses_the_template(client, owner_db, fake_h
 
     seed_workspace(owner_db, ws, "t")
     owner_db.execute("DELETE FROM biz.risks")
-    worker = Worker(settings, api=RecordingApi())
+    worker = Worker(settings)
     worker.db.open()
     try:
-        worker.workspace_pass(UUID(ws), {"engine"})
+        worker.workspace_pass(UUID(ws), score=True)
     finally:
         worker.db.close()
     row = owner_db.execute("SELECT advice, advice_source, score FROM biz.risks").fetchone()

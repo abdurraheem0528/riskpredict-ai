@@ -24,23 +24,6 @@ export const test = base.extend<Fx>({
           localStorage.setItem('rp.refresh', 'test-refresh-token-0000000000000000000000000');
           localStorage.setItem('rp.workspace', ws as string);
         }
-        // A stream that opens and stays open: page.route cannot hold an SSE response.
-        class FakeEventSource extends EventTarget {
-          readyState = 0;
-          onopen: ((e: Event) => void) | null = null;
-          onerror: ((e: Event) => void) | null = null;
-          constructor(public url: string) {
-            super();
-            setTimeout(() => {
-              this.readyState = 1;
-              this.onopen?.(new Event('open'));
-            }, 50);
-          }
-          close() {
-            this.readyState = 2;
-          }
-        }
-        (window as unknown as { EventSource: unknown }).EventSource = FakeEventSource;
       },
       [WS, signedIn],
     );

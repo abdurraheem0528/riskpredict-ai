@@ -30,7 +30,6 @@ from api.core.config import Settings
 from api.core.db import Database, set_user, set_workspace
 from api.core.errors import Problem, bad_request, forbidden, not_found, unauthenticated
 from api.ratelimit import RateLimiter
-from api.stream import Hub, Tickets, WorkHints
 
 ROLE_RANK = {"viewer": 0, "editor": 1, "admin": 2, "owner": 3}
 
@@ -39,9 +38,6 @@ ROLE_RANK = {"viewer": 0, "editor": 1, "admin": 2, "owner": 3}
 class State:
     settings: Settings
     db: Database
-    hub: Hub
-    tickets: Tickets
-    hints: WorkHints
     limiter: RateLimiter
     schema_version: str | None = None
 
@@ -153,6 +149,13 @@ PathWsCtx = Annotated[Ctx, Depends(path_ctx)]
 
 
 def client_ip(request: Request) -> str:
+    """The caller's address for rate limits. On Vercel the edge sets ``x-real-ip`` itself
+    (``CLIENT_IP_HEADER``); a client cannot choose it. Never stored in clear."""
+    header = request.app.state.rp.settings.client_ip_header
+    if header:
+        value = request.headers.get(header, "").split(",")[0].strip()
+        if value:
+            return value[:100]
     return request.client.host if request.client else "unknown"
 
 

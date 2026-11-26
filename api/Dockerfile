@@ -5,7 +5,8 @@
 FROM python:3.12-slim AS source
 WORKDIR /src
 COPY . .
-RUN mkdir /out && cp -r api jobs /out/ && \
+# worker/: the API runs the same passes inside requests (api/work.py → worker/passes.py).
+RUN mkdir /out && cp -r api jobs worker /out/ && \
     if [ -d engine ]; then cp -r engine /out/; fi && \
     find /out -name '__pycache__' -prune -exec rm -rf {} +
 

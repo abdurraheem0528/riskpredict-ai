@@ -1,16 +1,17 @@
 # One-click Destroy: Actions → destroy → Run workflow, type "destroy".
-# Deletes the Render service "riskpredict-api" and the Cloudflare Pages project
-# "riskpredict" (either may already be gone). It NEVER touches Neon data: tables,
-# rows and the feeds stay. Optionally it drops the riskpredict_app login (not its data).
-# The secrets that lived only on Render (JWT_SIGNING_KEY, TOKEN_ENCRYPTION_KEYS,
-# INTERNAL_TOKEN, DATABASE_URL_APP) go with the service; a later Deploy makes new ones.
+# Deletes the Vercel project "riskpredict-api" (its deployments and environment) and the
+# Cloudflare Pages project "riskpredict" (either may already be gone). It NEVER touches
+# Neon data: tables, rows and the feeds stay. Optionally it drops the riskpredict_app
+# login (not its data). The secrets that lived only in the Vercel project's environment
+# (JWT_SIGNING_KEY, TOKEN_ENCRYPTION_KEYS, DATABASE_URL_APP) go with it; a later Deploy
+# makes new ones. The worker job (worker.yml) skips itself while no project exists.
 name: destroy
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "destroy" to delete the Render service and the Cloudflare Pages project'
+        description: 'Type "destroy" to delete the Vercel project and the Cloudflare Pages project'
         required: true
       drop_app_role:
         description: "Also drop the riskpredict_app database login (the data stays)"
@@ -52,11 +53,12 @@ jobs:
         if: inputs.drop_app_role
         run: pip install -r jobs/requirements.txt
 
-      - name: Delete the Render service
-        id: render
+      - name: Delete the Vercel project
+        id: vercel
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-        run: python infra/scripts/deploy.py render-destroy
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
+        run: python infra/scripts/deploy.py vercel-destroy
 
       - name: Delete the Cloudflare Pages project
         id: pages
@@ -75,7 +77,7 @@ jobs:
       - name: Summary
         if: always()
         env:
-          RENDER: ${{ steps.render.outputs.render_removed }}
+          VERCEL: ${{ steps.vercel.outputs.vercel_removed }}
           PAGES: ${{ steps.pages.outputs.pages_removed }}
           ROLE: ${{ steps.role.outputs.role_removed }}
           DROP: ${{ inputs.drop_app_role }}
@@ -86,7 +88,7 @@ jobs:
             echo
             echo "| What | Result |"
             echo "|---|---|"
-            echo "| Render service riskpredict-api | ${RENDER:-not removed} |"
+            echo "| Vercel project riskpredict-api | ${VERCEL:-not removed} |"
             echo "| Cloudflare Pages project riskpredict | ${PAGES:-not removed} |"
             if [ "$DROP" = true ]; then
               echo "| Database login riskpredict_app | ${ROLE:-not removed} |"
@@ -95,9 +97,9 @@ jobs:
             fi
             echo
             echo "**The data remains.** The Neon database, its tables and every row (feeds and business data) were not touched."
-            echo "The feed jobs (feeds.yml) keep running."
+            echo "The feed jobs (feeds.yml) keep running; the worker job skips itself until the next Deploy."
             echo
-            echo "The secrets that lived only on Render went with the service. A new Deploy generates new ones:"
-            echo "everyone signs in again, and Google Sheets connections must be reconnected (their stored tokens"
-            echo "were encrypted with the old TOKEN_ENCRYPTION_KEYS)."
+            echo "The secrets that lived only in the Vercel project's environment went with it. A new Deploy"
+            echo "generates new ones: everyone signs in again, and Google Sheets connections must be reconnected"
+            echo "(their stored tokens were encrypted with the old TOKEN_ENCRYPTION_KEYS)."
           } >> "$GITHUB_STEP_SUMMARY"

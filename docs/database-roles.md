@@ -15,7 +15,7 @@ All three are `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, and own no tables.
 |---|---|---|---|
 | `rp_feeds` | GitHub Actions jobs (`jobs/`) | SELECT, INSERT, UPDATE, DELETE | no access (not even `USAGE` on the schema) |
 | `rp_app` | `api` and `worker` | SELECT; INSERT on `watch_terms (kind, term, scope, origin)` only | SELECT/INSERT/UPDATE/DELETE per table, always under RLS; `risk_history` and `audit_log` are SELECT + INSERT only |
-| `rp_definer` | nobody logs in as it | – | owns the five `SECURITY DEFINER` lookups in `007_biz_lookups.sql` |
+| `rp_definer` | nobody logs in as it | – | owns the six `SECURITY DEFINER` functions (five lookups in `007_biz_lookups.sql`, `biz.rate_hit` in `050_serverless_state.sql`); the only role with access to `biz.rate_limits` |
 
 The tables are owned by the role that runs the migrations (on Neon: `neondb_owner`).
 `FORCE ROW LEVEL SECURITY` is set on every `biz` table, so even the owner is filtered
@@ -35,7 +35,7 @@ runs on your own computer; two workflows call it with `DATABASE_URL_OWNER`:
 
 | Login | Group | Created by | Password lives |
 |---|---|---|---|
-| `riskpredict_app` | `rp_app` | **deploy** (`.github/workflows/deploy.yml`), on its first run; later runs `--check` it, and the `rotate_app_password` input sets a new one | generated inside the job (masked at once), stored only in Render as part of `DATABASE_URL_APP` |
+| `riskpredict_app` | `rp_app` | **deploy** (`.github/workflows/deploy.yml`), on its first run, or whenever the Vercel project has no `DATABASE_URL_APP` (the first Vercel deploy therefore rotates a login left by an earlier platform); later runs `--check` it, and the `rotate_app_password` input sets a new one | generated inside the job (masked at once), stored only in the Vercel project's environment as part of `DATABASE_URL_APP`; the worker job reads it from there |
 | `riskpredict_jobs` | `rp_feeds` | **db-roles** (`.github/workflows/db-roles.yml`), optional | the `RP_PASSWORD_RISKPREDICT_JOBS` secret, then inside `DATABASE_URL_FEEDS` |
 
 The same script still works for self-hosting (below):
@@ -64,7 +64,7 @@ Then build the connection strings from the Neon host and database name:
 | `DATABASE_URL_OWNER` (GitHub secret) | `neondb_owner` | the "Apply migrations" steps of `feeds.yml`, and the deploy, destroy (`drop_app_role`) and db-roles workflows |
 | `DATABASE_URL_MIGRATE` (env var, self-hosting) | owner / superuser | this script's default variable (`--dsn-env` picks another one, as the workflows do with `DATABASE_URL_OWNER`) |
 | `DATABASE_URL_FEEDS` (GitHub secret) | `riskpredict_jobs` (member of `rp_feeds`) | fetch, prune and analyse jobs; **direct** host |
-| `DATABASE_URL_APP` (Render env var only) | `riskpredict_app` (member of `rp_app`) | `api` and `worker`; **pooled** host, built by Deploy |
+| `DATABASE_URL_APP` (Vercel project env only) | `riskpredict_app` (member of `rp_app`) | `api` (Vercel) and `worker` (`worker.yml` reads it from Vercel); **pooled** host, built by Deploy |
 
 Use the **pooled** Neon host (`-pooler`) for `DATABASE_URL_APP`; the API sets its
 session context per transaction, which works through PgBouncer's transaction mode.
@@ -152,11 +152,12 @@ The API derives both from the verified access token and the `X-Workspace-Id` hea
 forgets its `WHERE workspace_id = ...`. It does not replace the API's own checks: any
 `rp_app` connection can set any workspace id.
 
-## The five cross-workspace lookups
+## The six SECURITY DEFINER functions
 
-These are the only ways an `rp_app` connection can see across workspaces, for the
-moments before a workspace is known. Each is a `SECURITY DEFINER` SQL function owned
-by `rp_definer`, has `search_path` pinned, and returns only the columns listed.
+These are the only ways an `rp_app` connection can see across workspaces (the five
+lookups, for the moments before a workspace is known) or reach a table it has no
+privilege on (`rate_hit`). Each is owned by `rp_definer`, has `search_path` pinned,
+and returns only what is listed.
 
 | Function | Returns | Used for |
 |---|---|---|
@@ -165,6 +166,15 @@ by `rp_definer`, has `search_path` pinned, and returns only the columns listed.
 | `biz.route_drive_channel(channel_id)` | workspace_id, connection_id, watch_token_hash, watch_resource_id | Drive push notifications |
 | `biz.route_composio_account(connected_account_id)` | workspace_id, connection_id, provider | Composio triggers |
 | `biz.worker_workspace_ids()` | workspace_id | the worker's per-workspace loop |
+| `biz.rate_hit(key_hash, limit, window_seconds)` | seconds to wait (0 = allowed) | rate limits shared by every API instance; `key_hash` is an HMAC (key derived from `JWT_SIGNING_KEY`) of e.g. `signin-acct:<email>`, so no email or IP is stored in clear. `rp_app` has no privilege on `biz.rate_limits` itself |
+
+## Tables added for the serverless API (`050_serverless_state.sql`)
+
+| Table | Scoped by | `rp_app` | Holds |
+|---|---|---|---|
+| `biz.events` | `workspace_id`, forced RLS | SELECT, INSERT, DELETE (+ SELECT on its sequence, for `last_value`) | live updates for `GET /v1/events`; the worker deletes rows older than 24 h |
+| `biz.worker_state` | `workspace_id`, forced RLS | SELECT, INSERT, UPDATE | `feeds_seen_at`, `score_pending`, `events_pruned_through`, `lease_until` |
+| `biz.rate_limits` | none (forced RLS, a policy for `rp_definer` only) | nothing | fixed-window counters, reached only through `biz.rate_hit` |
 
 ## Rules for later migrations
 

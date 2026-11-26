@@ -49,7 +49,7 @@ guessing.
 
 ```
 src/
-  api/        openapi-fetch client, auth (tokens), SSE stream, React Query hooks, generated types
+  api/        openapi-fetch client, auth (tokens), live-update polling, React Query hooks, generated types
   app/        session (user, workspace, role), top row (capsules and menus), Jump to, toast
   map/        the one MapLibre map, layers as components, placing features, static lookups
   screens/    SignIn, Empty, Connect, Confirm, Main (Overview and Register), RiskView, Scenario
@@ -65,12 +65,14 @@ src/
   and retries once. A rejected refresh signs out; a network failure keeps the session.
 - **Workspace.** Every workspace endpoint gets `X-Workspace-Id`. Query keys start with the
   workspace id, so switching workspace never shows another workspace's rows.
-- **Live updates.** `POST /v1/stream/ticket`, then `EventSource` on
-  `/v1/stream?ticket=…`. On any error the stream closes and reconnects with a fresh ticket,
-  backing off 1 s → 30 s with jitter (EventSource's own retry would replay the spent
-  ticket). A new EventSource cannot send `Last-Event-ID`, so after a reconnect the
-  workspace's queries are refetched, as for `resync`. Each event invalidates only what it
-  changes (`applyStreamEvent` in `api/queries.ts`).
+- **Live updates.** The API is serverless, so there is no stream: `LiveStream`
+  (`api/stream.ts`) polls `GET /v1/events?after=<id>` about every 15 s, **only while the
+  tab is visible** (Page Visibility API). A hidden tab stops at once, so an unwatched
+  dashboard never keeps the database awake; when it is shown again it polls right away
+  and catches up from its cursor (pages while the API says `more`). `resync` (a cursor
+  older than the API's 24 h retention) refetches the workspace's queries. Errors back off
+  1 s → 30 s with jitter. Each event invalidates only what it changes
+  (`applyStreamEvent` in `api/queries.ts`).
 - **Roles.** Viewers see everything but no editing controls; editors confirm mappings,
   change risk status and run what-ifs; only admins connect or disconnect tools (the API
   enforces all of this too).

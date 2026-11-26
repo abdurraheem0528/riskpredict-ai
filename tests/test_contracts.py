@@ -56,7 +56,7 @@ def test_workspace_scoped_operations_take_the_header(spec):
     """Everything that touches biz data (except auth, workspaces, webhooks) needs X-Workspace-Id."""
     header = "#/components/parameters/WorkspaceHeader"
     scoped = ("/v1/connections", "/v1/sources", "/v1/entities", "/v1/risks", "/v1/scenarios", "/v1/alerts",
-              "/v1/map/entities", "/v1/map/risks", "/v1/stream/ticket")  # fmt: skip
+              "/v1/map/entities", "/v1/map/risks", "/v1/events")  # fmt: skip
     for path, item in spec["paths"].items():
         if not path.startswith(scoped) or path in ("/v1/connections/providers", "/v1/connections/google/callback"):
             continue
@@ -99,5 +99,21 @@ def test_other_enums_match(spec):
 
 def test_stream_events_documented_once(spec):
     names = schema(spec, "StreamEventName")["enum"]
-    desc = spec["paths"]["/v1/stream"]["get"]["description"]
+    desc = spec["paths"]["/v1/events"]["get"]["description"]
     assert re.findall(r"^\| `([a-z_.]+)` \|", desc, re.M) == names
+
+
+def test_stored_event_names_match_the_contract_and_the_api(spec):
+    """biz.events' CHECK (migration 050) and api/events.py list the contract's names; `resync` is never stored."""
+    from api import events
+
+    sql = (ROOT / "infra/migrations/050_serverless_state.sql").read_text()
+    body = sql[sql.index("CREATE TABLE biz.events (") :]
+    stored = re.findall(r"'([^']+)'", re.search(r"CHECK \(event IN\s*\((.*?)\)\)", body, re.S).group(1))
+    assert stored + ["resync"] == schema(spec, "StreamEventName")["enum"]
+    assert list(events.EVENT_NAMES) == stored
+
+
+def test_no_stream_or_internal_endpoints(spec):
+    assert not [p for p in spec["paths"] if p.startswith(("/v1/stream", "/internal"))]
+    assert "internalToken" not in spec["components"]["securitySchemes"]

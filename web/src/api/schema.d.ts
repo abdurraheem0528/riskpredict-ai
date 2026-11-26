@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Liveness, plus the latest applied migration (read once at startup)
-         * @description Never queries the database, so platform health checks do not keep Neon awake. `schema_version` is `unknown` if the database was unreachable at startup; the API refuses to start when `EXPECTED_SCHEMA_VERSION` (default `007_biz_lookups`) is not applied.
+         * @description Never queries the database, so health checks do not wake Neon. `schema_version` is `unknown` until this API instance has served a request that used the database (serverless instances are short-lived). While `EXPECTED_SCHEMA_VERSION` (default `050_serverless_state`) is not applied, requests that use the database answer `503`.
          */
         get: operations["getHealth"];
         put?: never;
@@ -319,7 +319,7 @@ export interface paths {
          * @description Creates a `pending` `composio:<app>` connection and returns Composio's
          *     redirect URL. Composio uses `ws_<workspace id>` as its user id. After auth,
          *     Composio redirects to `${WEB_ORIGIN}/connect?connection_id=<id>`; the dashboard
-         *     then polls `GET /v1/connections/{id}` (or waits for SSE `connection.updated`)
+         *     then polls `GET /v1/connections/{id}` (or waits for the event `connection.updated`)
          *     until it is `active`.
          */
         post: operations["startComposioConnection"];
@@ -384,7 +384,7 @@ export interface paths {
         put?: never;
         /**
          * Add a picked sheet tab or table (editor)
-         * @description Reads the header row and up to 5 sample values per column (from the first 200 rows), stores them in `columns`, and starts a mapping suggestion in the background (Groq, else heuristics; SSE `mapping.suggested`). A Google spreadsheet the user did not pick with the Picker is `404`; an inactive connection is `409 connection_not_active`.
+         * @description Reads the header row and up to 5 sample values per column (from the first 200 rows), stores them in `columns`, and makes a mapping suggestion before answering (Groq, else heuristics; event `mapping.suggested`), so a new source usually comes back as `mapping_suggested`. A Google spreadsheet the user did not pick with the Picker is `404`; an inactive connection is `409 connection_not_active`.
          */
         post: operations["createSource"];
         delete?: never;
@@ -867,27 +867,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/stream/ticket": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * One-time ticket for opening the event stream
-         * @description `EventSource` cannot send an Authorization header, so the dashboard first gets a ticket (single use, valid 60 s, bound to the user and workspace) and opens `/v1/stream?ticket=...`.
-         */
-        post: operations["createStreamTicket"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/stream": {
+    "/v1/events": {
         parameters: {
             query?: never;
             header?: never;
@@ -895,13 +875,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Live updates for one workspace (SSE)
-         * @description `text/event-stream`. Each message has `id` (monotonic per workspace),
-         *     `event` (one of the names below) and `data` (one line of JSON, the matching
-         *     schema). A comment line `: ping` is sent every 25 s. After a reconnect,
-         *     `Last-Event-ID` resumes from the API's in-memory buffer (last 500 events per
-         *     workspace). If that is not possible, the first event is `resync` and the
-         *     client should refetch what it shows.
+         * Live updates for one workspace (polled)
+         * @description The dashboard calls this about every 15 s while its tab is visible, and not at
+         *     all while it is hidden (each call wakes the database). Without `after`, it
+         *     returns no items and the newest id as `next`: start there, the page was just
+         *     loaded. With `after`, it returns the events after that id, oldest first, at most
+         *     `limit`; `more` means call again at once with `next`. Events are kept 24 hours.
+         *     When `after` is older than that (or from a database that was reset), the answer
+         *     is `resync: true` with no items: refetch what is shown and continue from `next`.
+         *     Ids are increasing but not consecutive (one sequence for all workspaces). An
+         *     event is returned only once every transaction that started before it has ended,
+         *     so a cursor never skips one that committed late.
          *
          *     | event | data |
          *     |---|---|
@@ -915,13 +899,9 @@ export interface paths {
          *     | `mapping.suggested` | `MappingEvent` |
          *     | `connection.updated` | `ConnectionEvent` |
          *     | `feeds.updated` | `FeedsUpdatedEvent` |
-         *     | `resync` | `{}` |
-         *
-         *     No database connection is held open for a stream: the worker pushes events
-         *     to the API (`POST /internal/events`), and the API fans them out from memory.
-         *     This keeps Neon able to scale to zero.
+         *     | `resync` | `{}` (never stored: the `resync` flag of the response) |
          */
-        get: operations["openStream"];
+        get: operations["listEvents"];
         put?: never;
         post?: never;
         delete?: never;
@@ -945,7 +925,7 @@ export interface paths {
          *     1. Looks up `X-Goog-Channel-ID` with `biz.route_drive_channel`.
          *     2. Compares sha256(`X-Goog-Channel-Token`) with `watch_token_hash` (constant time) and checks `X-Goog-Resource-ID`.
          *     3. Inserts `biz.webhook_events` with delivery id `<channel id>:<message number>`, ON CONFLICT DO NOTHING.
-         *     4. For `X-Goog-Resource-State: change`, queues a `changes.list` check for the connection.
+         *     4. For `X-Goog-Resource-State: change`, runs `changes.list` and the syncs it causes within the same request, for about 20 s under a per-workspace lease (a burst of notifications runs once). Whatever is left stays queued for the next worker run.
          *     It answers 200 quickly for every well-formed notification, also for unknown
          *     channels or a wrong token, so Google does not retry and a caller learns nothing.
          *     A request without the required `X-Goog-*` headers gets 400. `sync` messages are
@@ -983,57 +963,12 @@ export interface paths {
          *     3. Inserts `biz.webhook_events` (delivery id = `webhook-id`, which equals the payload
          *        `id` and is stable across retries), ON CONFLICT DO NOTHING. Only ids, the event
          *        type, trigger slug and status are kept, never the record data.
-         *     4. Wakes the worker, which re-reads the connection's sources (trigger) or re-checks
-         *        the account's status with Composio (lifecycle).
+         *     4. Within the same request (about 20 s, under a per-workspace lease), re-reads the
+         *        connection's sources (trigger) or re-checks the account's status with Composio
+         *        (lifecycle). Whatever is left stays queued for the next worker run.
          *     Unknown accounts get 200, and the delivery is dropped.
          */
         post: operations["composioTrigger"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * The worker hands SSE events to the API for fan-out
-         * @description Only reachable on the Northflank private network. It is also authenticated with `Authorization: Bearer ${INTERNAL_TOKEN}`. Not part of the public API, and the dashboard never calls it.
-         */
-        post: operations["pushStreamEvents"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/internal/work": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The worker long-polls for wake-up hints
-         * @description Returns (and clears) the workspaces that need a worker pass, waiting up to `wait`
-         *     seconds for one. The API adds a hint when a webhook was recorded, a mapping
-         *     confirmed, a sync or a re-score requested, or a connection activated. Hints live
-         *     in memory only: the durable state is in the database (`webhook_events`,
-         *     `sources.last_change_at`), which the worker's scheduled pass reads anyway. No
-         *     database query is made, so waiting costs no Neon compute. Private network and
-         *     `Authorization: Bearer ${INTERNAL_TOKEN}` only.
-         */
-        get: operations["takeWorkHints"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1819,9 +1754,20 @@ export interface components {
             /** @description Sources whose last_run_at advanced */
             sources: string[];
         };
-        /** @description One SSE message: `id`, `event` and `data` (JSON of the schema for that event) */
+        EventPage: {
+            items: components["schemas"]["StreamEvent"][];
+            /** @description The cursor for the next call (`after`) */
+            next: number;
+            /** @description More events are waiting: call again at once */
+            more: boolean;
+            /** @description The cursor was too old: refetch, then continue from `next` */
+            resync: boolean;
+        };
+        /** @description One live update: `id`, `event` and `data` (the schema for that event) */
         StreamEvent: {
-            id: string;
+            id: number;
+            /** Format: date-time */
+            created_at: string;
             event: components["schemas"]["StreamEventName"];
             data: components["schemas"]["RiskEvent"] | components["schemas"]["Alert"] | components["schemas"]["SourceEvent"] | components["schemas"]["MappingEvent"] | components["schemas"]["ConnectionEvent"] | components["schemas"]["FeedsUpdatedEvent"] | Record<string, never>;
         };
@@ -2795,7 +2741,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Queued (a source in `error` goes back to `active`); SSE `source.sync_started`, then `source.synced` or `source.sync_failed`, follows */
+            /** @description Synced and scored within the request (a source in `error` goes back to `active`); the events `source.sync_started`, then `source.synced` or `source.sync_failed`, and any `risk.*` are written before the answer. Work cut short by the time budget is finished by the next worker run. */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -3588,9 +3534,12 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
-    createStreamTicket: {
+    listEvents: {
         parameters: {
-            query?: never;
+            query?: {
+                after?: number;
+                limit?: number;
+            };
             header: {
                 /** @description The workspace to act on; the caller must be a member. */
                 "X-Workspace-Id": components["parameters"]["WorkspaceHeader"];
@@ -3600,42 +3549,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Ticket */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        ticket: string;
-                        /** Format: date-time */
-                        expires_at: string;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    openStream: {
-        parameters: {
-            query: {
-                ticket: string;
-            };
-            header?: {
-                "Last-Event-ID"?: string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Event stream */
+            /** @description Events after the cursor */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "text/event-stream": components["schemas"]["StreamEvent"];
+                    "application/json": components["schemas"]["EventPage"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -3713,65 +3633,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    pushStreamEvents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    events: {
-                        /** Format: uuid */
-                        workspace_id: string;
-                        event: components["schemas"]["StreamEventName"];
-                        data: Record<string, never>;
-                    }[];
-                };
-            };
-        };
-        responses: {
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    takeWorkHints: {
-        parameters: {
-            query?: {
-                wait?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Hints, possibly none */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: {
-                            /** Format: uuid */
-                            workspace_id: string;
-                            reasons: ("webhook" | "sync" | "engine" | "connection" | "deleted")[];
-                        }[];
-                    };
-                };
             };
             401: components["responses"]["Unauthorized"];
         };

@@ -74,6 +74,10 @@ export function handlers(state: FixtureState = 'active', opts: { slow?: boolean 
       return HttpResponse.json(F.scenarioFor(b.name, b.inputs), { status: 201 });
     }),
     http.get(u('/v1/scenarios/:id'), () => HttpResponse.json(F.scenarioFor('Bab el-Mandeb closes', { shocks: [] }))),
-    http.post(u('/v1/stream/ticket'), () => HttpResponse.json({ ticket: 'test-ticket', expires_at: F.iso(-60_000) }, { status: 201 })),
+    // Live updates are polled; nothing new happens in the fixtures.
+    http.get(u('/v1/events'), ({ request }) => {
+      const after = new URL(request.url).searchParams.get('after');
+      return HttpResponse.json({ items: [], next: after === null ? 0 : Number(after), more: false, resync: false });
+    }),
   ];
 }

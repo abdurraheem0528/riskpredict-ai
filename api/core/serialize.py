@@ -1,6 +1,6 @@
 """Database rows → the JSON shapes in openapi.yaml.
 
-Shared by the API (responses) and the worker (SSE event payloads), so a
+Shared by the API (responses) and the worker (live-update event payloads), so a
 `risk.created` event carries exactly the `Risk` the list endpoint returns.
 """
 

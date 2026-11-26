@@ -10,7 +10,7 @@ pytest.importorskip("fastapi")  # the repository-wide CI job does not install th
 engine = pytest.importorskip("engine")
 
 from apiservice_fixtures import *  # noqa: E402,F401,F403  (fixtures)
-from apiservice_helpers import hdr, sign_up  # noqa: E402
+from apiservice_helpers import event_names, hdr, sign_up  # noqa: E402
 
 from api.core import engine as engine_iface  # noqa: E402
 
@@ -24,7 +24,6 @@ def quake_near_osaka(db) -> None:
 
 
 def test_worker_scores_with_the_real_engine(client, owner_db, settings, fake_http):
-    from test_api_google_flow import RecordingApi
     from test_api_isolation import seed_workspace
 
     from worker.main import Worker
@@ -33,15 +32,14 @@ def test_worker_scores_with_the_real_engine(client, owner_db, settings, fake_htt
     seed_workspace(owner_db, me["workspace_id"], "r")  # a supplier at 34.6, 135.5 (test fixture)
     owner_db.execute("DELETE FROM biz.risks")
     quake_near_osaka(owner_db)
-    api = RecordingApi()
-    worker = Worker(settings, api=api)
+    worker = Worker(settings)
     worker.db.open()
     try:
-        worker.workspace_pass(UUID(me["workspace_id"]), {"engine"})
+        worker.workspace_pass(UUID(me["workspace_id"]), score=True)
     finally:
         worker.db.close()
     risks = client.get("/v1/risks", headers=hdr(me)).json()["items"]
-    assert len(risks) == 1, api.names()
+    assert len(risks) == 1, event_names(owner_db)
     risk = risks[0]
     assert risk["category"] == "natural_hazard" and 0 < risk["score"] <= 100
     detail = client.get(f"/v1/risks/{risk['id']}", headers=hdr(me)).json()
@@ -50,7 +48,7 @@ def test_worker_scores_with_the_real_engine(client, owner_db, settings, fake_htt
     assert detail["factors"]["likelihood"]["method"] == "noisy_or"
     # Groq is not reachable in this test, so the engine's template words the advice.
     assert detail["advice"]["source"] == "template" and detail["advice"]["text"]
-    assert "risk.created" in api.names()
+    assert "risk.created" in event_names(owner_db, me["workspace_id"])
 
 
 def test_scenarios_with_the_real_engine(client, owner_db):

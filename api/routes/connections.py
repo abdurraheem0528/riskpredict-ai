@@ -14,7 +14,7 @@ from fastapi import APIRouter, Query, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
-from api import auth
+from api import auth, events, work
 from api.context import StateDep, UserCtx, WsCtx, audit
 from api.core import composio, crypto, google
 from api.core import serialize as ser
@@ -143,9 +143,9 @@ def google_callback(
                 " updated_at = now() WHERE id = %s",
                 ("Google consent was not given", conn_id),
             )
+            events.publish(conn, ws, "connection.updated", {"connection_id": str(conn_id), "status": "error",
+                                                            "status_reason": "Google consent was not given"})  # fmt: skip
     if error or not code:
-        st.hub.publish(ws, "connection.updated", {"connection_id": str(conn_id), "status": "error",
-                                                  "status_reason": "Google consent was not given"})  # fmt: skip
         return back("error", "connection_not_active")
     try:
         grant = google.exchange_code(s, code, crypto.derive(s.jwt_signing_key, "pkce", state))
@@ -172,11 +172,12 @@ def google_callback(
         ).fetchone()
         if done:
             audit(conn, ws, None, "connection.activated", "connection", str(conn_id), actor="webhook")
+            events.publish(conn, ws, "connection.updated",
+                           {"connection_id": str(conn_id), "status": "active", "status_reason": None})  # fmt: skip
     if not done:
         raise bad_request("unknown or already used OAuth state")
     google.access_tokens.put(str(conn_id), grant)
-    st.hub.publish(ws, "connection.updated", {"connection_id": str(conn_id), "status": "active", "status_reason": None})
-    st.hints.add(ws, "connection")
+    work.connection_ready(st, ws)  # the Drive watch channel, while the access token is fresh
     return back("ok")
 
 
@@ -251,10 +252,10 @@ def refresh_composio_status(st, ws: UUID, row: dict) -> dict | None:
             "UPDATE biz.connections SET status = %s, status_reason = %s, updated_at = now() WHERE id = %s",
             (status, reason, row["id"]),
         )
-    st.hub.publish(ws, "connection.updated", {"connection_id": str(row["id"]), "status": status, "status_reason": reason})
+        events.publish(conn, ws, "connection.updated",
+                       {"connection_id": str(row["id"]), "status": status, "status_reason": reason})  # fmt: skip
     if status == "active":
         composio.subscribe_trigger(st.settings, row["provider"], row["composio_connected_account_id"], ws)
-        st.hints.add(ws, "connection")
     return {"status": status, "status_reason": reason}
 
 
@@ -279,7 +280,7 @@ def delete_connection(connection_id: UUID, ctx: WsCtx) -> Response:
         conn.execute("DELETE FROM biz.connections WHERE id = %s", (connection_id,))
         audit(conn, ctx.workspace_id, ctx.user_id, "connection.deleted", "connection", str(connection_id),
               {"provider": row["provider"]})  # fmt: skip
-    ctx.state.hints.add(ctx.workspace_id, "engine")
+    work.score(ctx.state, ctx.workspace_id)
     return Response(status_code=204)
 
 

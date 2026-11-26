@@ -1,67 +1,86 @@
 # worker
 
-Background worker: source syncs, Drive watch renewal, risk-engine runs per workspace
+Source syncs, Drive watch renewal, risk-engine runs per workspace
 ([`docs/contracts/risk-engine.md`](../docs/contracts/risk-engine.md)), Groq advice wording,
-alerts, and SSE events pushed to the API. Connects as an `rp_app` login. One process, no
-Redis, no web server.
+alerts, and the live-update events (`biz.events`). Connects as an `rp_app` login. No web
+server, no Redis, no long-lived database connection.
 
-**Where it runs:** on Render, **inside the API's container** (one free web service;
-Render's background workers are paid). `infra/render/start.sh` starts `python -m worker`
-in the background with `API_INTERNAL_URL=http://127.0.0.1:$PORT` and execs uvicorn; if
-either process stops, the container exits and Render restarts it. With `docker compose`
-it is still its own container (`worker/Dockerfile`, `API_INTERNAL_URL=http://api:8000`).
-See [`infra/README.md`](../infra/README.md).
+**Where it runs:** as a **run-once GitHub Actions job**, `.github/workflows/worker.yml`,
+right after every `feeds.yml` run (`workflow_run`), so the Neon database is already awake
+and the worker adds no wake-up of its own. Its settings come from the Vercel project's
+environment (`infra/scripts/deploy.py worker-run`, see
+[`infra/README.md`](../infra/README.md#where-the-apis-secrets-live-and-how-the-worker-gets-them)).
+With `docker compose` it is its own container running the same passes in a loop.
 
 ```bash
 pip install -r worker/requirements.txt
-python -m worker
+python -m worker --once   # one database pass and one re-read, then exit
+python -m worker          # the same on a timer (docker compose)
 ```
 
-It imports `api.core` (shared code, no FastAPI) and, lazily, `engine` (session C). If the
-package is missing from an image, the worker still syncs sources and logs once that scoring
-is skipped.
+It imports `api.core` and `api.events` (shared code, no FastAPI) and, lazily, `engine`. If
+the engine is missing from an image, the worker still syncs sources and logs once that
+scoring is skipped.
 
-## What wakes it
+## Who does what (serverless API)
 
-| Trigger | Database? | Then |
+The API has no background loop, so the urgent part runs **inside API requests**
+(`api/work.py`, using `worker/passes.py`):
+
+| Trigger | Where | Then |
 |---|---|---|
-| Hint from the API (`GET /internal/work`, a 25 s long poll) | no, while waiting | one pass for that workspace |
-| Every `WORKER_DB_INTERVAL_SECONDS` (default 1800) | yes | a pass for every workspace (`biz.worker_workspace_ids()`), re-scoring all of them when `max(feeds.source_health.last_run_at)` advanced, plus `feeds.updated` |
-| Every `SOURCE_RECHECK_SECONDS` (default 900) | only on change | re-reads each active source from its tool and syncs it only if its content hash changed (the fallback for missed Drive / Composio notifications) |
+| Mapping confirmed, "sync now", a source resumed or its header row changed | the API request | sync the due sources and score, within `INLINE_BUDGET_SECONDS` (240 s; Vercel stops at 300 s) |
+| A source or connection deleted | the API request | score |
+| A Google connection became active | the OAuth callback request | open its Drive watch channel |
+| A Drive or Composio webhook | the webhook request, after recording it | its pass for about 20 s (`WEBHOOK_BUDGET_SECONDS`) under the workspace's lease in `biz.worker_state`, so a burst of notifications runs once |
+| After each feeds run | `python -m worker --once` | everything below, for every workspace |
 
-A workspace pass, each step in its own short transaction with `app.workspace_id` set:
+Whatever a budget cuts short stays in the database (webhook rows still `received`, sources
+still due, `biz.worker_state.score_pending`) and the next worker run finishes it.
 
-1. **Webhooks.** `webhook_events` rows with status `received`: Drive → `changes.list`
-   from the stored page token, then mark the changed spreadsheets' sources; Composio
-   trigger → mark the connection's sources; Composio lifecycle event → re-check the
-   account status.
-2. **Connections.** Pending Composio accounts are re-checked; Google connections get a
-   Drive `changes.watch` channel (needs an HTTPS `PUBLIC_API_URL`), renewed once
-   `watch_renew_after` (expiry − 24 h) passes; the old channel is stopped.
-3. **Sources** with a confirmed mapping and `last_change_at > last_synced_at` are read,
-   mapped and normalised (`api/core/mapping.py`, the rules of `jobs/codes.py`). Only rows
-   whose hash or mapping changed are written; rows that disappeared are deleted with
-   their risks. SSE `source.sync_started` / `source.synced` / `source.sync_failed`.
-4. **Scoring** when entities changed, the feeds moved on or the API asked:
-   `engine.run_workspace` in one transaction (it takes the engine's per-workspace lock, so
-   two passes over one workspace queue; its `RunResult` carries the assessments and
-   entities that the advice and watch-term steps use). Then
-   `RunResult.changes` → alerts (`risk_new`, `risk_escalated`, `sanctions_match`) and SSE
-   `risk.*` / `alert.created`; opted-in watch terms go to `feeds.watch_terms`.
-5. **Advice** when `engine.needs_new_advice` says so: `engine.advice_messages` → Groq
-   (`GROQ_ADVICE_MODEL`), accepted only if ≤ 1,200 characters, without links and without
-   digits that were not in the prompt; otherwise `engine.template_advice`. At most
-   `ADVICE_PER_RUN` (20) Groq calls per run.
+## A run (`--once`)
 
-SSE events are collected during a step and pushed after its commit
-(`POST /internal/events`). A failed step is logged by exception type only, and the
+1. **The database pass**, for every workspace (`biz.worker_workspace_ids()`), each step in
+   its own short transaction with `app.workspace_id` set and isolated from the others:
+   * **Webhooks.** `webhook_events` rows with status `received`: Drive → `changes.list`
+     from the stored page token, then mark the changed spreadsheets' sources; Composio
+     trigger → mark the connection's sources; Composio lifecycle event → re-check the
+     account status.
+   * **Connections.** Pending Composio accounts are re-checked; Google connections get a
+     Drive `changes.watch` channel (needs an HTTPS `PUBLIC_API_URL`), renewed once
+     `watch_renew_after` (expiry − 24 h) passes; the old channel is stopped.
+   * **Housekeeping.** Handled webhook rows after 30 days, unfinished Google sign-ins after
+     a day, and live-update events after 24 hours (the highest id removed is kept in
+     `biz.worker_state.events_pruned_through`, so an older cursor gets `resync`).
+   * **Sources** with a confirmed mapping and `last_change_at > last_synced_at` are read,
+     mapped and normalised (`api/core/mapping.py`, the rules of `jobs/codes.py`). Only rows
+     whose hash or mapping changed are written; rows that disappeared are deleted with
+     their risks. Events `source.sync_started` / `source.synced` / `source.sync_failed`.
+   * **Scoring** when entities changed, when the feeds moved on since this workspace was
+     last scored (`max(feeds.source_health.last_run_at)` against
+     `biz.worker_state.feeds_seen_at`, kept in the database because every run is a fresh
+     process), or when a request left `score_pending`: `engine.run_workspace` in one
+     transaction (it takes the engine's per-workspace lock, so two passes over one workspace
+     queue). `RunResult.changes` → alerts (`risk_new`, `risk_escalated`, `sanctions_match`)
+     and events `risk.*` / `alert.created`; opted-in watch terms go to `feeds.watch_terms`;
+     then `feeds.updated`.
+   * **Advice** when `engine.needs_new_advice` says so: `engine.advice_messages` → Groq
+     (`GROQ_ADVICE_MODEL`), accepted only if ≤ 1,200 characters, without links and without
+     digits that were not in the prompt; otherwise `engine.template_advice`. At most
+     `ADVICE_PER_RUN` (20) Groq calls per run.
+2. **The re-read:** every active source is read again from its tool *without* touching the
+   database; only a changed content hash leads to a sync and a re-score (the fallback for
+   missed Drive / Composio notifications).
+
+The run stops starting new workspaces once `WORKER_ONCE_BUDGET_SECONDS` (480) have passed;
+the job's own timeout is 10 minutes. Events are collected during a step and written after
+its commit. A failed step is logged by exception type only (public repository), and the
 other steps and workspaces carry on.
 
 ## Neon compute
 
-With the defaults, the worker wakes the database every 30 minutes (close to the feed
-jobs' own schedule, so often while it is already awake), plus when there is real work.
-Waiting for hints, re-reading sheets and calling Groq hold no database connection, and
-the pool closes idle connections after 60 s. `risk-engine.md` §9 suggests checking the
-feeds every 10 minutes; that is `WORKER_DB_INTERVAL_SECONDS=600` if the compute budget
-allows it.
+The worker job starts within the 5-minute tail the feed jobs leave, so it extends that
+tail by about a minute instead of waking the database: roughly 6–9 of the 100 free
+CU-hours a month. The full estimate is in
+[`infra/README.md`](../infra/README.md#neon-compute-budget). Re-reading sheets and calling
+Groq hold no database connection.

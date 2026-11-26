@@ -1,11 +1,11 @@
-// Live updates over SSE (openapi.yaml, /v1/stream). EventSource cannot send headers, so
-// each connection starts with a one-time ticket (single use, 60 s). EventSource's own
-// reconnect would replay the spent ticket, so on any error we close it and reconnect
-// ourselves with a fresh ticket, backing off 1 s → 30 s with jitter. A new EventSource
-// cannot send Last-Event-ID, so after a reconnect the caller refetches (as for `resync`).
+// Live updates by polling (openapi.yaml, GET /v1/events). The API is serverless, so there is
+// no stream to hold open: about every 15 s the dashboard asks for the events after the last
+// id it saw. Only while the tab is visible (Page Visibility API): a hidden tab stops polling
+// at once, so an unwatched dashboard never keeps the database awake, and polls right away
+// when it is shown again, catching up from its cursor. `resync` (the cursor fell out of the
+// 24 h retention) makes the caller refetch everything. Errors back off 1 s → 30 s with jitter.
 import type { components } from './schema';
 import { api, unwrap } from './client';
-import { API_URL } from './config';
 import { wsh } from './workspace';
 
 type S = components['schemas'];
@@ -31,88 +31,106 @@ export const STREAM_EVENTS = [
 export type StreamStatus = 'connecting' | 'live' | 'retrying' | 'off';
 type Handler = <K extends StreamEventName>(name: K, data: StreamEvents[K]) => void;
 
+export const POLL_MS = 15_000;
+const MAX_PAGES = 10; // per poll, when the API says `more`
+
 export function backoffMs(attempt: number, random = Math.random) {
   const base = Math.min(30_000, 1000 * 2 ** Math.max(0, attempt));
   return Math.round(base / 2 + (random() * base) / 2);
 }
 
+const KNOWN = new Set<string>(STREAM_EVENTS);
+
 export class LiveStream {
-  private es: EventSource | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private cursor: number | null = null;
   private attempt = 0;
-  private stopped = false;
-  private everOpened = false;
+  private stopped = true;
+  private polling = false;
   status: StreamStatus = 'off';
 
   constructor(
     private workspaceId: string,
     private onEvent: Handler,
     private onStatus: (s: StreamStatus) => void,
-    private onReconnected: () => void,
+    private doc: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'> = document,
   ) {}
 
   start() {
+    if (!this.stopped) return;
     this.stopped = false;
-    void this.open();
+    this.doc.addEventListener('visibilitychange', this.onVisibility);
+    if (this.visible()) void this.poll();
+    else this.set('off');
   }
 
   stop() {
     this.stopped = true;
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-    this.es?.close();
-    this.es = null;
+    this.doc.removeEventListener('visibilitychange', this.onVisibility);
+    this.clear();
     this.set('off');
   }
 
+  private visible() {
+    return this.doc.visibilityState !== 'hidden';
+  }
+
+  private onVisibility = () => {
+    if (this.stopped) return;
+    if (this.visible()) {
+      void this.poll(); // catch up at once
+    } else {
+      this.clear();
+      this.set('off');
+    }
+  };
+
+  private clear() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+  }
+
   private set(s: StreamStatus) {
+    if (this.status === s) return;
     this.status = s;
     this.onStatus(s);
   }
 
-  private async open() {
-    if (this.stopped) return;
-    this.set(this.attempt === 0 ? 'connecting' : 'retrying');
-    let ticket: string;
-    try {
-      const t = await unwrap(api.POST('/v1/stream/ticket', { params: { header: wsh(this.workspaceId) } }));
-      ticket = t.ticket;
-    } catch {
-      this.retry();
-      return;
-    }
-    if (this.stopped) return;
-    const es = new EventSource(`${API_URL}/v1/stream?ticket=${encodeURIComponent(ticket)}`);
-    this.es = es;
-    es.onopen = () => {
-      const reconnect = this.everOpened;
-      this.everOpened = true;
-      this.attempt = 0;
-      this.set('live');
-      if (reconnect) this.onReconnected();
-    };
-    es.onerror = () => {
-      es.close();
-      if (this.es === es) this.es = null;
-      this.retry();
-    };
-    for (const name of STREAM_EVENTS) {
-      es.addEventListener(name, (e) => {
-        let data: unknown = {};
-        try {
-          data = JSON.parse((e as MessageEvent<string>).data || '{}');
-        } catch {
-          return;
-        }
-        this.onEvent(name, data as StreamEvents[typeof name]);
-      });
-    }
+  private schedule(ms: number) {
+    this.clear();
+    if (this.stopped || !this.visible()) return;
+    this.timer = setTimeout(() => void this.poll(), ms);
   }
 
-  private retry() {
-    if (this.stopped) return;
-    this.set('retrying');
-    const wait = backoffMs(this.attempt++);
-    this.timer = setTimeout(() => void this.open(), wait);
+  private async poll() {
+    if (this.stopped || !this.visible() || this.polling) return;
+    this.polling = true;
+    this.clear();
+    if (this.status !== 'live') this.set(this.attempt === 0 ? 'connecting' : 'retrying');
+    try {
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const query = this.cursor === null ? {} : { after: this.cursor };
+        const res = await unwrap(api.GET('/v1/events', { params: { header: wsh(this.workspaceId), query } }));
+        if (this.stopped) return;
+        if (res.resync) {
+          this.onEvent('resync', {});
+        } else {
+          for (const e of res.items) {
+            if (KNOWN.has(e.event)) this.onEvent(e.event, e.data as StreamEvents[typeof e.event]);
+          }
+        }
+        this.cursor = res.next;
+        if (!res.more) break;
+      }
+      this.attempt = 0;
+      this.set(this.visible() ? 'live' : 'off');
+      this.schedule(POLL_MS);
+    } catch {
+      if (this.stopped) return;
+      this.set('retrying');
+      this.schedule(backoffMs(this.attempt++));
+    } finally {
+      this.polling = false;
+    }
   }
 }

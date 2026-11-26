@@ -1,5 +1,5 @@
 // One hook per endpoint the screens read. Keys start with the workspace id, so switching
-// workspace can never show another workspace's rows, and SSE invalidation is by prefix.
+// workspace can never show another workspace's rows, and live-update invalidation is by prefix.
 import { keepPreviousData, useInfiniteQuery, useQuery, type QueryClient } from '@tanstack/react-query';
 import type { components } from './schema';
 import { api, unwrap } from './client';
@@ -62,7 +62,8 @@ export function useMapping(ws: string, id: string) {
   return useQuery({
     queryKey: [ws, 'mapping', id],
     queryFn: () => unwrap(api.GET('/v1/sources/{source_id}/mapping', { params: { header: wsh(ws), path: { source_id: id } } })),
-    // The suggestion is made in the background and announced over SSE; poll as a fallback.
+    // The suggestion is normally made before POST /v1/sources answers (and announced as an
+    // event); refetch as a fallback while there is none yet.
     refetchInterval: (q) => (q.state.data && !q.state.data.suggested && !q.state.data.confirmed ? 4000 : false),
   });
 }

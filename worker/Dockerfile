@@ -1,10 +1,10 @@
 # Worker service. Build from the repository root:
 #   docker build -f worker/Dockerfile -t riskpredict-worker .
-# It imports the shared code in api/core (no FastAPI needed) and the engine/ package.
+# It imports the shared code in api/core and api/events.py (no FastAPI needed) and the engine/ package.
 FROM python:3.12-slim AS source
 WORKDIR /src
 COPY . .
-RUN mkdir -p /out/api && cp -r worker jobs /out/ && cp api/__init__.py /out/api/ && cp -r api/core /out/api/ && \
+RUN mkdir -p /out/api && cp -r worker jobs /out/ && cp api/__init__.py api/events.py /out/api/ && cp -r api/core /out/api/ && \
     if [ -d engine ]; then cp -r engine /out/; fi && \
     find /out -name '__pycache__' -prune -exec rm -rf {} +
 

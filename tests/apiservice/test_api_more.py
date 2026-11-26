@@ -15,7 +15,7 @@ pytest.importorskip("fastapi")  # the repository-wide CI job does not install th
 
 import httpx  # noqa: E402
 from apiservice_fixtures import *  # noqa: E402,F401,F403  (fixtures)
-from apiservice_helpers import hdr, sign_up  # noqa: E402
+from apiservice_helpers import event_names, hdr, sign_up  # noqa: E402
 
 from api.core import composio, mapping  # noqa: E402
 from api.core.config import ConfigError, parse_key_ring  # noqa: E402
@@ -60,9 +60,6 @@ def airtable(fake, status: str = "ACTIVE"):
 
 
 def test_composio_connect_browse_source_and_sync(client, owner_db, fake_http, settings):
-    from worker.main import Worker
-    from test_api_google_flow import RecordingApi
-
     state = airtable(fake_http, status="INITIATED")
     me = sign_up(client)
     providers = client.get("/v1/connections/providers", headers=hdr(me)).json()["items"]
@@ -90,13 +87,8 @@ def test_composio_connect_browse_source_and_sync(client, owner_db, fake_http, se
     assert src["kind"] == "composio_table" and src["url"] == "https://airtable.com/appB/tblS"
     spec = {"entity_kind": "site", "columns": [{"column": "Site", "field": "name"}, {"column": "Lat", "field": "lat"},
                                                {"column": "Lon", "field": "lon"}, {"column": "Country", "field": "country"}]}  # fmt: skip
+    # Confirming reads the table and writes the entities within the request.
     assert client.post(f"/v1/sources/{src['id']}/mapping/confirm", headers=hdr(me), json=spec).status_code == 200
-    worker = Worker(settings, api=RecordingApi())
-    worker.db.open()
-    try:
-        worker.workspace_pass(UUID(me["workspace_id"]), {"sync"})
-    finally:
-        worker.db.close()
     fc = client.get("/v1/map/entities", headers=hdr(me)).json()
     feats = {f["properties"]["name"]: f for f in fc["features"]}
     assert feats["Osaka plant"]["geometry"] == {"type": "Point", "coordinates": [135.5, 34.69]}
@@ -109,26 +101,21 @@ def test_composio_connect_browse_source_and_sync(client, owner_db, fake_http, se
 
 
 def test_composio_expiry_webhook_marks_the_connection(client, owner_db, fake_http, settings):
-    from worker.main import Worker
-    from test_api_google_flow import RecordingApi
-    from test_api_webhooks_stream import composio_post
+    from test_api_webhooks_events import composio_post
 
     airtable(fake_http, status="EXPIRED")
     me = sign_up(client)
     owner_db.execute("INSERT INTO biz.connections (workspace_id, provider, status, composio_connected_account_id)"
                      " VALUES (%s, 'composio:airtable', 'active', 'ca_new')", (me["workspace_id"],))  # fmt: skip
     event = {"id": "msg_x", "type": "composio.connected_account.expired", "data": {"id": "ca_new", "status": "EXPIRED"}}
+    # Recorded, then processed in the same request (a short time budget).
     assert composio_post(client, settings, event, msg_id="msg_x").status_code == 200
-    api = RecordingApi()
-    worker = Worker(settings, api=api)
-    worker.db.open()
-    try:
-        worker.workspace_pass(UUID(me["workspace_id"]), {"webhook"})
-    finally:
-        worker.db.close()
     assert owner_db.execute("SELECT status FROM biz.connections").fetchone()["status"] == "needs_reauth"
     assert owner_db.execute("SELECT status FROM biz.webhook_events").fetchone()["status"] == "processed"
-    assert "connection.updated" in api.names() and "alert.created" in api.names()
+    names = event_names(owner_db, me["workspace_id"])
+    assert "connection.updated" in names and "alert.created" in names
+    # the lease was given back
+    assert owner_db.execute("SELECT lease_until FROM biz.worker_state").fetchone()["lease_until"] is None
 
 
 def test_providers_without_composio(client, settings):
@@ -341,7 +328,6 @@ def test_outbound_transport_is_real_by_default():
 def test_housekeeping_prunes_only_this_workspace(client, owner_db, settings):
     from worker import sync
     from worker.main import Worker
-    from test_api_google_flow import RecordingApi
 
     a, b = sign_up(client), sign_up(client)
     for ws in (a["workspace_id"], b["workspace_id"]):
@@ -354,7 +340,7 @@ def test_housekeeping_prunes_only_this_workspace(client, owner_db, settings):
         )
         owner_db.execute("INSERT INTO biz.connections (workspace_id, provider, status, created_at)"
                          " VALUES (%s, 'google_sheets', 'pending', now() - interval '2 days')", (ws,))  # fmt: skip
-    worker = Worker(settings, api=RecordingApi())
+    worker = Worker(settings)
     worker.db.open()
     try:
         sync.housekeeping(worker.ctx, UUID(a["workspace_id"]))

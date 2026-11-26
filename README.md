@@ -9,12 +9,14 @@ business's own connected tools and shows the result on a map-first dashboard.
 
 ```
  public feeds ──► GitHub Actions (jobs/, every 30 min) ──► Neon Postgres: feeds schema (public data)
-                                                                 │  read-only
- business tools ─► Render (one free web service): api + worker ──► Neon Postgres: biz schema (row-level security)
- (Google Sheets direct,          │          ▲                    │
-  others via Composio)           │ SSE      │ engine/ (risk scoring, a library)
-                                 ▼          │
-                                   Cloudflare Pages: web (React + MapLibre dashboard)
+                      │ then, while Neon is awake                    │  read-only
+                      ▼                                              │
+                  GitHub Actions: worker --once ───────────────────► Neon Postgres: biz schema (row-level security,
+                                                                     ▲   live-update events, rate limits)
+ business tools ─► Vercel Hobby (serverless): api + engine/ ────────┘
+ (Google Sheets direct,        ▲  polled: GET /v1/events every 15 s while the tab is visible
+  others via Composio)         │
+                     Cloudflare Pages: web (React + MapLibre dashboard)
 ```
 
 | Part | Where it runs | Status |
@@ -23,8 +25,8 @@ business's own connected tools and shows the result on a map-first dashboard.
 | `jobs/analyse/` – news tagging (GLiNER2) and spike detection | GitHub Actions, after each fetch | **step 2** |
 | `infra/migrations/` – SQL for the `feeds` and `biz` schemas, roles | applied by `python -m jobs.migrate` | **steps 1–3** |
 | `docs/contracts/` – API, engine and feed contracts | – | **step 3** |
-| `api/` – FastAPI for business data | Render free web service (with the worker, one container) | **session B** ([`api/README.md`](api/README.md)) |
-| `worker/` – sync, watch renewal, scoring runs, advice | inside the API's container on Render | **session B** ([`worker/README.md`](worker/README.md)) |
+| `api/` – FastAPI for business data | Vercel Hobby, one Python function (`infra/vercel/`) | **session B** ([`api/README.md`](api/README.md)) |
+| `worker/` – sync, watch renewal, scoring runs, advice | GitHub Actions, run once after each feeds run (`.github/workflows/worker.yml`); urgent work runs inside API requests | **session B** ([`worker/README.md`](worker/README.md)) |
 | `engine/` – risk engine library | imported by worker and api | **step 3** |
 | `web/` – dashboard | Cloudflare Pages | **session D** ([`web/README.md`](web/README.md)) |
 
@@ -38,18 +40,19 @@ Two one-click GitHub Actions workflows, run on `main` (*Actions → deploy* or *
 Run workflow*); nothing runs on your computer and nothing is paid.
 
 * **deploy** applies the migrations, creates or updates the Cloudflare Pages project
-  `riskpredict` and the Render free web service `riskpredict-api` (API + worker in one
-  container, `infra/render/`), creates the `riskpredict_app` login once, deploys, checks
-  `/healthz`, builds and publishes the dashboard, and prints both URLs. Re-running it
-  updates in place; generated secrets stay on Render and are never overwritten.
-* **destroy** (type `destroy` to confirm) deletes the Render service and the Pages
+  `riskpredict` and the Vercel Hobby project `riskpredict-api` (no card; limits pause,
+  never bill), creates the `riskpredict_app` login once, deploys a clean bundle of the API
+  (`infra/vercel/bundle.py`), checks `/healthz`, builds and publishes the dashboard, and
+  prints both URLs. Re-running it updates in place; generated secrets stay in the Vercel
+  project's environment and are never overwritten.
+* **worker** runs by itself after every feeds run (no schedule of its own).
+* **destroy** (type `destroy` to confirm) deletes the Vercel project and the Pages
   project. It never touches the Neon data; dropping the app login is an option.
 * **db-roles** (optional) creates the `riskpredict_jobs` login for the feed jobs.
 
 Secrets to add first, the order of the first run, and what each step does:
-[`infra/README.md`](infra/README.md#deploy--destroy). After the first Deploy, create the
-two free cron-job.org jobs its summary lists (a `/healthz` ping every 10 minutes keeps
-Render awake within its 750 free hours).
+[`infra/README.md`](infra/README.md#deploy--destroy). The only cron-job.org job is the one
+that starts `feeds.yml` every 30 minutes; no keep-awake ping is needed.
 
 ## How the pieces fit together
 
@@ -60,26 +63,27 @@ Render awake within its 750 free hours).
    + Google Picker); Airtable and others go through Composio. Picking a sheet or table
    creates a *source*.
 3. **Column mapping.** Groq suggests how the source's columns map to entity fields.
-   The user confirms on the **Confirm** screen, with a map preview. The worker then
-   syncs rows into `biz.entities`, normalised to ISO country, UN/LOCODE, ISO 4217,
+   The user confirms on the **Confirm** screen, with a map preview. The API then
+   syncs rows into `biz.entities` within that request, normalised to ISO country, UN/LOCODE, ISO 4217,
    HS code and purl/CPE keys. Drive push notifications and Composio triggers keep
    that up to date.
-4. **Scoring.** After each feed update or source sync, the worker runs the risk engine
-   per workspace ([`risk-engine.md`](docs/contracts/risk-engine.md)). It matches
+4. **Scoring.** After each source sync (in the request) and after each feed update (the
+   worker job that follows `feeds.yml`), the risk engine runs per workspace ([`risk-engine.md`](docs/contracts/risk-engine.md)). It matches
    entities to feed events and anomalies and writes `biz.risks` with
    `score = 100 × likelihood × impact`. Groq only words the advice.
 5. **Dashboard.** The dashboard reads everything through the API
    ([`openapi.yaml`](docs/contracts/openapi.yaml)): GeoJSON map layers, risks with
-   their evidence, scenarios and alerts. Live updates come over SSE, which the worker
-   feeds through the API without holding a database connection open.
+   their evidence, scenarios and alerts. Live updates are rows in `biz.events`, which the
+   dashboard polls (`GET /v1/events`) about every 15 s, only while its tab is visible.
 6. **Isolation.** Every `biz` row is isolated by forced row-level security keyed on
    `app.workspace_id`. Roles and login setup: [`docs/database-roles.md`](docs/database-roles.md).
    The decisions every part follows: [`docs/contracts/README.md`](docs/contracts/README.md).
 
 ### Environment variables per service
 
-Secrets go in GitHub repository secrets (the Deploy workflow copies them to Render) or
-are generated by Deploy and kept only on Render, never in the repository. "public" marks values that are safe to
+Secrets go in GitHub repository secrets (the Deploy workflow copies them to Vercel) or
+are generated by Deploy and kept only in the Vercel project's environment, never in the
+repository. The worker job reads its values from there at start. "public" marks values that are safe to
 expose to the browser.
 
 | Variable | jobs | api | worker | web | What it is |
@@ -90,11 +94,9 @@ expose to the browser.
 | `EPSS_MIN_SCORE` | optional | | | | Default 0.5 |
 | `JWT_SIGNING_KEY` | | ✓ | | | ≥ 32 random bytes, base64 |
 | `TOKEN_ENCRYPTION_KEYS` | | ✓ | ✓ | | `k1:<base64 32 bytes>[,k2:…]`; the first entry encrypts, every entry decrypts |
-| `INTERNAL_TOKEN` | | ✓ | ✓ | | Shared secret for `POST /internal/events` and `GET /internal/work` |
 | `WEB_ORIGIN` | | ✓ | | | Dashboard origin, for CORS and OAuth redirects |
 | `PUBLIC_API_URL` | | ✓ | ✓ | | The API's public HTTPS base; OAuth callback and Drive webhook address (Drive push needs `https://`) |
-| `API_INTERNAL_URL` | | | ✓ | | How the worker reaches the API: `http://api:8000` with compose; on Render `http://127.0.0.1:$PORT` (set by `infra/render/start.sh`) |
-| `INTERNAL_LOOPBACK_ONLY` | | optional | | | `true` in the Render image: `/internal/*` answers loopback callers only (API and worker share one public port) |
+| `CLIENT_IP_HEADER` | | optional | | | Header holding the client address for rate limits, set by the platform's edge (Deploy sets `x-real-ip` on Vercel); empty: the socket peer |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | | ✓ | ✓ | | Google Cloud OAuth client (Drive API, Sheets API, Picker API enabled) |
 | `GOOGLE_PICKER_API_KEY` | | ✓ (public) | | | Browser key, HTTP-referrer restricted to `WEB_ORIGIN` |
 | `GOOGLE_CLOUD_PROJECT_NUMBER` | | ✓ (public) | | | Picker `app_id` |
@@ -104,10 +106,11 @@ expose to the browser.
 | `COMPOSIO_TRIGGER_SLUGS` | | | optional | | `<app>:<trigger slug>` to subscribe to on connect |
 | `GROQ_API_KEY` | | ✓ | ✓ | | Groq free tier |
 | `GROQ_MAPPING_MODEL` / `GROQ_ADVICE_MODEL` | | ✓ | ✓ | | Llama model ids; configurable because Groq renames models |
-| `WORKER_DB_INTERVAL_SECONDS` / `SOURCE_RECHECK_SECONDS` | | | optional | | Database pass (default 1800) and the tool re-read fallback (default 900) |
+| `WORKER_DB_INTERVAL_SECONDS` / `SOURCE_RECHECK_SECONDS` | | | optional | | The loop's database pass (default 1800) and re-read (default 900), docker compose only |
+| `WORKER_ONCE_BUDGET_SECONDS` | | | optional | | Time budget of `python -m worker --once` (default 480; the job's timeout is 10 min) |
+| `INLINE_BUDGET_SECONDS` / `WEBHOOK_BUDGET_SECONDS` | | optional | | | Work done inside a request: sync and scoring (default 240, under Vercel's 300 s) and webhook processing (default 20) |
 | `ADVICE_PER_RUN` | | | optional | | Groq advice calls per engine run (default 20) |
-| `EXPECTED_SCHEMA_VERSION` / `DB_MAX_CONNECTIONS` | | optional | | | Startup schema check (default `007_biz_lookups`); pool size (default 5) |
-| `PORT` / `FORWARDED_ALLOW_IPS` | | optional | | | Listen port (8000; 10000 on Render); proxies whose `X-Forwarded-For` is trusted for rate limits (Deploy sets private ranges + Cloudflare's, never `*`) |
+| `EXPECTED_SCHEMA_VERSION` / `DB_MAX_CONNECTIONS` | | optional | | | Lazy schema check on an instance's first database use (default `050_serverless_state`); pool size (default 5) |
 | `VITE_API_URL` | | | | ✓ (public) | The API base URL baked into the dashboard build (the older name `VITE_API_BASE_URL` also works) |
 
 ## Public sources (step 1, no API keys)
@@ -283,9 +286,11 @@ container runs spike detection after every fetch. To include tagging, build with
 * `ci.yml` runs the tests (including a Postgres 16 service) and a Docker build on pull
   requests. The tagging model is mocked there, so nothing is downloaded.
 * `ci-api.yml` runs the API and worker tests (`tests/apiservice`, Postgres 16, Google,
-  Composio and Groq replaced inside the tests) and builds the `api` and `worker` images.
-  Its `render-image` job runs the combined Render image at 512 MB / 0.1 CPU and reports
-  idle and peak memory; its `workflows` job lints the deploy workflows with actionlint.
+  Composio and Groq replaced inside the tests) and builds the `api` and `worker` images
+  (docker compose). Its `vercel-bundle` job builds the Vercel function as Deploy does and
+  reports its size, the cold-import time and an ASGI smoke test; its `workflows` job lints
+  the deploy and worker workflows with actionlint.
+* `worker.yml` runs `python -m worker --once` after each `feeds.yml` run.
 * `deploy.yml`, `destroy.yml` and `db-roles.yml` (manual only): see
   [Deploy / Destroy](#deploy--destroy).
 
@@ -294,9 +299,17 @@ The repository is public, so job logs only ever show per-source status, counts a
 ### Free-tier notes
 
 * Neon bills compute while it is awake and suspends it after 5 idle minutes. Jobs use
-  short-lived connections only (one to read state, one to write), but a 15-minute
-  schedule still keeps a 0.25 CU compute awake roughly 6 of every 15 minutes:
-  about 60–75 of the 100 free CU-hours a month, before the API and worker add theirs.
+  short-lived connections only (one to read state, one to write). The budget, at
+  0.25 CU, out of the 100 free CU-hours a month (estimate; see
+  [`infra/README.md`](infra/README.md#neon-compute-budget)):
+
+  | What wakes or keeps Neon awake | Roughly |
+  |---|---|
+  | `feeds.yml` every 30 min (fetch + analyse, ~6 min awake per run including the 5-min tail) | 36 CU-h |
+  | `worker.yml` right after it (extends the tail by ~1–1.5 min per run, never a wake of its own) | 6–9 CU-h |
+  | a visible dashboard tab (polls every 15 s), e.g. 1 h a day | ~8 CU-h |
+  | requests outside those windows (sign-in, confirm, webhooks), e.g. 10 a day | ~7 CU-h |
+  | **total** | **~55–60 CU-h** |
 * The `analyse` job uses the same short connections, right after the fetch, while
   the compute is still awake. Tags add about one row per tagged event, and anomaly
   rows exist only for flagged points.

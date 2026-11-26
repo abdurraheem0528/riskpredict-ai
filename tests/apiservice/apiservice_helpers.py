@@ -27,3 +27,11 @@ def hdr(auth: dict | str, workspace: str | None = None) -> dict:
 def groq_reply(content) -> dict:
     text = content if isinstance(content, str) else json.dumps(content)
     return {"choices": [{"message": {"role": "assistant", "content": text}}]}
+
+
+def event_names(owner_db, workspace_id: str | None = None) -> list[str]:
+    """The live-update events written so far (biz.events), oldest first."""
+    rows = owner_db.execute(
+        "SELECT event FROM biz.events WHERE %s::uuid IS NULL OR workspace_id = %s ORDER BY id", (workspace_id, workspace_id)
+    ).fetchall()
+    return [r["event"] for r in rows]
