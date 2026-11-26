@@ -199,7 +199,9 @@ KEPT = {  # (supplier, category) → the items that still reach it
     ("Pearl River PCB Works", "logistics"): {"k-shenzhen-port"},
     ("Rhein Sensorik GmbH", "cyber"): {"k-de-rail", "k-sensor-maker"},
     ("Rhein Sensorik GmbH", "labour"): {"k-de-rail-strike"},
-    ("Formosa Microcircuits", "natural_hazard"): {"us-tw-1", "k-tw-quake-news"},
+    # Formosa is placed at its city, Hsinchu (§5.11): the M6.3 USGS quake near Hualien is 108 km away,
+    # at the edge of its 123 km radius (confidence 0.13), so on its own it stays below the minimum score.
+    ("Formosa Microcircuits", "natural_hazard"): {"k-tw-quake-news"},
     ("Formosa Microcircuits", "geopolitical"): {"k-china-drills-6"},
     ("Penang Semicon Assembly", "natural_hazard"): {"k-penang-flood"},
     ("Haiphong Cable & Harness", "natural_hazard"): {"FL-2001"},

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from api import events, work
 from api.context import State, WsCtx, audit
+from api.core import engine as engine_iface
 from api.core import mapping, providers
 from api.core import serialize as ser
 from api.core.errors import conflict, invalid, not_found
@@ -264,7 +265,8 @@ def preview_mapping(
             "type": "Feature",
             "id": f"row:{n}",
             "geometry": {"type": "Point", "coordinates": [e.lon, e.lat]} if e.lat is not None else None,
-            "properties": {"kind": e.kind, "name": e.name, "countries": e.countries, "ports": e.ports,
+            "properties": {"kind": e.kind, "name": e.name, "countries": e.countries, "ports": e.ports, "city": e.city,
+                           "place": engine_iface.place_label(e.city, e.countries, e.ports[:1]),
                            "criticality": e.criticality, "open_risk_count": 0, "max_score": None, "row_number": e.row_number},
         })  # fmt: skip
     return {

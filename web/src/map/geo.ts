@@ -18,10 +18,15 @@ async function getJson<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Load the lookup tables once (13 KiB + 55 KiB gzipped). */
+/**
+ * Load the lookup tables once (13 KiB + 55 KiB gzipped). The URL carries a hash of the
+ * files (vite.config.ts), so a new release is never read from an older cached copy
+ * (`/map/*` is cached for a day).
+ */
 export function loadGazetteer(): Promise<void> {
   if (!loading) {
-    loading = Promise.all([getJson<Centroids>('/map/centroids.json'), getJson<Ports>('/map/ports.json')]).then(
+    const v = `?v=${__MAP_DATA_VERSION__}`;
+    loading = Promise.all([getJson<Centroids>(`/map/centroids.json${v}`), getJson<Ports>(`/map/ports.json${v}`)]).then(
       ([c, p]) => {
         centroids = c;
         ports = p;
@@ -92,8 +97,18 @@ export function placeOf(p: {
   return null;
 }
 
-/** Human place line: "Kaohsiung, Taiwan" from ports/countries. */
-export function placeLabel(p: { ports?: readonly string[]; countries?: readonly string[] }): string {
+/**
+ * Human place line: the API's `place` when given; else "Hsinchu, Taiwan" from a city and
+ * the first country; else "Kaohsiung, Taiwan" from ports/countries.
+ */
+export function placeLabel(p: {
+  place?: string | null;
+  city?: string | null;
+  ports?: readonly string[];
+  countries?: readonly string[];
+}): string {
+  if (p.place) return p.place;
+  if (p.city) return p.countries?.length ? `${p.city}, ${countryName(p.countries[0])}` : p.city;
   const parts: string[] = [];
   if (p.ports?.length) parts.push(portName(p.ports[0]));
   if (p.countries?.length) {

@@ -983,7 +983,7 @@ paths:
       tags: [map]
       operationId: mapEntities
       summary: The workspace's entities as map features
-      description: Entities with `lat`/`lon` are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Not paginated; at most 5,000 features (then `truncated` is true).
+      description: Entities with `lat`/`lon` (their own, else their city's) are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Not paginated; at most 5,000 features (then `truncated` is true).
       parameters:
         - {$ref: "#/components/parameters/WorkspaceHeader"}
         - {name: kind, in: query, schema: {$ref: "#/components/schemas/EntityKind"}}
@@ -1892,9 +1892,10 @@ components:
           type: array
           description: purl or CPE 2.3
           items: {type: string}
-        lat: {type: [number, "null"]}
+        lat: {type: [number, "null"], description: "The row's latitude; without one, the city's (GeoNames cities15000, matched within the row's countries); null when neither is known (the dashboard then places it by port or country)"}
         lon: {type: [number, "null"]}
         city: {type: [string, "null"]}
+        place: {type: [string, "null"], description: "Where it is, in words: the city and country (`Hsinchu, Taiwan`) when it has a city, else the first port's display name and up to two countries (`Kaohsiung, Taiwan`, `Japan and China +1`)"}
         address: {type: [string, "null"]}
         exposure:
           type: object
@@ -1943,6 +1944,7 @@ components:
             id: {type: string, format: uuid}
             kind: {$ref: "#/components/schemas/EntityKind"}
             name: {type: string}
+            city: {type: [string, "null"], description: The entity's city}
         category: {$ref: "#/components/schemas/RiskCategory"}
         title: {type: string}
         likelihood: {type: number, minimum: 0, maximum: 1}
@@ -1957,6 +1959,7 @@ components:
           items: {$ref: "#/components/schemas/Locode"}
         lat: {type: [number, "null"]}
         lon: {type: [number, "null"]}
+        place: {type: [string, "null"], description: "The entity's `place` when it has a city (`Hsinchu, Taiwan`), else the risk's first port and countries in words (`Kaohsiung, Taiwan`)"}
         evidence_count: {type: integer, minimum: 0}
         first_seen_at: {type: string, format: date-time}
         last_seen_at: {type: string, format: date-time}
@@ -2222,6 +2225,8 @@ components:
                   ports:
                     type: array
                     items: {type: string}
+                  city: {type: [string, "null"]}
+                  place: {type: [string, "null"], description: "As `Entity.place`"}
                   criticality: {type: [string, "null"]}
                   open_risk_count: {type: integer}
                   max_score: {type: [number, "null"]}
@@ -2247,7 +2252,7 @@ components:
                 properties:
                   place_type: {type: string, enum: [country, port, point]}
                   place_key: {type: string, description: "alpha-3, LOCODE or entity id"}
-                  label: {type: [string, "null"]}
+                  label: {type: [string, "null"], description: "The entity's name at a `point`, the port's display name at a `port` (`Kaohsiung`), null at a `country`"}
                   risk_count: {type: integer}
                   story_count: {type: integer, description: "Distinct stories at this place; `top_risk_ids` lists one risk per story"}
                   max_score: {type: number}

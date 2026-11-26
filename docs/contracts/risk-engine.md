@@ -36,6 +36,7 @@ from engine import (
     EngineContextError,     # app.workspace_id missing or not the workspace passed in
     scenario_results,       # the pure part of run_scenario (no I/O)
     chokepoints, chokepoint_id,  # §5.3 table for the API's disruptions layer; id/name/alias → id
+    city_position, port_name, place_label,  # §5.11: the mapper's city positions, display names
 )
 
 # --- pure core: no I/O, deterministic for the same inputs -----------------------
@@ -534,6 +535,33 @@ the constructed copy of the 27 Nov sheet (`tests/fixtures/engine_live_nov27_feed
 `tests/test_engine_relevance.py`): 12 risks → 10, highest likelihood 0.957 → 0.458, risks
 at 0.8 or more 1 → 0, and none of the 13 passing-mention articles reaches a supplier,
 while every positive control does.
+
+### 5.11 Places: city positions and port names
+
+* **Position precedence** for an entity: the row's own `lat`/`lon`; else its **city**,
+  from `engine/data/cities15000.tsv.gz` (GeoNames `cities15000`, CC BY 4.0, 34,006 cities);
+  else (on the map only) its first port, else its first country. The mapper
+  (`api/core/mapping.py`) applies it when it reads a row, so `biz.entities.lat/lon` hold the
+  city and the engine's radius matching (§5.2 `geo_radius`, "position beats country") and
+  inferred chokepoints (§5.9) use it. Ports are unchanged: port, chokepoint and lane matching
+  still use the entity's `ports`.
+* `city_position(city, countries) -> City | None`: the city is matched **only within the
+  given countries** (alpha-3 or alpha-2; the row's countries, or its ports' countries when it
+  names none), in order, on its GeoNames name or a Latin alternate name, compared as match
+  keys (accents stripped, casefold, punctuation as spaces). Also tried: the text before a
+  comma or bracket, and without a trailing "City"/"-si"/"-shi". A city's own name beats
+  another city's alternate name; then the larger population. A name not found in those
+  countries gives `None` (it is never looked up elsewhere).
+* `port_name(locode) -> str | None`: the dashboard's display name (`web/src/map/geo.ts`):
+  the UN/LOCODE name, else the World Port Index name, cleaned (parenthesised names, a region
+  after a comma, and the suffixes Ko/Kou/Hsien/Pt dropped): `TWKHH` → Kaohsiung, `MYPEN` →
+  Penang, `AEJEA` → Jebel Ali, `CLSAI` → San Antonio, `VNHPH` → Haiphong
+  (`engine/data/ports.tsv`, built from `web/public/map/ports.json`). Titles and sentences
+  name ports this way ("at the port of Kaohsiung"); `match_value` and `inferred_from` keep
+  the code.
+* `place_label(city, countries, ports) -> str | None`: `Hsinchu, Taiwan` with a city, else
+  the first port's name and up to two countries (`Kaohsiung, Taiwan`). The API serves it
+  as `Entity.place` and `Risk.place`.
 
 ## 6. Impact
 

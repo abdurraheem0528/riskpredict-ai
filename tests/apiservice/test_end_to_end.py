@@ -149,9 +149,12 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         assert point["properties"]["story_count"] == 2
         assert places["country:ARE"]["properties"]["top_categories"] == ["sanctions"]
         assert places["port:NLRTM"]["properties"]["top_categories"] == ["logistics"]  # a route's ports: sorted
+        assert places["port:NLRTM"]["properties"]["label"] == "Rotterdam"  # the port's display name
         assert len(places) == 3  # the software risk has no place
+        assert by_cat["sanctions"]["place"] == "United Arab Emirates" and by_cat["sanctions"]["entity"]["city"] is None
         ents = client.get("/v1/map/entities", headers=hdr(me)).json()["features"]
         assert len(ents) == len(ENTITIES)
+        assert {f["properties"]["name"]: f["properties"]["place"] for f in ents}["Kansai Precision Parts"] == "Japan"
         dis = {f["id"]: f["properties"] for f in client.get("/v1/map/disruptions", headers=hdr(me)).json()["features"]}
         suez = dis["chokepoint:suez"]
         assert suez["status"] == "disrupted" and suez["event_ids"] == ["portwatch:pw-e2e-1"]

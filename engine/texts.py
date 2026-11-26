@@ -6,6 +6,7 @@ from functools import lru_cache
 from typing import Any
 
 from engine.models import Anomaly, Entity, FeedEvent, rfc3339
+from engine.places import port_label
 from engine.reference import chokepoint_by_id
 
 MAX_TITLE = 300
@@ -191,11 +192,11 @@ def news_label(tag_type: str | None, category: str) -> str:
 
 
 def _where(match_type: str, match_value: str) -> str:
-    """``in Japan`` / ``at port NLRTM`` / ``near Suez Canal`` / ``on <value>``."""
+    """``in Japan`` / ``at the port of Rotterdam`` / ``near Suez Canal`` / ``on <value>``."""
     if match_type == "country":
         return f"in {country_name(match_value)}"
     if match_type == "port":
-        return f"at port {match_value}"
+        return f"at the port of {port_label(match_value)}"
     if match_type == "chokepoint":
         c = chokepoint_by_id(match_value)
         return f"near {c.name if c else match_value}"
@@ -292,7 +293,7 @@ def _lane(item, name: str) -> str:
     if via is None:
         return f"which route {name} passes"
     if via.startswith("port "):
-        return f"which shipments from {name} likely pass (inferred from the port {via[5:]})"
+        return f"which shipments from {name} likely pass (inferred from the port of {port_label(via[5:])})"
     if via.startswith("country "):
         return f"which shipments from {name} likely pass (inferred from {country_name(via[8:])})"
     return f"which is next to {name}"
@@ -350,7 +351,7 @@ def _news_sentence(category: str, entity: Entity, items, top) -> str:
         what = top.detail.get("matched_text") or mv
         return f"{reports}{about} {verb} {what}, which {name} covers."
     if mt == "port":
-        return f"{reports}{about} {verb} the port {mv}, which {name} uses."
+        return f"{reports}{about} {verb} the port of {port_label(mv)}, which {name} uses."
     return f"{reports}{about} {verb} {mv}, which matches {name}."
 
 
@@ -376,7 +377,7 @@ def _event_sentence(category: str, entity: Entity, items, top) -> str:
     if mt == "country":
         return f"{lead} in {country_name(mv)}, where {name} is based."
     if mt == "port":
-        return f"{lead} at the port {mv}, which {name} uses."
+        return f"{lead} at the port of {port_label(mv)}, which {name} uses."
     if mt == "chokepoint":
         return f"{lead} near {_the(_choke_name(mv))}, {_lane(top, name)}."
     return f"{lead} matching {name}."
@@ -390,11 +391,11 @@ def _scenario_sentence(entity: Entity, top) -> str:
     if mt == "country":
         via = f"through {country_name(mv)}, where it is based"
     elif mt == "port":
-        via = f"through the port {mv}"
+        via = f"through the port of {port_label(mv)}"
     elif mt == "chokepoint":
         v = top.detail.get("inferred_from")
         via = f"through {_the(_choke_name(mv))}" + (
-            " on its route" if v is None else f", inferred from the {'port ' + v[5:] if v.startswith('port ') else 'location'}"
+            " on its route" if v is None else f", inferred from the {'port of ' + port_label(v[5:]) if v.startswith('port ') else 'location'}"
         )
     elif mt == "geo_radius":
         d = top.detail.get("distance_km")
@@ -470,6 +471,8 @@ def how_scored(category: str, entity: Entity, items, likelihood: float, impact_f
     shown = top.match_value
     if top.match_type == "country":
         shown = f"{country_name(top.match_value)} ({top.match_value})"
+    elif top.match_type == "port":
+        shown = f"{port_label(top.match_value)} ({top.match_value})"
     elif top.match_type == "chokepoint":
         shown = _choke_name(top.match_value)
     sup = top.detail.get("supported_by")

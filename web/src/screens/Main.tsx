@@ -25,8 +25,8 @@ const LEGEND: Partial<Record<RiskCategory, string>> = {
   cyber: 'Your software, checked against known exploited flaws',
 };
 
-export function RiskPlace(r: Pick<Risk, 'entity' | 'countries' | 'ports'> & { story?: Risk['story'] }) {
-  const where = placeLabel({ ports: r.ports.slice(0, 1), countries: r.countries });
+export function RiskPlace(r: Pick<Risk, 'entity' | 'countries' | 'ports' | 'place'> & { story?: Risk['story'] }) {
+  const where = placeLabel({ place: r.place, city: r.entity.city, ports: r.ports.slice(0, 1), countries: r.countries });
   // One story that reaches several entities is listed once, with the others counted.
   const more = r.story && r.story.risk_count > 1 ? ` and ${r.story.risk_count - 1} more` : '';
   return where && !more ? `${r.entity.name} · ${where}` : `${r.entity.name}${more}`;

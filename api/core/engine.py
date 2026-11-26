@@ -105,3 +105,44 @@ def chokepoints() -> list[Chokepoint]:
             )
         return out
     return [Chokepoint(k, v[0], v[1:], None, None, None) for k, v in _FALLBACK_NAMES.items()]
+
+
+# --- places (risk-engine.md §5.11) ------------------------------------------------------------
+
+
+_places_unavailable = False
+
+
+def _place_fn(name: str):
+    """``engine.<name>``, or ``None`` without the engine (or one of its dependencies): sync
+    and serialisation then go on without city positions and port names."""
+    global _places_unavailable
+    if _places_unavailable:
+        return None
+    try:
+        eng = load()
+    except ImportError:
+        _places_unavailable = True
+        return None
+    return getattr(eng, name, None) if eng is not None else None
+
+
+def city_position(city: str | None, countries: list[str]) -> tuple[float, float] | None:
+    """``(lat, lon)`` of ``city`` within ``countries`` from the engine's gazetteer, or ``None``
+    (no such city there, or no engine: the entity is then placed by its port or country)."""
+    fn = _place_fn("city_position") if city else None
+    hit = fn(city, countries) if fn is not None else None
+    return (hit.lat, hit.lon) if hit is not None else None
+
+
+def port_name(locode: str) -> str:
+    """The port's display name (``"TWKHH"`` → ``"Kaohsiung"``), else the code."""
+    fn = _place_fn("port_name")
+    return (fn(locode) if fn is not None else None) or locode
+
+
+def place_label(city: str | None, countries: list[str], ports: list[str]) -> str | None:
+    """``"Hsinchu, Taiwan"`` / ``"Kaohsiung, Taiwan"`` / ``"Taiwan and Japan"``, or ``None``
+    (``None`` too without the engine: the dashboard then writes the line itself)."""
+    fn = _place_fn("place_label")
+    return fn(city, countries, ports) if fn is not None else None
