@@ -75,7 +75,10 @@ still due, `biz.worker_state.score_pending`) and the next worker run finishes it
      code only.
 2. **The re-read:** every active source is read again from its tool *without* touching the
    database; only a changed content hash leads to a sync and a re-score (the fallback for
-   missed Drive / Composio notifications).
+   missed Drive / Composio notifications). Each row's digest includes the mapper's
+   `APPLY_RULES_VERSION` (`api/core/mapping.py`), so when a release reads rows differently
+   (version 3: a row with a city is placed at the city) the next re-read re-syncs and
+   re-scores every source once, with nothing for the owner to do.
 
 The run stops starting new workspaces once `WORKER_ONCE_BUDGET_SECONDS` (480) have passed;
 the job's own timeout is 10 minutes. Events are collected during a step and written after

@@ -79,7 +79,11 @@ Redocly, generates TypeScript types with `openapi-typescript`, and type-checks t
     because feed retention deletes rows.
 11. **Codes everywhere:** ISO 3166-1 alpha-3, UN/LOCODE without a space, ISO 4217,
     HS digits only, software as purl or CPE 2.3. Normalise with `jobs/codes.py`; a
-    value that cannot be normalised is reported, never guessed.
+    value that cannot be normalised is reported, never guessed. People see names, not
+    codes: a port by its display name (`engine.port_name`, the map's rule: `TWKHH` →
+    Kaohsiung), and `Entity.place` / `Risk.place` ("Hsinchu, Taiwan"). An entity with a
+    city and no latitude/longitude is placed at the city, found only within its own
+    countries (GeoNames cities15000, `risk-engine.md` §5.10).
 12. **Public repository:** logs show counts and statuses only, never row contents,
     tokens or connection strings. Problem `detail` texts are safe to show.
 

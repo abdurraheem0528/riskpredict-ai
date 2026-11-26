@@ -36,6 +36,21 @@ static table that the API serves on the disruptions layer.
 Install with `pip install -r engine/requirements.txt`: the analysis requirements plus
 `rapidfuzz` (MIT).
 
+**Places (contract §5.10).** `engine.city_position(city, countries)` gives a city's
+position from `engine/data/cities15000.tsv.gz`, matched only within the given countries;
+the mapper uses it for a row with a city and no latitude/longitude, so *Formosa
+Microcircuits* (Hsinchu, Taiwan, port TWKHH) sits in Hsinchu, not at the port of
+Kaohsiung 250 km away, and radius matching measures from Hsinchu. `engine.port_name("TWKHH")`
+is "Kaohsiung", by the same rule as the map.
+
+### Data files and attribution
+
+| File | Source | Licence |
+|---|---|---|
+| `data/cities15000.tsv.gz` | [GeoNames](https://www.geonames.org/) `cities15000` (cities with 15,000+ people), via the copy in the PyPI package `geonamescache` 3.0.2; trimmed by `data/build_places.py` to country, position (4 dp), population, name and Latin match keys | CC BY 4.0 |
+| `data/ports.tsv` | `web/public/map/ports.json`: NGA World Port Index and UNECE UN/LOCODE names (see `web/public/map/ATTRIBUTION.md`) | Public domain; free to use |
+| `data/chokepoints.json`, `data/sea_lanes.json`, `data/hs_chapters.json` | Written for this project | |
+
 ## The rules, with examples
 
 Every example below is real engine output for test-only inputs (`tests/`).
@@ -158,7 +173,7 @@ L = 0.977, the score is **97.7**.
 | Sanctions designation may match Acme Trading LLC | 0.977 | 1.000 | 97.7 |
 | Earthquake near Osaka plant | 0.567 | 0.675 | 38.3 |
 | Vulnerability in PyPI requests | 0.726 | 0.450 | 32.7 |
-| Port disruption at port NLRTM affecting Shanghai-Rotterdam | 0.660 | 0.400 | 26.4 |
+| Port disruption at the port of Rotterdam affecting Shanghai-Rotterdam | 0.660 | 0.400 | 26.4 |
 | TRY moved sharply against EUR (Turkish lira) | 0.845 | 0.300 | 25.3 |
 | Shipping disruption near Suez Canal on route Shanghai-Rotterdam | 0.370 | 0.400 | 14.8 |
 

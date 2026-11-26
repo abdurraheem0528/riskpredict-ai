@@ -243,6 +243,12 @@ Every rule, with an example, the known gaps and the runtime per workspace (about
 for a typical workspace): [`engine/README.md`](engine/README.md). The interface:
 [`docs/contracts/risk-engine.md`](docs/contracts/risk-engine.md).
 
+Entities with a city and no latitude/longitude are placed at the city, from the bundled
+GeoNames `cities15000` gazetteer ([GeoNames](https://www.geonames.org/), CC BY 4.0, via
+the `geonamescache` package); attribution for every bundled dataset is in
+[`engine/README.md`](engine/README.md#data-files-and-attribution) and
+[`web/public/map/ATTRIBUTION.md`](web/public/map/ATTRIBUTION.md).
+
 ## Running
 
 ```bash

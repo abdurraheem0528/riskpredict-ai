@@ -16,6 +16,23 @@ CATEGORIES = ("natural_hazard", "logistics", "geopolitical", "sanctions", "trade
 RISK_STATUSES = ("open", "acknowledged", "mitigating", "resolved", "dismissed")
 
 
+def entity_place(row: dict) -> str | None:
+    """``"Hsinchu, Taiwan"``, ``"Kaohsiung, Taiwan"``, ``"Taiwan"``: where an entity is, in words."""
+    from api.core import engine as engine_iface
+
+    return engine_iface.place_label(row.get("city"), list(row["countries"]), list(row["ports"])[:1])
+
+
+def risk_place(row: dict) -> str | None:
+    """The entity's city line when it has a city, else the risk's first port and countries."""
+    from api.core import engine as engine_iface
+
+    if row.get("entity_city"):
+        return engine_iface.place_label(row["entity_city"], list(row.get("entity_countries") or row["countries"]),
+                                        list(row.get("entity_ports") or row["ports"])[:1])  # fmt: skip
+    return engine_iface.place_label(None, list(row["countries"]), list(row["ports"])[:1])
+
+
 def ts(value: datetime | None) -> str | None:
     if value is None:
         return None
@@ -171,6 +188,7 @@ def entity(row: dict) -> dict:
         "lat": row["lat"],
         "lon": row["lon"],
         "city": row["city"],
+        "place": entity_place(row),
         "address": row["address"],
         "exposure": {
             "annual_spend": dec(row["annual_spend"]),
@@ -204,6 +222,8 @@ def entity_feature(row: dict) -> dict:
             "name": row["name"],
             "countries": list(row["countries"]),
             "ports": list(row["ports"]),
+            "city": row["city"],
+            "place": entity_place(row),
             "criticality": row["criticality"],
             "open_risk_count": int(row["open_risk_count"] or 0),
             "max_score": r1(row["max_score"]),
@@ -216,7 +236,8 @@ def entity_feature(row: dict) -> dict:
 # The grouped subquery runs once per statement (hash join), over the workspace's live risks.
 STORY_KEY = "coalesce(r.factors->>'story', 'risk:' || r.id::text)"
 RISK_SELECT = """
-SELECT r.*, e.kind AS entity_kind, e.name AS entity_name,
+SELECT r.*, e.kind AS entity_kind, e.name AS entity_name, e.city AS entity_city, e.countries AS entity_countries,
+       e.ports AS entity_ports,
        (SELECT count(*) FROM biz.risk_evidence ev WHERE ev.workspace_id = r.workspace_id AND ev.risk_id = r.id)
        AS evidence_count,
        st.n AS story_size, st.entities AS story_entities
@@ -247,7 +268,8 @@ def story(row: dict) -> dict:
 def risk(row: dict) -> dict:
     return {
         "id": str(row["id"]),
-        "entity": {"id": str(row["entity_id"]), "kind": row["entity_kind"], "name": row["entity_name"]},
+        "entity": {"id": str(row["entity_id"]), "kind": row["entity_kind"], "name": row["entity_name"],
+                   "city": row.get("entity_city")},
         "category": row["category"],
         "title": row["title"],
         "likelihood": r3(row["likelihood"]),
@@ -258,6 +280,7 @@ def risk(row: dict) -> dict:
         "ports": list(row["ports"]),
         "lat": row["lat"],
         "lon": row["lon"],
+        "place": risk_place(row),
         "evidence_count": int(row["evidence_count"] or 0),
         "first_seen_at": ts(row["first_seen_at"]),
         "last_seen_at": ts(row["last_seen_at"]),

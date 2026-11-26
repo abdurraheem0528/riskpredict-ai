@@ -36,8 +36,12 @@ def test_after_numbers(sample):
     3 Medium; recorded with the 1.1.0 engine on this same sample)."""
     ents, out, _ = sample
     s = summary(ents, out)
-    assert (s["risks"], s["stories"], s["max"]) == (20, 13, 31.0)
-    assert s["bands"] == {"critical": 0, "high": 0, "medium": 0, "low": 20}
+    # 19 since suppliers are placed at their city: the M6.1 quake off Coquimbo is ~370 km from
+    # Andes Copper in Santiago, outside its radius (position beats country), so no longer a risk.
+    assert (s["risks"], s["stories"], s["max"]) == (19, 12, 31.0)
+    assert s["bands"] == {"critical": 0, "high": 0, "medium": 0, "low": 19}
+    andes = next(e for e in ents if e.name == "Andes Copper Products")
+    assert andes.has_position and not [a for a in out if a.entity_id == andes.id and a.category == "natural_hazard"]
 
 
 def test_no_risk_rests_on_a_commodity_or_hs_chapter_alone(sample):

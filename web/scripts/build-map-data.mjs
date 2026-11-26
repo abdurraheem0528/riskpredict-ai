@@ -11,6 +11,8 @@
 //        node scripts/build-map-data.mjs --port-names-only [--locode path/to/code-list.csv]
 // Without the flags it downloads them from the URLs below. Needs `npx` (mapshaper 0.6).
 // --port-names-only rewrites just the UN/LOCODE names in the committed ports.json.
+// After either, run `python engine/data/build_places.py` so the API's port names
+// (engine/data/ports.tsv) follow (tests/test_places.py checks that they agree).
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';

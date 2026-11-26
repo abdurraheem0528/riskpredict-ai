@@ -619,7 +619,7 @@ export interface paths {
         };
         /**
          * The workspace's entities as map features
-         * @description Entities with `lat`/`lon` are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Not paginated; at most 5,000 features (then `truncated` is true).
+         * @description Entities with `lat`/`lon` (their own, else their city's) are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Not paginated; at most 5,000 features (then `truncated` is true).
          */
         get: operations["mapEntities"];
         put?: never;
@@ -1246,9 +1246,12 @@ export interface components {
             commodities: string[];
             /** @description purl or CPE 2.3 */
             software: string[];
+            /** @description The row's latitude; without one, the city's (GeoNames cities15000, matched within the row's countries); null when neither is known (the dashboard then places it by port or country) */
             lat: number | null;
             lon: number | null;
             city: string | null;
+            /** @description Where it is, in words: the city and country (`Hsinchu, Taiwan`) when it has a city, else the first port's display name and up to two countries (`Kaohsiung, Taiwan`, `Japan and China +1`) */
+            place?: string | null;
             address: string | null;
             exposure: {
                 /** @description Decimal as a string, e.g. "125000.00" */
@@ -1291,6 +1294,8 @@ export interface components {
                 id: string;
                 kind: components["schemas"]["EntityKind"];
                 name: string;
+                /** @description The entity's city */
+                city?: string | null;
             };
             category: components["schemas"]["RiskCategory"];
             title: string;
@@ -1303,6 +1308,8 @@ export interface components {
             ports: components["schemas"]["Locode"][];
             lat: number | null;
             lon: number | null;
+            /** @description The entity's `place` when it has a city (`Hsinchu, Taiwan`), else the risk's first port and countries in words (`Kaohsiung, Taiwan`) */
+            place?: string | null;
             evidence_count: number;
             /** Format: date-time */
             first_seen_at: string;
@@ -1523,6 +1530,9 @@ export interface components {
                     name: string;
                     countries: string[];
                     ports: string[];
+                    city?: string | null;
+                    /** @description As `Entity.place` */
+                    place?: string | null;
                     criticality: string | null;
                     open_risk_count: number;
                     max_score: number | null;
@@ -1545,6 +1555,7 @@ export interface components {
                     place_type: "country" | "port" | "point";
                     /** @description alpha-3, LOCODE or entity id */
                     place_key: string;
+                    /** @description The entity's name at a `point`, the port's display name at a `port` (`Kaohsiung`), null at a `country` */
                     label?: string | null;
                     risk_count: number;
                     /** @description Distinct stories at this place; `top_risk_ids` lists one risk per story */

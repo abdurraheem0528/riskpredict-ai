@@ -1,0 +1,3285 @@
+# UN/LOCODE -> World Port Index name, UN/LOCODE name (empty when the same), from
+# web/public/map/ports.json (NGA World Port Index, public domain; UNECE UN/LOCODE, free to
+# use). Built by engine/data/build_places.py; engine.places.port_name cleans the names.
+AEAJM	Ajman	
+AEAUH	Abu Zaby	Abu Dhabi
+AEDAS	Jazirat Das	Das Island
+AEDXB	Dubayy	Dubai
+AEFAT	Fateh Oil Terminal	Fateh Terminal
+AEHAM	Al Hamriyah Lpg Terminal	Al Hamriyah
+AEHTL	Hulaylah Oil Terminal	Hulaylah Terminal
+AEJAZ	Al Jazeera Port	
+AEJEA	Mina Jabal Ali	Jebel Ali
+AEJED	Jabal Az Zannah/ruways	Jebel Dhanna
+AEKLF	Khawr Fakkan	Khor al Fakkan
+AEMBS	Mubarraz Oil Terminal	Mubarras Island
+AEMSA	Mina Saqr	
+AEQIW	Umm Al Qaywayn	Umm al Quwain
+AESHJ	Ash Shariqah	Sharjah
+AEULR	Umm An Nar	Umm Al Nar
+AEZUR	Zirkuh Oil Field	Zirku Island
+AGSJO	St Johns	Saint John's
+ALDRZ	Durres	Durrës
+ALSHG	Shengjin	Shëngjin
+ALVOA	Vlores	Vlorë
+AOAZZ	Porto Do Ambriz	Ambriz
+AOCAB	Cabinda	
+AODAL	Dalia Terminal	Dalia
+AOFLT	Futila Terminal	
+AOGIR	Girassol Terminal	
+AOGPO	Greater Plutonio Terminal	Greater Plutonio
+AOKOT	Kuito Oil Field	
+AOLAD	Luanda	
+AOLOB	Lobito	
+AOMAL	Malongo Oil Terminal	Malongo
+AOMSZ	Namibe	
+AONDD	Sumbe	
+AOPAT	Palanca Terminal	
+AOPBN	Porto Amboim	
+AOSZA	Soyo Angola Lng Terminal	Soyo
+AOTAK	Takula Terminal	
+AQMCM	Mcmurdo Station	McMurdo
+AQPFS	Port Foster	
+ARBHI	Bahia Blanca	Bahía Blanca
+ARBSB	San Blas	Bahia San Blas
+ARBUE	Buenos Aires	
+ARCMP	Campana	
+ARCOC	Concordia	
+ARCOL	Colon	Colón
+ARCOU	Concepcion Del Uruguay	Concepción del Uruguay
+ARCRD	Comodoro Rivadavia	
+ARDME	Diamante	
+ARIBY	Puerto Ibicuy	Ibicuy
+ARINW	Puerto Ingeniero White	Ingeniero White/Bahia Blanca
+ARLPG	La Plata	
+ARMDQ	Mar Del Plata	Mar del Plata
+ARPBG	Puerto Belgrano	Puerto Belgrano/Bahia Blanca
+ARPGV	Puerto Galvan	Puerto Galvan/Bahia Blanca
+ARPMY	Puerto Madryn	
+ARPNL	Puerto Nacional	Puerto Nacional/Bahia Blanca
+ARPRA	Parana	Paraná
+ARPRS	Puerto Rosales	Puerto Rosales/Bahia Blanca
+ARPUD	Puerto Deseado	
+ARQQN	Quequen	Quequén
+ARRAM	Ramallo	
+ARRGA	Rio Grande	Río Grande
+ARRGL	Puerto Gallegos	Río Gallegos
+ARROS	Rosario	
+ARRZA	Puerto Santa Cruz	Santa Cruz
+ARSFN	Santa Fe	
+ARSJL	Puerto San Julian	
+ARSLO	San Lorenzo	
+ARSMA	Puerto San Martin	San Martin
+ARSNS	San Nicolas	San Nicolás de los Arroyos
+ARSPD	San Pedro	
+ARSSN	San Sebastian Bay	San Sebastián
+ARUSH	Ushuaia	
+ARVCN	Villa Constitucion	Villa Constitución
+ARZAE	Zarate	Zárate
+ASPPG	Pago Pago Harbor	Pago Pago
+AUALH	Albany	
+AUARD	Ardrossan	
+AUBDB	Bundaberg	
+AUBME	Broome	
+AUBNE	Brisbane	
+AUBNK	Ballina	
+AUBTB	Botany Bay	
+AUBUY	Bunbury	
+AUBWT	Burnie	
+AUBYP	Beauty Point	
+AUCCU	Cape Cuvier	
+AUCNS	Cairns	
+AUCQP	Cape Flattery Harbor	Cape Flattery
+AUDAM	Dampier	
+AUDPO	Devonport	
+AUDRW	Darwin	
+AUEPR	Esperance	
+AUFRE	Fremantle	
+AUGET	Geraldton	
+AUGEX	Geelong	
+AUGLT	Gladstone	
+AUGOV	Gove	
+AUHBA	Hobart	
+AUHPT	Hay Point	
+AUJEB	Jervis Bay	
+AUKGC	Kingscote	
+AUKLP	Klein Point	
+AUKRB	Karumba	
+AULST	Launceston	
+AULUC	Lucinda	
+AUMEL	Melbourne	
+AUMIB	Milner Bay	
+AUMKY	Mackay	
+AUMOU	Mourilyan Harbour	Mourilyan
+AUNTL	Newcastle	
+AUONS	Onslow	
+AUPAE	Port Adelaide	
+AUPBY	Port Bonython	
+AUPGI	Port Giles	
+AUPHE	Port Hedland	
+AUPHU	Port Huon	
+AUPKL	Port Kembla	
+AUPLA	Port Latta	
+AUPLO	Port Lincoln	
+AUPPI	Port Pirie	
+AUPTD	Port Dalrymple	
+AUPTJ	Portland	
+AUPTL	Port Alma	
+AUPWL	Port Walcott	
+AUQBW	Batemans Bay	
+AUQDN	Eden	
+AUSTA	Stanley	
+AUSYD	Sydney	
+AUTHE	Thevenard	
+AUTIS	Thursday Island	
+AUTSV	Townsville	
+AUUSL	Useless Loop	
+AUWAL	Wallaroo	
+AUWEI	Weipa	
+AUWEP	Western Port	Westernport
+AUWHL	Welshpool	
+AUWMB	Warrnambool	
+AUWYA	Whyalla	
+AUWYN	Wyndham	
+AWORJ	Paarden Baai - (Oranjestad)	Oranjestad
+AWSNL	Sint Nicolaas Baai	Sint Nicolaas
+BANEM	Neum	
+BBBGI	Bridgetown	
+BDCGP	Chittagong	Chattogram
+BDMGL	Mongla	
+BEANR	Antwerpen	
+BEBGS	Bruges	Brugge (Bruges)
+BEBRU	Bruxelles	Brussel (Bruxelles)
+BEGNE	Ghent	Gent (Ghent)
+BENIE	Nieuwpoort	
+BEOST	Oostende	Oostende (Ostend)
+BEZEE	Zeebrugge	
+BGBOJ	Burgas	
+BGVAR	Varna	
+BHAMH	Al Manamah	
+BHKBS	Khalifa Bin Salman	Khalifa Bin Salman Port
+BHMIN	Mina Salman	Mina Sulman Port
+BHSIT	Sitrah	
+BJCOO	Cotonou	
+BLGUS	Gustavia	
+BMBDA	Hamilton	
+BMFPT	Ireland Island	Freeport
+BMSGE	St George	Saint George
+BNBWN	Bandar Seri Begawan	
+BNKUB	Kuala Belait	
+BNLUM	Lumut	
+BNMUA	Muara Harbor	Muara
+BNSER	Seria Oil Loading Terminal	Seria
+BQGOT	Goto Oil Terminal	Goto
+BQKRA	Kralendijk	
+BQORA	Oranjestad	
+BRADR	Angra Dos Reis	Angra dos Reis
+BRAJU	Port De Aracaju	Aracaju
+BRARB	Aratu	Aratu Pt / Candeias
+BRBEL	Belem	Belém
+BRCDO	Cabedelo	Cabedelo Pt / João Pessoa
+BRCMA	Cameta	Cametá
+BRCMC	Camocim	
+BRFNO	Porto Do Forno	Forno Pt / Arraial do Cabo
+BRGUA	Guamare Oil Terminal	Guamaré
+BRIAR	Itacoatiara	
+BRIBB	Imbituba	
+BRIOS	Port Of Ilheus	Ilhéus
+BRIQI	Itaqui	Itaqui Pt / São Luís
+BRITJ	Itajai	Itajaí
+BRLGA	Laguna	
+BRMAO	Manaus	
+BRMCZ	Porto De Maceio	Maceió
+BRMDD	Madre De Deus	Madre de Deus
+BRMEA	Macae	Macaé
+BRNAT	Natal	
+BRNTR	Niteroi	Niterói
+BRPET	Pelotas	
+BRPNG	Paranagua	Paranaguá
+BRPOA	Porto Alegre	
+BRREC	Recife	
+BRRIG	Rio Grande	
+BRRIO	Rio De Janeiro	Rio de Janeiro
+BRSFS	Sao Francisco	São Francisco do Sul
+BRSSA	Port De Salvador	Salvador
+BRSSO	Sao Sebastiao	São Sebastião
+BRSSZ	Santos	
+BRSTM	Santarem	Santarém
+BRSTN	Porto Santana	Santana
+BRSUA	Porto De Suape	Suape Pt / Ipojuca
+BRTRM	Tramandai	Tramandaí
+BRTUB	Tubarao	Tubarão Pt / Vitória
+BRTUT	Tutoia	Tutóia
+BRVDC	Vila Do Conde	Vila do Conde Pt / Barcarena
+BRVIX	Vitoria	Vitória
+BSCBT	Cockburn Town	
+BSCLP	Clifton Pier	Clifton Point
+BSFPO	Freeport	Freeport, Grand Bahama
+BSMAT	Matthew Town	
+BSNAS	Nassau	
+BSSRP	South Riding Point	
+BZBZE	Belize City	
+CA345	Goulais Bay	Goulais River
+CAAAL	Alert Bay	
+CAAIT	St Anicet	Saint-Anicet
+CAAMH	Amherstburg	
+CABAM	Bamberton	
+CABBN	Bernard Harbor	Bernard
+CABBU	Bay Bulls	
+CABCK	Brockville	
+CABCM	Bruce Mines	
+CABCO	Baie Comeau	
+CABEC	Port De Becancour	Bécancour
+CABHA	Beauharnois	
+CABKN	Liverpool (Brooklyn)	Brooklyn
+CABLC	Bella Coola	
+CABLR	Blind River	
+CABLV	Belleville	
+CABST	Port Bayside Nb	Bayside, Charlotte
+CABTT	Byng Inlet	Britt
+CABUO	Burgeo	
+CABVE	Baie Verte	
+CABWD	Botwood	
+CABYR	Bay Roberts	
+CACAB	Chute A Blondeau	Chute-a-Blondeau
+CACAM	Campbell River	
+CACAQ	Caraquet	
+CACAT	Catalina Harbor	Catalina
+CACAU	Coal Harbor	Coal Harbour
+CACBC	Come By Chance Harbor	Come By Chance
+CACBG	Cobourg	
+CACBK	Corner Brook	
+CACCB	Cowichan Bay	
+CACDN	Cardinal	
+CACHA	Charlottetown	
+CACHI	Chicoutimi (Port Saguenay)	Chicoutimi
+CACHM	Chemainus	
+CACHV	Churchill	
+CACLE	Clarenville	
+CACMV	Carmanville	
+CACOC	Contrecour	Contrecoeur
+CACOL	Collingwood	
+CACOP	Coppermine	
+CACOX	Comox Harbor	Comox
+CACPT	Canaport (St. John)	Canaport
+CACQA	Coteau Landing	Coteau du Lac
+CACRO	Crofton	
+CACRR	Courtright	
+CACSN	Clarkson	
+CACWL	Cornwall	
+CADCN	Duncan Bay	
+CADEB	Deception Bay	
+CADHS	Dalhousie	
+CADIG	Digby	
+CADLM	Pelee I North Wharf	Point Pelee
+CADON	Vaudreuil	Vaudreuil-Dorion
+CAENE	Rondeau	Erieau
+CAESQ	Esquimalt Harbor	Esquimalt
+CAFRR	Fraser Mills	Fraser River
+CAFSS	Fassett	
+CAGAT	Gatineau	
+CAGBR	Goldsboro	Goldboro
+CAGEO	Georgetown	
+CAGGS	Ganges	
+CAGNE	Gananoque	
+CAGNN	Rockport	
+CAGOH	Goderich	
+CAGOO	Goose Bay	
+CAGOR	Gold River	
+CAGPE	Gaspe	Gaspé
+CAGRB	Grand Bank	
+CAGRZ	Grenville	
+CAHAL	Halifax	
+CAHAM	Hamilton	
+CAHAW	Hawkesbury	
+CAHBY	Heron Bay	
+CAHMC	Harmac	
+CAHSP	Havre St Pierre	Havre-Saint-Pierre
+CAHUD	Hudson	
+CAHUL	Hull	
+CAILL	Millhaven	
+CAJOH	Lower Lakes Terminal	Johnstown
+CAKHO	Key Harbour	
+CAKIN	Kingston	
+CAKLY	Killarney	
+CAKTM	Kitimat	
+CAKVL	Kingsville	
+CALBA	La Baie (Port Alfred)	La Baie
+CALCS	South Lancaster	Lancaster
+CALIC	Little Current	
+CALMN	Leamington	
+CALOU	Louisburg	Louisbourg
+CALWP	Lewisporte	
+CAMAS	Masson	
+CAMBO	Montebello	
+CAMDB	Meldrum Bay	
+CAMFD	Meaford	
+CAMIB	Mission City	Mission
+CAMID	Midland	
+CAMIH	Michipicoten	
+CAMNE	Matane	
+CAMSS	Masset Harbor	Masset
+CAMTR	Montreal	
+CAMUS	Musquodoboit Harbour	
+CANAI	Nain	
+CANNE	Nanoose Harbor	Nanoose Bay
+CANNO	Nanaimo	
+CANOL	Niagara	Niagara-on-the-Lake
+CANSY	North Sydney	
+CANWE	New Westminster	
+CANWP	Argentia	
+CAOAJ	Oakville	
+CAOCL	Cumberland	
+CAOKA	Oka Sur Le Lac	Oka
+CAOPE	Port Hope	
+CAOSH	Oshawa	
+CAOTT	Ottawa	
+CAOWS	Owen Sound	
+CAPAB	Port Alberni	
+CAPAC	Port Alice	
+CAPBQ	Port Aux Basques	Channel-Port aux Basques
+CAPCA	Port Cartier	Port-Cartier
+CAPCO	Port Colborne	
+CAPCR	Port Credit	
+CAPCS	Port Clements	
+CAPDI	Pond Inlet	
+CAPDV	Port Dover	
+CAPEL	Port Elgin	
+CAPEW	Point Edward	
+CAPHA	Port Hastings	
+CAPHW	Port Hawkesbury	
+CAPHY	Port Hardy	
+CAPIC	Picton	
+CAPLI	St Placide	Saint-Placide
+CAPMA	Port Mcneill	Port McNeill
+CAPML	Port Mellon	
+CAPMO	Port Moody	Port Moody/Vancouver
+CAPNO	Pointe Noire	
+CAPNT	Pangnirtung	
+CAPOW	Powell River	
+CAPPV	Papineauville	
+CAPRR	Prince Rupert	
+CAPRS	Parry Sound	
+CAPSI	Port Simpson	
+CAPST	Port Stanley	
+CAPTA	Tahsis	
+CAPTC	Port Coquitlam	
+CAPTH	Penetanguishene	
+CAPTM	Port Maitland	
+CAPTO	Pictou	
+CAPWE	Port Weller	
+CAQCH	Queen Charlotte	
+CAQNS	Queenston	
+CAQUE	Quebec	
+CARDL	Riviere Du Loup	Rivière-du-Loup
+CAREB	Resolute Bay	
+CARIM	Rimouski	
+CAROD	Roddickton	
+CAROK	Rockland	
+CASAE	St Andrews East	Saint-André-Est
+CASAT	St Anthony	Saint-Anthony
+CASC4	St Catherine	Saint Catherines
+CASDY	Sidney	
+CASEI	Sept Iles	Sept-Iles
+CASHP	Shippegan	
+CASJB	St John	Saint-John
+CASJF	St John's	Saint-John's
+CASMT	Stormont	
+CASNI	Sarnia	
+CASOM	Sombra	
+CASON	Southampton	
+CASOR	Sorel	
+CASPD	Springdale	
+CASQA	Squamish	
+CASSM	Sault Ste Marie	Sault-Sainte-Marie
+CASTV	Stephenville	
+CASTW	Stewart	
+CASUM	Summerside	
+CASVN	Steveston	
+CASYD	Sydney	
+CASZT	St Zotique	Saint-Zotique
+CATBY	Thornbury	
+CATHD	Thorold	
+CATHS	Thessalon	
+CATHU	Thunder Bay	
+CATOR	Toronto	
+CATRR	Trois Rivieres	Trois-Rivieres (Three Rivers)
+CATTC	Trenton	
+CATUK	Tuktoyaktuk	
+CATWI	Twillingate	
+CAUCL	Ucluelet	
+CAURS	Thurso	
+CAVAN	Vancouver	
+CAVIC	Victoria Harbor	Victoria
+CAVIH	Victoria Harbour	
+CAWDR	Windsor	
+CAWEL	Welland	
+CAWFI	Wolfe Island	
+CAWHI	Port Whitby	Whitby
+CAWND	Windsor	
+CAYAJ	Lyall Harbor	Lyall Harbour
+CAYBX	Blanc Sablon	Blanc-Sablon
+CAYCB	Cambridge Bay	
+CAYEM	Manitowaning	
+CAYKT	Klemtu	
+CAYPC	Paulatuk	
+CAYSY	Sachs Harbor	Sachs Harbour
+CAYVV	Wiarton	
+CAYZE	Gore Bay	
+CDBNW	Banana	
+CDBOA	Boma	
+CDMAT	Matadi	
+CGDJE	Djeno Terminal	
+CGNKO	N'kossa Terminal	N'Kossa Terminal
+CGPNR	Pointe Noire	
+CGYOM	Yombo Terminal	Yombo
+CIABJ	Abidjan	
+CIBAO	Baobab Marine Terminal	Baobab Terminal
+CIESP	Espoir Marine Terminal	Espoir
+CIPBT	Port Bouet	Port-Bouët
+CISPY	San Pedro	San-Pédro
+CKAVA	Avatiu	Avarua
+CLANF	Antofagasta	
+CLARI	Rada De Arica	Arica
+CLCAA	Puerto Calderilla	Calderilla
+CLCAL	Caleta Patillos	
+CLCLD	Puerto Caldera	Caldera
+CLCLR	Caleta Clarencia	
+CLCNL	Coronel	
+CLCNR	Puerto Chanaral	Chañaral
+CLCQQ	Coquimbo	
+CLCRR	Puerto De Corral	Corral
+CLGYC	Bahia Herradura Guayacan	Guayacán
+CLHSO	Huasco	
+CLIQQ	Iquique	
+CLLQN	Lirquen	Lirquén
+CLLTA	Lota	
+CLMJS	Mejillones	
+CLPCH	Puerto Chacabuco	
+CLPEO	Penco	
+CLPMC	Puerto Montt	
+CLPNT	Puerto Natales	
+CLPUQ	Rada Punta Arenas	Punta Arenas
+CLQMC	Puerto Quemchi	Quemchi
+CLQTV	Bahia Quintero (Ventanas)	Quintero
+CLSAI	Puerto San Antonio	San Antonio
+CLSVE	Bahia San Vicente	San Vicente
+CLTAL	Talcahuano	
+CLTOQ	Tocopilla	
+CLTTC	Taltal	
+CLVAP	Bahia De Valparaiso	Valparaiso
+CLWCA	Puerto Castro	Castro
+CLWPU	Puerto Williams	
+CLZAL	Bahia De Valdivia	Valdivia
+CMDLA	Douala	
+CMEBT	Ebome Marine Terminal	Ebomé Terminal
+CMKBI	Kome Kribi 1 Marine Terminal	Kribi
+CMKOL	Kole Oil Terminal	Kole Terminal
+CMLIT	Limboh Terminal	
+CMMOU	Moudi Marine Terminal	Moudi Terminal
+CNBIH	Beihai	Beihai Pt
+CNBSP	Basuo	Basuo Pt
+CNBYQ	Bayuquan	
+CNCGS	Changshu	Changshu Pt
+CNCOZ	Chaozhou	
+CNCWN	Chiwan	Chiwan Pt
+CNCZX	Changzhou	
+CNDAL	Dalian	
+CNDDZ	Dandong	
+CNDSN	Dongshan	Dongshan Pt
+CNFAN	Fang-Cheng	Fangcheng Pt
+CNFZH	Fuzhou	
+CNGAO	Gaogang	
+CNGGZ	Guangzhou	
+CNHIG	Haikou	Haikou Pt
+CNHME	Haimen	
+CNHNK	Hankow	Hankou
+CNHUA	Huangpu	Huangpu Pt
+CNHUD	Huludao Gang	Huludao
+CNHUI	Huizhou	
+CNHUN	Huangpuxingang	Huangpu New Port
+CNJGY	Jiangyin	
+CNJNZ	Jinzhou Wan	Jinzhou Pt
+CNLKU	Longkou Gang	Longkou Pt
+CNLSH	Lushun	Lushun New Pt
+CNLSN	Lanshan	Lanshan Pt
+CNLYG	Lianyungang	
+CNNBO	Ningbo	
+CNNJI	Nanjing	
+CNNTG	Nantong	
+CNPLI	Penglai	Penglai Pt
+CNQIN	Qingdao Gang	Qingdao
+CNQZH	Qinzhou	
+CNQZL	Quanzhou	
+CNRZH	Rizhao	
+CNSDG	Shui Dong	Shuidong Pt
+CNSGH	Shanghai	
+CNSHK	Shekou	Shekou Pt
+CNSHP	Qinhuangdao	Qinhuangdao Pt
+CNSYA	Sanya	Sanya Pt
+CNTAC	Taicang	Taicang Pt
+CNTGS	Tangshan (Jingtang)	Tangshan
+CNTXG	Tianjin Xin Gang	Tianjin Xingang Pt
+CNWAX	Wanxian	
+CNWEG	Weihai	Weihai Pt
+CNWZO	Wenzhou	Wenzhou Pt
+CNXMG	Xiamen	Xiamen Pt
+CNXYG	Xiuyu	Xiuyu Pt
+CNYIK	Yingkou	Yinkou
+CNYPG	Yangpu	Yangpu Pt
+CNYTG	Yantai	Yantai Pt
+CNYTN	Yantian	Yantian Pt
+CNYZH	Yangzhou	
+CNZHE	Zhenjiang	
+CNZHI	Zhen Hai	Zhenhai Pt
+CNZJG	Zhangjiangang	Zhangjiagang
+CNZNG	Zhanjiang	Zhanjiang Pt
+CNZOS	Zhoushan	
+CNZPU	Zhapu	Zhapu Pt
+CNZUH	Zhuhai	
+CNZZU	Zhangzhou	
+COBAQ	Barranquilla	
+COBUN	Buenaventura	
+COCOV	Covenas Offshore Term.	Covenas Offshore Terminal
+COCTG	Cartagena	
+COCVE	Covenas	Coveñas
+COEBQ	El Bosque	
+COMAM	Mamonal	
+COPBO	Puerto Bolivar	Puerto Bolívar
+COPOC	Pozos Colorados	
+COPPR	Puerto Prodeco	
+COSMR	Santa Marta	
+COTCO	Tumaco	
+COTRB	Turbo	
+CRGLF	Golfito	
+CRLIO	Puerto Limon	Puerto Limón
+CRPAS	Puntarenas	
+CRPMN	Puerto Moin	
+CRPTC	Puerto Caldera	
+CRXQP	Puerto Quepos	Quepos (Puerto Quepos)
+CUANT	Antilla	
+CUCAB	Cabanas	Cabañas
+CUCAR	Cardenas	Cárdenas
+CUCAS	Casilda	
+CUCEI	Ceiba Hueca	
+CUCFG	Cienfuegos	
+CUGER	Nueva Gerona	
+CUGUB	Puerto Guantanamo	Guantanamo Bay
+CUGYB	Guayabal	
+CUHAV	Bahai De La Habana	La Habana
+CUICR	Nicaro	
+CUIDS	Isabela De Sagua	Isabela de Sagua
+CUJUC	Jucaro	Júcaro
+CUMAR	Mariel	
+CUMEL	Media Luna	
+CUMNT	Manati	Puerto Manatí
+CUMZO	Manzanillo	
+CUNVT	Nuevitas Bay	Nuevitas
+CUPPA	Puerto Padre	
+CUQMA	Matanzas	
+CUSCU	Santiago De Cuba	Santiago de Cuba
+CUSDT	Bahia De Sagua De Tanamo	Sagua de Tánamo
+CUTDZ	Tunas De Zaza	Tunas de Zaza
+CVGRA	Porto Grande	
+CVRAI	Porto Da Praia	Praia
+CWBUB	Bullen Baai	Bullenbaai
+CWCRB	Caracasbaai	Caracas Baai
+CWSMB	Sint Michelsbaai	Sint Michielsbaai
+CWWIL	Willemstad	
+CXFFC	Flying Fish Cove	
+CYDHK	Dhekelia	
+CYFMG	Famagusta	
+CYKAR	Xeros	Karavostasi
+CYKYR	Kyrenia	
+CYLCA	Larnaca	
+CYLMS	Limassol	
+DEBKE	Brake	
+DEBRB	Brunsbuttel Elbahafen	Brunsbüttel
+DEBRE	Bremen	
+DEBRV	Bremerhaven	
+DEBUM	Busum	Büsum
+DEBUZ	Butzfleth	Bützfleth
+DECUX	Cuxhaven	
+DEECK	Eckernforde	Eckernförde
+DEELS	Elsfleth	
+DEEME	Emden	
+DEFLF	Flensburg	
+DEGLU	Gluckstadt	Glückstadt
+DEHAM	Hamburg	
+DEHHF	Heiligenhafen	
+DEHUS	Husum	
+DEITZ	Itzehoe	
+DEKAP	Kappeln	
+DEKEL	Kiel	
+DELBC	Lubeck	Lübeck
+DELEE	Leer	
+DENEH	Neuhaus	Neuhaus an der Oste
+DENGL	Neustadt	Neustadt-Glewe
+DENHA	Nordenham	
+DEOLO	Oldenburg	
+DEORT	Orth	Orth/Fehmarn
+DEPAP	Papenburg	
+DEREN	Rendsburg	
+DERSK	Rostock	
+DESAS	Sassnitz	
+DESTL	Stralsund	
+DETRV	Lubeck-Travemunde	Travemünde
+DEWIS	Wismar	
+DEWOL	Wolgast	
+DEWVN	Wilhelmshaven	
+DJDCT	Doraleh	Doraleh Container Terminal
+DJJIB	Djibouti	
+DKAAB	Abenra	Åbenrå
+DKAAL	Alborg	Aalborg
+DKAAR	Arhus	Aarhus
+DKASN	Assens	
+DKAUB	Augustenborg	
+DKBDX	Bandholm	
+DKCPH	Kobenhavn	København
+DKCSO	Christianso Harbor	Christiansø Havn
+DKEBJ	Esbjerg	
+DKENS	Ensted	Enstedværket Havn
+DKFAA	Faborg	Faaborg
+DKFAK	Fakse Ladeplads Havn	
+DKFDH	Frederikshavn	
+DKFDS	Frederikssund	
+DKFDV	Frederiksvaerk	Frederiksværk
+DKFRC	Fredericia	
+DKGFH	Gulfhaven	Gulfhavn
+DKGRE	Grenaa Havn	Grenaa
+DKHAD	Haderslev	
+DKHAN	Hanstholm	
+DKHAS	Hals	
+DKHBK	Holbaek	Holbæk
+DKHBO	Hobro	
+DKHIR	Hirtshals	
+DKHLS	Helsingor	Helsingør
+DKHOR	Horsens	
+DKHSB	Holstebro-Stuer	Holstebro
+DKHSL	Hasle	
+DKHSU	Hadsund	
+DKHUN	Hundested	
+DKKAL	Kalundborg	
+DKKBY	Kyndbyvaerkets Havn	
+DKKOG	Koge	Køge
+DKKOL	Kolding	
+DKKRR	Korsor	Korsør
+DKKTD	Kerteminde	
+DKLVG	Lemvig	
+DKMID	Middelfart	
+DKMRR	Mariager	
+DKMRS	Marstal	
+DKNAK	Nakskov	
+DKNBG	Nyborg	
+DKNEX	Nekso	Neksø
+DKNTD	Nysted	
+DKNVD	Naestved	Næstved
+DKNYF	Nykobing (Falster)	Nykøbing Falster
+DKNYM	Nykobing (Mor)	Nykøbing Mors
+DKODE	Odense	
+DKRAN	Randers	
+DKRKB	Rudkobing	Rudkøbing
+DKRKG	Ringkobing	Ringkøbing
+DKRNN	Ronne	Rønne
+DKROF	Rodby Havn	Rødby
+DKSAX	Sakskobing	Sakskøbing
+DKSBK	Stubbekobing	Stubbekøbing
+DKSGD	Sonderborg	Sønderborg
+DKSIT	Stigsnaesvaerket	Stigsnaes Inter Terminal
+DKSKA	Skagen Havn	Skagen
+DKSKB	Skaerbaek	Skærbæk
+DKSSK	Skaelskor	Skælskør
+DKSSV	Studstrup	Studstrupværkets Havn
+DKSTE	Stege	
+DKSVE	Svendborg	
+DKTED	Thisted	
+DKTHN	Thyboron	Thyborøn
+DKTUB	Tuborg	
+DKVEJ	Vejle	
+DKVOR	Vordingborg	
+DMPOR	Portsmouth	
+DMRSU	Roseau	
+DOBCC	Andres (Andres Lng Terminal)	Boca Chica
+DOBRX	Santa Cruz De Barahona	Barahona
+DOCBJ	Cabo Rojo	
+DOINA	Puerto De Haina	Bajos de Haina
+DOLCS	Las Calderas	
+DOLRM	La Romana	
+DOPOP	Puerto Plata	
+DOPVA	Puerto Viejo De Azua	Puerto Viejo de Azua
+DOSAL	Pepillo Salcedo	Salcedo
+DOSAM	Santa Barbara De Samana	Santa Bárbara de Samaná
+DOSDQ	Santo Domingo	
+DOSNZ	Sanchez	Sánchez
+DOSPM	San Pedro De Macoris	San Pedro de Macorís
+DZAAE	Annaba	Annaba (ex Bone)
+DZALG	Alger	Alger (Algiers)
+DZAZW	Arzew	
+DZBJA	Bejaia	Bejaia (ex Bougie)
+DZBSF	Beni Saf	Benisaf
+DZCOL	Collo	
+DZDEL	Dellys	
+DZDJE	Djen-Djen	
+DZDJI	Jijel	Jijel (ex Djidjelli)
+DZGHZ	Ghazaouet	
+DZMOS	Mostaganem	
+DZORN	Oran	
+DZSKI	Skikda	Skikda (ex Philippeville)
+DZTEN	Tenes	Ténès
+ECESM	Esmeraldas	
+ECGYE	Guayaquil	
+ECLLD	La Libertad	
+ECMEC	Manta	
+ECPBO	Puerto Bolivar	Puerto Bolívar
+ECPEV	Puerto Maritimo De Guayaquil	Puerto Nuevo
+EEBEK	Bekkeri	
+EEHLT	Heltermaa	
+EEKND	Kunda	
+EELHS	Lahesuu	
+EELSA	Loksa	
+EEMDR	Miiduranna	
+EEMRS	Meeruse	
+EEMUG	Muuga-Port of Tallin	Muuga
+EEOSM	Osmussaar	Osmussaare Sadam
+EEPAS	Paljassaare	
+EEPLN	Paldiski Pohjasadam	Paldiski Põhjasadam
+EEPLS	Paldiski Lounasadam	Paldiski Lõunasadam
+EEPRN	Parnu	Pärnu
+EERHK	Rohukula	Rohuküla
+EERMS	Roomassaare	
+EESLM	Sillamae	Sillamäe
+EESMA	Saaremaa sadam	
+EETLL	Vanasadam - Port of Tallinn	Tallinn
+EEVEB	Vene-Balti	
+EEVIR	Virtsu	
+EGADA	El-Adabiya	Al Adabiyah
+EGAIS	Ain Sukhna Terminal	Ain Sukhna
+EGALY	Al Iskandariyh (Alexandria)	El Iskandariya (Alexandria)
+EGAQU	Al Qusayr	
+EGAZA	Ras Abu Zanimah	Abu Zenimah
+EGDAM	Damietta	Dumyat (Damietta)
+EGHAM	Hamrawein	
+EGHRG	El Ghardaqa	Hurghada
+EGISM	El Ismailiya	Ismailia
+EGMAH	El Hamra Oil Terminal	Mersa El Hamra
+EGMMU	Mersa Matruh	Mersa Matru
+EGNUW	Nuwaybi'	Nuwaiba
+EGPSD	Bur Sa'id	Port Said
+EGRAB	Ras Badran Oil Terminal	Ras Budran
+EGRAG	Ras Gharib	
+EGRSH	Ras Shukhier	Ras Shukheir
+EGRSU	Ras Sudr	
+EGSGA	Safaja	Safaga
+EGSKT	Sidi Kerir (Kurayr)	Sidi Kerir Terminal
+EGSOK	Sokhna Port Gas Tanker Terminal	Sokhna Port
+EGSSH	Sharm El Sheikh	Sharm ash Shaykh
+EGSUZ	As Suways	As Suways (Suez)
+EGTOR	At Tur	El Tor
+EGWAF	Wadi Feiran	
+EGZTB	Zeit Bay Terminal	Zeit Bay
+EHVIC	Ad Dakhla	
+ERASA	Assab	
+ERMSW	Mitsiwa Harbor	Massawa (Mitsiwa)
+ESACE	Arrecife	Lanzarote
+ESADR	Adra	
+ESAGP	Malaga	Málaga
+ESAGU	Aguilas	
+ESALC	Alicante	
+ESALD	Puerto De Alcudia	
+ESALG	Algeciras	
+ESAVS	Aviles	
+ESBCN	Barcelona	
+ESBIO	Puerto De Bilbao	Bilbao
+ESBRM	Bermeo	
+ESBRX	Burriana	
+ESCAD	Cadiz	
+ESCAR	Cartagena	
+ESCEU	Ceuta	
+ESCRS	Puerto De Carboneras	Carboneras
+ESFRO	Ferrol	
+ESFUE	Puerto Del Rosario	Puerto del Rosario-Fuerteventura
+ESGAN	Puerto De Gandia	Gandía
+ESGAR	Puerto De Garrucha	Garrucha
+ESGCS	El Grao	
+ESGIJ	Gijon	Gijón
+ESHUV	Huelva	
+ESIBZ	Ibiza	
+ESLCG	La Coruna	La Coruña (A Coruña)
+ESLEI	Almeria	Almería
+ESLPA	Las Palmas	Las Palmas de Gran Canaria
+ESMAH	Mahon	Mahón, Menorca
+ESMOT	Motril	
+ESMPG	Marin	Marin, Pontevedra
+ESPAL	Palamos	Palamós
+ESPAS	Puerto De Pasajes	Pasajes
+ESPMI	Palma De Mallorca	Palma de Mallorca
+ESRIB	Ribadeo	
+ESROS	Rosas	
+ESROT	Rota	
+ESSAG	Sagunto	
+ESSCI	San Ciprian	
+ESSCT	Santa Cruz De Tenerife	Santa Cruz de Tenerife
+ESSDR	Santander	
+ESSFU	San Feliu De Guixols	Sant Feliu de Guixols
+ESSPC	Santa Cruz De La Palma	Santa Cruz de La Palma
+ESSVQ	Sevilla	
+ESTAR	Tarragona	
+ESTOR	Torrevieja	
+ESVGO	Vigo	
+ESVIL	Villagarcia De Arosa	Villagarcía de Arosa
+ESVLC	Valencia	
+ESVLG	Villanueva Y Geltru	Villanueva y Geltrú (Vilanova i la Geltrú)
+FIHEL	Helsinki	Helsingfors (Helsinki)
+FIHIM	Himanka	
+FIHKO	Hanko	Hangö (Hanko)
+FIHLL	Hellnas	Hällnäs
+FIHMN	Hamina	Fredrikshamn (Hamina)
+FIINK	Inkoo	Ingå (Inkoo)
+FIJUS	Jussaro	
+FIKAN	Kantlax	Kantlax (Kaitalahti)
+FIKAS	Kaskinen	Kaskinen (Kaskö)
+FIKEM	Kemi	Kemi/Torneå (Kemi/Tornio)
+FIKOK	Kokkola	Karleby (Kokkola)
+FIKRS	Kristinestad	Kristiinankaupunki (Kristinestad)
+FIKTK	Kotka	
+FILOV	Loviisa	Loviisa (Lovisa)
+FIMHQ	Mariehamn	Maarianhamina (Mariehamn)
+FIMTY	Mantyluoto	Mäntyluoto
+FINLI	Naantali	Naantali (Nådendal)
+FIOUL	Oulu	Oulu (Uleåborg)
+FIPAR	Pargas	Parainen (Pargas)
+FIPOA	Porkkala	Porkkala (Porkala)
+FIPOR	Pori	Björneborg (Pori)
+FIPRS	Pietarsaari	Jakobstad (Pietarsaari)
+FIPRV	Porvoo	Borgå (Porvoo)
+FIRAA	Raahe	Brahestad (Raahe)
+FIRAH	Rahja	
+FIRAU	Rauma	Rauma (Raumo)
+FITAI	Ekenas	Ekenäs (Tammisaari)
+FITHK	Tahkoluoto	
+FITKU	Turku	Turku (Åbo)
+FITOK	Tolkkinen	Tolkis (Tolkkinen)
+FITOR	Tornio	Torneå (Tornio)
+FIUKI	Uusikaupunki	Nystad (Uusikaupunki)
+FIUKP	Nykarleby	Nykarleby (Uusikaarlepyy)
+FIUTO	Uto	
+FIVAA	Vaasa	Vaasa (Vasa)
+FIVEI	Veitsiluoto	
+FJLTK	Lautoka Harbor	Lautoka
+FJSUV	Suva Harbor	Suva
+FJSVU	Savusavu Bay	Savusavu
+FKPSY	Stanley	Port Stanley
+FMPNI	Pohnpei Harbor	Pohnpei (ex Ponape)
+FOFUG	Fuglafjordur	Fuglafjørdur
+FOKVI	Klaksvik	
+FORVK	Runavik	Runavík
+FOSRV	Sorvagur	Sorvágur
+FOTOR	Torshavn	Tórshavn
+FOTVO	Tvoroyri	
+FOVAG	Vagur	Vágur
+FOVES	Vestmanna	Vestmanhavn
+FRAJA	Port D' Ajaccio	Ajaccio
+FRAMS	Ambes	Ambès
+FRANT	Antibes	
+FRBAY	Bayonne	
+FRBES	Rade De Brest	Brest
+FRBIA	Bastia	
+FRBOD	Bordeaux	
+FRBOL	Boulogne-Sur-Mer	Boulogne-sur-Mer
+FRBON	Bonifacio	
+FRBYE	Blaye	
+FRCEQ	Cannes	
+FRCER	Rade De Cherbourg	Cherbourg-en-Cotentin
+FRCFR	Port De Caen	Caen
+FRCLY	Calvi	
+FRCOC	Concarneau	
+FRCQF	Calais	
+FRDKK	Dunkerque Port Est	Dunkerque
+FRDOL	Deauville	
+FRDON	Donges	
+FRDPE	Dieppe	
+FRFEC	Fecamp	Fécamp
+FRFOS	Fos	Fos-sur-Mer
+FRGFR	Granville	
+FRGRV	Gravelines	
+FRHON	Honfleur	
+FRILR	L'ile Rousse	L'Île-Rousse
+FRLEH	Port Of Le Havre	Le Havre
+FRLLG	Le Legue	
+FRLPE	La Pallice	la Pallice
+FRLRH	La Rochelle	
+FRLRT	Lorient	
+FRLSO	Les Sables D' Olonne	Les Sables-d'Olonne
+FRLTR	Le Treport	Le Tréport
+FRLVE	Le Verdon	Le Verdon-sur-Mer
+FRMRS	Marseille	
+FRMTX	Montoir	Montoir-de-Bretagne
+FRMXN	Morlaix	
+FRNCE	Nice	
+FRNOU	Port-La-Nouvelle	Port-la-Nouvelle
+FRNTE	Nantes	
+FROUI	Ouistreham	
+FRPAI	Paimpol	
+FRPAP	Pauillac	
+FRPDB	Port-de-Bouc	
+FRPOV	Port-Vendres	
+FRPOX	Pontrieux	
+FRPRP	Port De Propriano	Propriano
+FRPSL	Port Saint Louis Du Rhone	Port-Saint-Louis-du-Rhône
+FRPVO	Porto Vecchio	Porto-Vecchio
+FRRCO	Rochefort	
+FRROS	Port De Roscoff-Bloscon	Roscoff
+FRSET	Sete	Sète
+FRSML	Saint-Malo	
+FRSNR	St Nazaire	Saint-Nazaire
+FRSRL	Saint-Raphael	Saint-Raphaël
+FRSTP	Saint-Tropez	
+FRSVS	Saint-Valery-Sur-Somme	Saint-Valery-sur-Somme
+FRTLN	Toulon	
+FRTON	Tonnay Charente	Tonnay-Charente
+FRTRE	Treguier	Tréguier
+FRURO	Port Of Rouen	Rouen
+FRVSS	Villefranche	Villefranche-sur-Saône
+GACLZ	Cap Lopez	
+GAETA	Etame Terminal	Etame FPSO
+GAGAX	Gamba Oil Terminal	Gamba
+GALBV	Libreville	
+GAMBY	M'bya Oil Terminal	M'bya Terminal
+GAOGU	Oguendjo Terminal	Oguandjo Terminal
+GAOWE	Port Owendo	Owendo
+GAPOG	Port Gentil	
+GBABD	Aberdeen	
+GBAGL	Ardglass	
+GBARD	Ardrossan	
+GBASG	Ardrishaig	
+GBAUL	Aultbea	
+GBAVO	Avonmouth	
+GBAYR	Ayr	
+GBBAD	Barry	Barry Dock
+GBBAN	Bangor	
+GBBDF	Broadford Bay	Broadford, Isle of Skye
+GBBEL	Belfast	
+GBBFB	Braefoot Bay Terminal	Braefoot Bay
+GBBID	Bideford	
+GBBIF	Barrow In Furness	Barrow in Furness
+GBBLY	Blyth	
+GBBOS	Boston	
+GBBOW	Bowling	
+GBBRP	Bridport Harbour	Bridport
+GBBRS	Bristol	
+GBBRT	Bridlington	
+GBBRW	Bridgwater	
+GBBRX	Brixham Harbour	Brixham
+GBBTL	Burntisland	
+GBBUC	Buckie Harbor	Buckie
+GBBUH	Burghead	
+GBBWK	Berwick-Upon-Tweed	Berwick-upon-Tweed
+GBCBA	Castle Bay	Castlebay
+GBCBT	Campbeltown	
+GBCDF	Cardiff	
+GBCHE	Mostyn	
+GBCHF	Charlestown	
+GBCLR	Coleraine	
+GBCNC	Crinan (Canal)	Crinan
+GBCNU	Craignure	
+GBCNV	Caernarvon	Caernarfon
+GBCOL	Colchester	
+GBCOR	Corpach	
+GBCOW	Cowes Harbour	Cowes
+GBCRN	Cromarty	
+GBCTM	Chatham Docks	Chatham
+GBDBR	Dunbar	
+GBDTM	Dartmouth Harbour	Dartmouth
+GBDUN	Dundee	
+GBDVR	Dover Harbor	Dover
+GBEYM	Eyemouth	
+GBFAL	Falmouth Harbour	Falmouth
+GBFAS	Faslane	
+GBFAW	Fawley Marine Terminal	Fawley
+GBFIS	Fishguard	
+GBFLE	Fleetwood	
+GBFNT	Finnart Oil Terminal	Finnart
+GBFOL	Folkestone Harbour	Folkestone
+GBFOY	Fowey Harbour	Fowey
+GBFRB	Fraserburgh Harbor	Fraserburgh
+GBFWM	Fort William	
+GBFXT	Felixstowe	
+GBGAR	Gairloch	
+GBGIS	Garlston	Garlieston
+GBGLW	Glasgow	
+GBGOO	Goole	
+GBGRG	Grangemouth	
+GBGRK	Greenock	
+GBGRN	Granton	
+GBGSA	Glensanda	
+GBGSY	Grimsby	
+GBGTY	Great Yarmouth	
+GBGVS	Gravesend	
+GBHAY	Hayle	
+GBHDD	Howdendyke	
+GBHLY	Holyhead	
+GBHMA	Helmsdale Harbor	Helmsdale
+GBHPT	Hound Point Terminal	Hound Point
+GBHRW	Harwich	
+GBHST	Hunterston	
+GBHTP	Hartlepool	
+GBHUL	Kingston Upon Hull	Hull
+GBHYM	Heysham	
+GBIMM	Immingham	
+GBINV	Inverness	
+GBIOG	Isle Of Grain	Isle of Grain
+GBIPS	Ipswich	
+GBIVG	Invergordon	
+GBKET	Kettletoft	Kettletoft, Sanday
+GBKLK	Kilkeel	
+GBKLN	King's Lynn	
+GBKLR	Kilroot	
+GBKWL	Kirkwall	
+GBKYL	Kyle Of Lochalsh	Kyle of Lochalsh
+GBKYN	Kyleakin	
+GBLAH	Lamlash Harbor	Lamlash
+GBLAN	Lancaster	
+GBLAR	Larne	
+GBLBD	Lochboisdale	Lochboisdale (Loch Baghasdail), South Uist
+GBLDY	Londonderry	
+GBLEI	Leith	
+GBLER	Lerwick	
+GBLGS	Largs	
+GBLIB	Liverpool Bay Terminal	
+GBLIT	Littlehampton Harbour	Littlehampton
+GBLIV	Liverpool	
+GBLMA	Lochmaddy	
+GBLOL	Lochaline	
+GBLON	London	
+GBLOW	Lowestoft	
+GBLSS	Lossiemouth	
+GBLYS	Lyness	
+GBMCD	Macduff	
+GBMLF	Milford Haven	
+GBMLG	Mallaig	
+GBMLP	Millport	Millport, Great Cumbrae
+GBMNC	Manchester	
+GBMON	Montrose	
+GBMTH	Methil	
+GBMVG	Mevagissey	
+GBNEA	Neath	
+GBNHO	New Holland	
+GBNHV	Newhaven Harbour	Newhaven
+GBNPT	Newport	
+GBNYL	Newlyn	
+GBOBA	Oban	
+GBOKK	Old Kilpatrick	
+GBPAD	Padstow	
+GBPAR	Par	
+GBPEN	Penzance	
+GBPER	Perth	
+GBPHD	Peterhead	
+GBPIE	Pierowall	Pierowall, Westray
+GBPLN	Port Ellen	
+GBPLO	Plockton	
+GBPLY	Plymouth	
+GBPMK	Portmahomack Harbor	Portmahomack
+GBPOO	Poole Harbour	Poole
+GBPRH	Portland Harbour	
+GBPRT	Portree Harbor	Portree
+GBPTB	Port Talbot	
+GBRAY	Rothesay Harbor	Rothesay, Isle of Bute
+GBREN	Renfrew	
+GBRMG	Ramsgate	
+GBROY	Rosyth	
+GBRU7	Rye Harbour	
+GBSCA	Scarborough	
+GBSCF	Scapa Bay	Scapa
+GBSCR	Scrabster Harbor	Scrabster
+GBSEA	Seaham	
+GBSGP	St Margarets Hope	Saint Margaret's Hope
+GBSHO	Shoreham Harbour	Shoreham
+GBSHS	Sheerness	
+GBSIL	Silloth	
+GBSNS	Stromness	
+GBSOU	Southampton	
+GBSSS	Sharpness	
+GBSTO	Stornoway Harbor	Stornoway
+GBSTR	Stranraer	
+GBSUL	Sullom Voe	
+GBSUN	Sunderland	
+GBSVZ	St. Mary's (Scilly Isl.)	Saint Mary's
+GBSWA	Swansea	
+GBSWY	Scalloway	
+GBTAR	Tarbert	Tarbert, Loch Fyne
+GBTEE	Teesport	
+GBTHP	Thamesport	
+GBTIL	Tilbury	
+GBTNM	Teignmouth Harbour	Teignmouth
+GBTOB	Tobermory	
+GBTOR	Torquay Harbour	Torquay
+GBTRN	Troon	
+GBTYM	Tynemouth	
+GBUIG	Uig	
+GBULL	Ullapool	
+GBWAT	Watchet Harbor	Watchet
+GBWEY	Weymouth Harbour	Weymouth
+GBWHL	Whitehall	Whitehall Village, Stronsay
+GBWIC	Wick	Wick Caithness
+GBWIS	Wisbech	
+GBWKO	Warkworth Harbour	Warkworth
+GBWOR	Workington	
+GBWPT	Warren Point	Warrenpoint
+GBWTB	Whitby	
+GBWTS	Whitstable	
+GBYMO	Yarmouth Harbour	Yarmouth
+GCCOG	Cogo	
+GDSTG	St George's	Saint George's
+GEABK	Sokhumi	Sukhumi
+GEBUS	Batumi	
+GEPTI	Poti	
+GESPS	Supsa Marine Terminal	Sup'sa
+GFDDC	Degrad Des Cannes	Dégrad des Cannes
+GGACI	Alderney Harbour	Alderney
+GGSPT	Saint Peter Port	
+GGSTS	Saint Sampson	
+GHSEK	Sekondi	
+GHSPD	Saltpond	
+GHTEM	Tema	
+GHTKD	Takoradi	
+GLGOH	Nuuk	Nuuk (Godthaab)
+GLJAV	Illulissat (Jakobshavn)	Ilulissat (Jakobshavn)
+GLJCH	Qasigiannguit-Christianshab	Qasigiannguit (Christianshaab)
+GLJEG	Aasiaat	Aasiaat (Egedesminde)
+GLJFR	Paamuit (Frederikshab)	Paamiut (Fredrikshaab)
+GLJGO	Qeqertarsuaq	Qeqertarsuaq (Godhavn)
+GLJGR	Gronnedal (Kangilinnguit)	Kangilinguit (Gronnedal)
+GLJHS	Sisimiut	Sisimiut (Holsteinsborg)
+GLJNN	Nanortalik Havn	Nanortalik
+GLJNS	Narsaq	
+GLJSU	Maniitsoq	Maniitsoq (Sukkertoppen)
+GLTHU	Pituffik (Thule Air Base)	Pituffik
+GLUAK	Narsarssuaq	Narsarsuaq
+GMBJL	Banjul	
+GNBTY	Benti	Benty
+GNCKY	Conakry	
+GNKMC	Kamsar	
+GPBBR	Basse Terre	Basse-Terre
+GPPTL	Port Louis	Port-Louis
+GPPTP	Pointe A Pitre	Point-à-Pitre Apt
+GQBSG	Bata	
+GQLUB	Luba	
+GQPET	Punta Europa Terminal	
+GQSER	Serpentina Terminal	
+GQSSG	Malabo	
+GRACL	Achladi	
+GRAND	Andros	
+GRANI	Ayios Nikolaos	Agios Nikólaos, Kríti
+GRARM	Argostolion	Argostólion
+GRASS	Aspropirgos	Asprópirgos
+GRAST	Astakos	Astakós
+GRAXD	Alexandroupoli	Alexandroúpolis
+GRCFU	Kerkira	Kérkira (Corfu)
+GRCLK	Chalkis	Chalkida
+GRFLS	Elevsis	Eleusis
+GRGAV	Gavrio	Gávrion
+GRGIE	Aigio	Aegio
+GRGPA	Patrai	Patras
+GRGYT	Yithion	Gythion
+GRHER	Iraklion	Heraklion (Iraklion)
+GRITA	Itea	
+GRJKH	Khios	Chíos
+GRJMK	Mikonos	Mykonos
+GRJNX	Nisos Naxos	Náxos
+GRJSH	Sitia	Siteía
+GRJSY	Limin Sirou	Syra (Syros)
+GRKAK	Katakolon	
+GRKAR	Neon Karlovas	Néon Karlovásion
+GRKGS	Limin Kos	Kos
+GRKLL	Kali Limenes	Kalilimenes
+GRKLX	Kalamata	Kalamáta
+GRKMI	Kalimnos	Kálymnos
+GRKVA	Kavala	Kavála
+GRKYM	Kymassi	Kimási
+GRLAV	Lavrio	Laurium (Lavrion)
+GRLVR	Ormos Aliveriou	Aliverio
+GRMEL	Mesolongion	Mesolóngion
+GRMGR	Megara Oil Terminal	Mégara
+GRMJT	Mitilini	Mytilene
+GRMLO	Milos	Milos (Adamas)
+GRNAV	Pilos	Navarino
+GRNPK	Navplio	Návpaktos
+GRPER	Perama	
+GRPIR	Piraievs	Piraeus
+GRPKK	Lakki	Lakkion
+GRPLM	Plomarion	Plomárion
+GRPTL	Lagos	Lágos (Pórto-Lágo)
+GRPVK	Preveza	Preveza/Lefkas
+GRPYT	Pithagorion	Pythagóreion
+GRQKG	Dhiavlos Steno	Chalkis
+GRRET	Rethimnon	Réthymnon
+GRRHO	Rodhos	Rhodes
+GRSDH	Soudha	Soúda
+GRSKG	Thessaloniki	Thessaloníki
+GRSMI	Samos	
+GRSTI	Stratoni	
+GRTSI	Tsingeli	Tsingéli
+GRVAT	Ormos Mikro Vathi	Vathi
+GRVOL	Volos	Vólos
+GRYER	Yerakini	Yerakiní
+GSGRV	Grytviken	
+GTIZ4	Santo Tomas De Castilla	Santo Tomás de Castilla
+GTPBR	Puerto Barrios	
+GTPRQ	Puerto Quetzal	
+GUAPR	Apra Harbor	Apra (Agana)
+GWCAC	Rio Cacheu	Cacheu
+GWOXB	Bissau	
+GYGEO	Georgetown	
+GYLDN	Linden	
+GYNAM	New Amsterdam	
+HKHKG	Hong Kong	
+HNLCE	La Ceiba	
+HNPCA	Puerto Castilla	
+HNPCR	Puerto Cortes	Puerto Cortés
+HNRTB	Coxen Hole	Roatán
+HNSLO	Puerto De Hencan	San Lorenzo
+HNTEA	Tela	
+HNTJI	Trujillo	
+HRBAK	Bakar	
+HRDBV	Dubrovnik	
+HRDUR	Dugi Rat	
+HRKOR	Korcula	
+HROMI	Omisalj	
+HRPLE	Ploce	
+HRPUY	Pula	
+HRRAS	Zaliv Rasa	Rasa
+HRRJK	Rijeka Luka	Rijeka
+HRROV	Rovinj	
+HRSEN	Senj	
+HRSIB	Sibenik	
+HRSPU	Split	
+HRUMG	Umag	
+HRZAD	Zadar	
+HTCAP	Cap Haitien	Cap-Haïtien
+HTJAK	Jacmel	
+HTMIR	Miragoane	
+HTPAP	Port Au Prince	Port-au-Prince
+HTPEG	Petit Goave	Petit Goâve
+IDAJN	Ardjuna Oil Field	Arjuna, Java
+IDAMA	Amamapare	Amamapare, Ij
+IDAMP	Ampenan	Ampenan, Bali
+IDAMQ	Ambon	Ambon, Molucas
+IDANR	Anyer Lor	Anyer Kidul
+IDBDJ	Banjarmasin	
+IDBEN	Tanjung Benete	Benete
+IDBET	Belida Marine Terminal	Belida Terminal
+IDBIT	Bitung	Bitung, Sulawesi
+IDBKI	Bengkalis	Bengkalis, St
+IDBKS	Bengkulu	Bengkulu, Sumatra
+IDBLI	Blinyu	Blinju, Banka
+IDBLL	Blanglancang	Blang Lancang, St
+IDBLW	Belawan	Belawan, Sumatra
+IDBNT	Belanak Field Terminal	Belanak Terminal
+IDBOA	Benoa	
+IDBPN	Balikpapan	
+IDBTH	Gunung Batu Besar	Batam (ex Batu Besar)
+IDBTN	Banten	
+IDBUA	Bula	
+IDBUW	Baubau	
+IDBXT	Bontang Lng Terminal	Bontang, Kl
+IDBYQ	Tanjung Arang (Bunyu)	Bunyu
+IDCBN	Cirebon	Cirebon (Tjeribon)
+IDCEB	Celukan Bawang	Celukan Bawang, Bl
+IDCXP	Cilacap	Cilacap (Tjilatjap)
+IDDAS	Dabo	Dabo, Singkep Isl
+IDDJJ	Jayapura	Jayapura, Irian Jaya
+IDDUM	Dumai	Dumai, Sumatra
+IDENE	Ende	Ende, Flores
+IDFKQ	Fakfak	Fak Fak, Irian Jaya
+IDGRE	Gresik	Gresik, Java
+IDGTO	Gorontalo	Gorontalo, Sulawesi
+IDJBT	Jabung Batanghari Marine Terminal	Jabung Terminal
+IDJKT	Jakarta	Jakarta, Java
+IDKAS	Kasim Terminal	Kasim, Ij
+IDKBU	Kota Baru	Kotabaru
+IDKDI	Kendari	Kendari, Sulawesi
+IDKIJ	Kijang	
+IDKKA	Kuala Kapus	Kuala Kapuas, Kl
+IDKNL	Kolonodale	
+IDKOE	Kupang	Kupang, Timor
+IDKTJ	Kuala Tanjung	
+IDKUM	Kumai	
+IDLAH	Labuha	Labuha, Molucas
+IDLAT	Lalang Marine Terminal	Lalang Terminal, St
+IDLKA	Larantuka	
+IDLLA	Lawi Lawi Oil Terminal	Lawe-Lawe, Kl
+IDLSW	Lhokseumawe	
+IDLUW	Luwuk	
+IDMDC	Manado	
+IDMKQ	Merauke	Merauke, Irian Jaya
+IDMKW	Manokwari Road	Manokwari, Irian Jaya
+IDMOF	Maumere	Maumere, Flores
+IDMRK	Merak Mas Terminal	Merak, Java
+IDMUO	Muntok	Muntok, Banka
+IDNAM	Namlea	
+IDNPL	North Pulau Laut Coal Terminal	North Pulau Laut
+IDOLO	Uleelheue	Olee Lheue
+IDPAP	Parepare	Pare Pare
+IDPEX	Pekalongan	Pekalongan, Java
+IDPGK	Pangkalpinang	Pangkalpinang, Banka
+IDPKN	Pangkalansusu	Pangkalanbuun
+IDPLM	Palembang	Palembang, Sumatra
+IDPNJ	Panjang	
+IDPNK	Pontianak	Pontianak, Kalimantan
+IDPOL	Poleng Oil Field	Poleng
+IDPRN	Panarukan	Panarukan, Java
+IDPRO	Probolinggo	Probolinggo, Java
+IDPSJ	Poso	Poso, Sulawesi
+IDPSS	Pulau Sambu	Pulau Sambu, Riau
+IDPUM	Pomalaa	Pomalaa, Sulawesi
+IDRAQ	Raha Roadstead	Raha
+IDREM	Rembang	
+IDSAT	Tanjung Santan	Santan Terminal, Kl
+IDSBG	Sabang	Sabang, Sumatra
+IDSEQ	Sungaipakning	Sungai Pakning, Sumatra
+IDSGQ	Tanjung Sangata	Sanggata
+IDSKP	Sekupang	
+IDSLG	Sibolga	Sibolga, Sumatra
+IDSMQ	Sampit	Sampit, Kalimantan
+IDSRG	Semarang	
+IDSRI	Samarinda	Samarinda, Kalimantan
+IDSTN	Stagen	Setagin
+IDSUB	Surabaya	
+IDSUG	Sungaigerong	Sungai Gerong, Sumatra
+IDSWT	Salawati	Salawati Terminal
+IDSXK	Saumlaki	
+IDSZH	Senipah Oil Terminal	Senipah
+IDTAL	Tanah Merah	Tanah Laut
+IDTAN	Tanjunguban	
+IDTBL	Toboali	
+IDTBN	Tuban	Tuban, Jv
+IDTBR	Teluk Bayur	Telukbayur
+IDTEG	Tegal	Tegal, Java
+IDTJB	Tanjung Balai Karimun	Tanjungbalai
+IDTJQ	Tanjungpandan	Tanjung Pandan
+IDTNJ	Tanjungpinang	
+IDTSE	Tanjung Sekong	Tanjung Sekong, Jv
+IDTTE	Ternate	Ternate, Halmahera
+IDUDG	Udang Oilfield	Udang Natuna Terminal
+IDUPG	Ujung Pandang	Ujung Pandang, Sulawesi
+IDWBA	Wahai	
+IDWGP	Waingapu	Waingapu, Sumba
+IDWID	Widuri Marine Terminal	Widuri
+IEBTH	Bantry	Bantry Harbour
+IECOB	Cobh	
+IECTB	Castletown Bearhaven	
+IEDRO	Drogheda	
+IEFEN	Fenit	
+IEFOV	Foynes	
+IEGRN	Greenore	
+IEGWY	Galway	
+IEKBS	Killybegs	
+IEKLR	Kilrush	
+IELMK	Limerick	
+IEMTL	Dublin	Dublin-Marine Terminal
+IENRS	New Ross	
+IEORK	Cork	
+IERAT	Rathmullan	
+IEROE	Rosslare	
+IESLI	Sligo	
+IETAR	Tarbert	
+IEWAT	Waterford	
+IEWES	Westport	
+ILAKL	Ashqelon	Ashkelon
+ILASH	Ashdod	
+ILETH	Elat	Elat (Eilath)
+ILHAD	Hadera	
+ILHFA	Haifa	
+IMDGS	Douglas	
+IMRAM	Ramsey	
+INAZK	Azhikal (Azhikkal)	Azhikkal
+INBED	Bedi	
+INBEY	Beypore	
+INBHU	Bhavnagar	
+INBLK	Belekeri	
+INBOM	Mumbai (Bombay)	Mumbai (ex Bombay)
+INCCJ	Calicut (Kozhikode)	Kozhikode (ex Calicut)
+INCCU	Calcutta	Kolkata (ex Calcutta)
+INCDL	Cuddalore	
+INDAH	Dahej	
+INDHP	Port Dabhol	Dabhol Port
+INDMQ	Dhamra	Dhamra Port
+INENR	Kamarajar Port	Ennore
+INGGV	Gangavaram	
+INGPR	Gopalpur	
+INHAL	Haldia Port	Haldia
+INHZA	Hazira	Hazira Port/Surat
+INIXY	Kandla	
+INIXZ	Port Blair	
+INJBD	Jafarabad	
+INJGD	Jaigarh Bay	Jaigad
+INKAK	Kakinada Bay	Kakinada
+INKOC	Kochi (Cochin)	
+INKRI	Krishnapatnam	
+INKRK	Karaikal Port	Karaikal
+INKRW	Karwar	
+INMAA	Chennai (Madras)	Chennai (ex Madras)
+INMDA	Magdalla	
+INMDV	Mandvi	Måndvi
+INMRM	Marmagao	Marmagao (Marmugao)
+INMUN	Mundra	
+INNAV	Navlakhi	
+INNML	New Mangalore	
+INNPT	Nagappattinam	
+INNRP	Vishakhapatnam	Aal-SEZ/Vishakhapatnam
+INNSA	Jawaharlal Nehru Port (Nhava Shiva)	Jawaharlal Nehru (Nhava Sheva)
+INOKH	Okha	
+INPAN	Panaji	Panaji Port
+INPAV	Pipavav Bandar	Pipavav (Victor) Port
+INPBD	Porbandar	
+INPNY	Pondicherry	
+INPPT	Paradip	Paradip Port
+INQUI	Quilon (Kollam)	Quilon
+INRTC	Ratnagiri	
+INSKK	Sikka	Sikkim
+INTRV	Trivandrum	Thiruvananthapuram (ex Trivandrum)
+INTUT	Tuticorin	
+INVAD	Vadinar Terminal	Vadinar
+INVVA	Veraval	
+IODGA	Diego Garcia	
+IQBSR	Al Basrah	Basra
+IQKAZ	Khawr Al Zubair	Khor al Zubair
+IQKHA	Khawr Al Amaya	Khor Al Amaya
+IQMAB	Al-Basra Oil Terminal	Basrah Oil Terminal
+IQUQR	Umm Qasr	Umm Qasr Port
+IRABD	Abadan	
+IRBKM	Bandar Khomeyni	Bandar Khomeini
+IRBND	Bandar Abbas	
+IRBSR	Bandar-E Shahid Reajie	Bandar Shahid Rajaee
+IRBUZ	Bushehr	
+IRCYT	Sirus Oil Terminal	Soroosh (Cyrus) Terminal
+IRHOR	Jazireh-Ye Hormoz	Hormuz
+IRJAK	Jask	
+IRKHK	Kharg Island Oil Terminal	Khark Island
+IRKHO	Khorramshahr	
+IRLVP	Jazireh-Ye Lavan Oil Terminal	Lavan
+IRMRX	Bandar-E Mahshahr	Bandar-e Måh Shahr
+IRSXI	Jazireh-Ye Sirri	Sirri Island
+IRZBR	Chah Bahar	
+ISAKU	Akureyri	
+ISBIL	Bildudalur	Bildudalur - høfn
+ISBOL	Bolungavik	Bolungarvik
+ISDAL	Dalvik	Dalvík
+ISESK	Eskifjordhur	Eskifjørdur - høfn
+ISFAS	Budir	Faskrudsfjørdur
+ISGRT	Grundartangi	
+ISHAF	Hafnarfjordur	Hafnarfjørdur
+ISHFN	Hornabjordur	Höfn, Hornafjørdur
+ISHUS	Husavik	Husavik - høfn
+ISISA	Isafjordur	Isafjørdur - høfn
+ISKEV	Keflavik	Keflavikurkaupstadur
+ISKJF	Skerjafjordur	Skerjafjördur
+ISNES	Neskaupstadur	
+ISREY	Reykjavik	Reykjavík
+ISSAU	Saudarkrokur	Saudarkrokur - høfn
+ISSEY	Seydhisfjordhur	Seydisfjørdur
+ISSIG	Siglufjorhurd	Siglufjørdur - høfn
+ISSTR	Straumsvik	
+ISTEY	Thingeyri	
+ISVES	Vestmannaeyjar	Vestmannaeyjar - høfn
+ITAHO	Alghero	
+ITANZ	Anzio - Nettuno	Anzio
+ITAOI	Ancona	
+ITATX	Arbatax	
+ITAUG	Augusta	
+ITBAI	Baia	
+ITBCE	Bisceglie	
+ITBDS	Brindisi	
+ITBLN	Bagnoli	
+ITBLT	Porto Di Barletta	Barletta
+ITBRI	Bari	
+ITCAG	Cagliari	
+ITCAS	Castellammare Di Stabia	Castellammare di Stabia
+ITCGC	Corigliano Calabro	
+ITCHI	Porto Di Chioggia	Chioggia
+ITCHX	Chiavari - Lavagna	Chiavari
+ITCLF	Carloforte	
+ITCML	Casamicciola	Casamicciola Terme
+ITCNT	Cesenatico	
+ITCRV	Crotone	
+ITCTA	Catania	
+ITCTR	Castellammare Del Golfo	Castellammare del Golfo
+ITCVV	Civitavecchia	
+ITFAO	Fano	
+ITFAV	Favignana	
+ITFCO	Fiumicino	
+ITFOM	Formia	
+ITFRD	Forio	
+ITGAE	Gaeta	
+ITGAI	Golfo Aranci	
+ITGAL	Gallipoli	
+ITGEA	Gela	
+ITGIA	Giardini Naxos	
+ITGIT	Gioia Tauro	
+ITGOA	Genova	
+ITGPR	Giglio Porto	
+ITGRD	Grado	
+ITGUI	Giulianova	
+ITIMP	Imperia	
+ITIOA	Civitanova Marche	
+ITISH	Ischia	
+ITLEV	Levanzo	
+ITLIC	Licata	
+ITLIP	Lipari	
+ITLIV	Livorno	
+ITLMP	Lampedusa	
+ITMAZ	Mazara Del Vallo	Mazara del Vallo
+ITMDA	Maddalena	La Maddalena
+ITMDC	Marina Di Carrara	Marina di Carrara
+ITMFR	Manfredonia	
+ITMLZ	Milazzo	
+ITMMO	Marettimo	
+ITMNF	Monfalcone	
+ITMNP	Monopoli	
+ITMOL	Molfetta	
+ITMRA	Marsala	
+ITMRM	Ciro Marina	Cirò Marina
+ITMSN	Messina	
+ITNAP	Napoli	
+ITODB	Mola Di Bari	Mola di Bari
+ITOLB	Olbia	
+ITOTN	Ortona	
+ITOTO	Otranto	
+ITPCE	Porto Cervo	
+ITPCS	Porto Di Corsini	Porto Corsini
+ITPEM	Porto Empedocle	
+ITPES	Pesaro	
+ITPFE	Portoferraio	
+ITPFX	Sarroch Oil Terminal	Porto Foxi (Sarroch)
+ITPGA	Porto Garibaldi	
+ITPIO	Portovecchio Di Piombino	Piombino
+ITPMO	Porto Di Palermo	Palermo
+ITPNG	Nogaro	Porto Nogaro
+ITPNL	Pantelleria	
+ITPNZ	Ponza	
+ITPOZ	Pozzuoli	
+ITPPF	Porto Ponte Romano	Porto Palo
+ITPRO	Procida	
+ITPSR	Pescara	
+ITPSS	Porto Santo Stefano	
+ITPTH	Porto Ercole	
+ITPTO	Porto Torres	
+ITPVE	Porto Vesme	Portoscuso (Porto Vesme)
+ITPZL	Pozzallo	
+ITQOS	Porto Di Oristano	Oristano
+ITREG	Reggio Di Calabria	Reggio di Calabria
+ITRMI	Rimini	
+ITRPT	Riposta	Riposto
+ITSAL	Salerno	
+ITSAT	Sant'Antioco	Sant' Antioco
+ITSCK	Sciacca	
+ITSDB	San Benedetto Del Tronto	San Benedetto del Tronto
+ITSEG	Senigallia	
+ITSFE	San Felice Circeo	
+ITSIR	Siracusa	
+ITSPA	Santa Panagia	
+ITSPE	La Spezia	
+ITSRE	San Remo	
+ITSVC	San Vito Lo Capo	San Vito lo Capo
+ITSVN	Savona	
+ITTAR	Taranto	
+ITTDG	Torre Del Greco	Torre del Greco
+ITTNI	Trani	
+ITTOA	Torre Annunziata	
+ITTPS	Trapani	
+ITTRC	Terracina	
+ITTRI	Termini Imerese	
+ITTRS	Trieste	
+ITUGG	Muggia	
+ITVCE	Porto Di Lido-Venezia	Venezia
+ITVDA	Vada	
+ITVDL	Rada Di Vado	Vado Ligure
+ITVIA	Viareggio	
+ITVSG	Villa San Giovanni	Villa San Giovanni, Calabria
+ITVSO	Vasto	
+ITVVA	Vibo Valentia Marina	Vibo Valentia
+JBHBI	Hibikinada	
+JESTH	Saint Helier Harbour	Saint Hélier
+JMFMH	Falmouth	
+JMKIN	Kingston	
+JMLUC	Lucea	
+JMMBJ	Montego Bay	
+JMOCJ	Ocho Rios	
+JMPEV	Port Esquivel	
+JMPKS	Port Kaiser	
+JMPOT	Port Antonio	
+JMRIB	Rio Bueno	
+JMROP	Rocky Point	
+JMSLM	Savannah La Mar	Savanna-la-Mar
+JOAQJ	Al Aqabah	Al 'Aqabah
+JPABA	Abashiri Ko	Abashiri
+JPAIO	Aioi	
+JPAMA	Amagasaki	
+JPAOJ	Aomori Ko	Aomori
+JPAOK	Aokata	
+JPATM	Atsumi	
+JPAXT	Akita-Funakawa Ko	Akita
+JPBPU	Beppu	Beppu, Oita
+JPCHB	Chiba Ko	Chiba
+JPCHO	Choshi	
+JPESI	Esasi Ko	Esashi/Hiyama
+JPFKJ	Fukui	
+JPFNB	Funabashi	
+JPFTX	Fushiki-Toyama	Fushikitoyama
+JPFYM	Fukuyama	Fukuyama, Kagoshima
+JPGAM	Gamagori Ko	Gamagori
+JPHAB	Habu Ko	Habu, Hiroshima
+JPHAG	Hagi Ko	Hagi
+JPHAN	Hannan Ko	Hannan
+JPHHE	Hachinohe Ko	Hachinohe
+JPHHR	Higashi-Harima	Higashiharima
+JPHIB	Hibi Ko	Hibi
+JPHIJ	Hiroshima	
+JPHIM	Himeji	
+JPHKD	Hakodate Ko	Hakodate
+JPHKR	Hikari	
+JPHKT	Hakata	Hakata/Fukuoka
+JPHMD	Hamada Ko	Hamada
+JPHMK	Himekawa	
+JPHNK	Hanasaki Ko	Hanasaki
+JPHRH	Hirohata	
+JPHRR	Hirara Ko	Hirara
+JPHSM	Hososhima Ko	Hososhima
+JPHTC	Hitachi	
+JPIHA	Niihama	
+JPIMB	Imabari Ko	Imabari
+JPIMI	Imari	
+JPISG	Ishigaki	
+JPISI	Ishikari Bay New Port	Ishikari
+JPISM	Ishinomaki Ko	Ishinomaki
+JPIWK	Iwakuni Ko	Iwakuni
+JPIZH	Izuhara	
+JPKAR	Karatsu	
+JPKCZ	Kochi Ko	Kochi
+JPKGA	Kakogawa	
+JPKII	Kiire	
+JPKIJ	Niigata Ko	Niigata
+JPKIK	Kikuma Ko	Kikuma
+JPKIS	Kamaishi Ko	Kamaishi
+JPKKW	Kanokawa Ko	Kanokawa
+JPKND	Kanda	Kanda, Fukuoka
+JPKNN	Kin Wan	Kin
+JPKNU	Kinuura Ko	Kinuura
+JPKNZ	Kanazawa	
+JPKOJ	Kagoshima Ko	Kagoshima
+JPKOK	Kokura Ko	Kokura
+JPKOM	Komatsushima	
+JPKRE	Kure	Kure, Hiroshima
+JPKSM	Kashima Ko	Kashima, Ibaraki
+JPKSN	Kesennuma Ko	Kesennuma
+JPKUD	Kudamatsu	
+JPKUH	Kushiro Ko	Kushiro
+JPKWS	Kawasaki Ko	Kawasaki
+JPKWZ	Kashiwazaki	
+JPKZU	Kisarazu Ko	Kisarazu
+JPMAI	Maizuru Ko	Maizuru
+JPMAR	Marugame Ko	Marugame
+JPMII	Miike Ko	Miike, Fukuoka
+JPMIN	Minamata Ko	Minamata
+JPMIS	Misumi Ko	Misumi, Kumamoto
+JPMIY	Miyazu	
+JPMIZ	Mizushima Ko	Mizushima
+JPMKS	Mitsukojima	Mitsukoshima
+JPMKW	Mikawa	
+JPMKX	Mishima-Kawanoe Ko	Mishima, Kawanoe
+JPMOJ	Moji Ko	Moji/Kitakyushu
+JPMOR	Mori	
+JPMSA	Matsusaka	
+JPMTR	Muturezima Ko	Mutsure
+JPMTS	Matsu-Shima	Matsuura, Nagasaki
+JPMUR	Muroran Ko	Muroran
+JPMYJ	Matsuyama	
+JPMYK	Miyako	Miyako, Iwate
+JPNAH	Naha Ko	Naha, Okinawa
+JPNAK	Nakagusuku	
+JPNAO	Naoetsu Ko	Naoetsu
+JPNEM	Nemuro Ko	Nemuro
+JPNGO	Nagoya Ko	Nagoya, Aichi
+JPNGS	Nagasaki	
+JPNHR	Nishihara	
+JPNIH	Eastern Part Of Niigata-Ko	Niigatahigashi
+JPNIT	Namikata	
+JPNNO	Nanao Ko	Nanao
+JPNSR	Noshiro Ko	Noshiro
+JPOFO	Ofunato	
+JPOIT	Oita Ko	Oita
+JPOMZ	Omaezaki Ko	Omaezaki
+JPONA	Onahama Ko	Onahama
+JPOND	Onoda	
+JPONG	Onagawa	
+JPONX	Onomichi-Itozaki	OnomichiItozaki
+JPOSA	Osaka	
+JPOTR	Otaru Ko	Otaru
+JPOWA	Owase Ko	Owase
+JPRMI	Rumoi Ko	Rumoi
+JPRYO	Ryotu Ko	Ryotsu
+JPSAE	Saiki Ko	Saiki
+JPSAG	Saganoseki Ko	Saganoseki
+JPSAK	Sakai Ko	Sakai
+JPSBK	Sakai-Senboku	Sakaisenboku
+JPSBS	Shibushi Wan	Shibushi
+JPSGM	Sendai-Shiogama	Sendaishiogama
+JPSHN	Shingu	
+JPSHS	Shimonoseki	
+JPSKD	Sakaide Ko	Sakaide
+JPSKM	Shikama	
+JPSKT	Sakata Ko	Sakata
+JPSMD	Shimoda Ko	Shimoda, Shizuoka
+JPSMN	Sakaiminato	
+JPSMZ	Shimizu Ko	Shimizu
+JPSOM	Soma	
+JPSSB	Sasebo	
+JPSUZ	Susaki Ko	Susaki
+JPTAE	Tanabe Ko	Tanabe
+JPTAK	Takamatsu	
+JPTBN	Tachibana	
+JPTBT	Tobata	Tobata/Kitakyushu
+JPTGO	Tagonoura Ko	Tagonoura
+JPTKM	Takuma	
+JPTKY	Tokuyama	
+JPTMI	Tsukumi Ko	Tsukumi
+JPTMK	Tomakomai Ko	Tomakomai
+JPTND	Tonda	
+JPTOB	Toba	
+JPTOK	Tokachi	
+JPTRG	Tsuruga Ko	Tsuruga
+JPTTY	Tateyama Ko	Tateyama
+JPTYO	Tokyo Ko	Tokyo
+JPUBJ	Ube Ko	Ube
+JPUCR	Uchiura	Uchiura, Ishikawa
+JPUKB	Kobe	
+JPUNO	Uno Ko	Uno
+JPURG	Uraga Ko	Uraga
+JPUWA	Uwajima Ko	Uwajima
+JPWAK	Wakayama-Shimotsu Ko	Wakayama
+JPWAM	Wakamatsu Ko	Wakamatsu/Kitakyushu
+JPWKJ	Wakkanai	
+JPYAN	Yanai	
+JPYAT	Yatsushiro Ko	Yatsushiro
+JPYKK	Yokkaichi	
+JPYOK	Yokohama Ko	Yokohama
+JPYOS	Yokosuka Ko	Yokosuka
+JPYUA	Yura	Yura, Yamaguchi
+JPYWH	Yawatahama	
+JPYWT	Yahata	Yawata/Kitakyushu
+KEKLF	Kilifi	
+KELAU	Lamu	
+KEMBA	Mombasa	
+KEMYD	Malindi	
+KHKOS	Kampong Saom	Kâmpóng Saôm
+KICIS	Canton Island	
+KITRW	Tarawa Atoll	Tarawa
+KMDZA	Dzaoudzi	
+KMFOU	Fomboni	Foumboni, Moheli
+KMMUT	Moutsamoudu	Mutsamudu, Anjouan
+KMYVA	Moroni	
+KNBAS	Basseterre	Basseterre, Saint Kitts
+KNCHA	Charlestown	
+KPCHO	Ch'ongjin	Chongjin
+KPHAE	Haeju Hang	Haeju
+KPHGM	Hungnam	
+KPNAM	Nampo	
+KPRJN	Najin	Rajin (Najin)
+KPSGN	Kyomip'o	Songnim
+KPSON	Kimch'aek	Songjin
+KPWON	Wonsan	
+KRCHF	Chinae	Jinhae
+KRINC	Inchon	Incheon
+KRKAN	Gwangyang Hang	Gwangyang
+KRKPO	Pohang	
+KRKUV	Kunsan	Gunsan
+KRMAS	Masan	
+KRMOK	Mokpo	
+KRMUK	Mukho	Mukho/Donghae
+KRPTK	Pyeongtaek Hang	Pyeongtaek
+KRPUS	Busan	
+KRSHO	Sokch'o Hang	Sokcho
+KRTGA	Tonghae	
+KRTSN	Daesan Hang	Daesan/Seosan
+KRUSN	Ulsan	
+KRYOS	Yosu	Yeosu
+KWDOH	Doha Harbor	Doha
+KWKWI	Al Kuwayt	Kuwait
+KWMEA	Mina Al Ahmadi	Mina' al Ahmadi
+KWMIB	Mina Abd Allah	Mina' 'Abd Allah
+KWMIS	Mina Az Zawr	Mina Saud
+KWSAA	Mina Ash Shuaybah	Shuaiba
+KYCYB	Cayman Brac	
+KYGEC	Georgetown	Georgetown, Grand Cayman
+LBBEY	Bayrut	Beirut
+LBKYE	Tarabulus	Tripoli
+LBSAY	Sayda	Saydå
+LBZHR	Sidon/zahrani Terminal	Zahrani Terminal
+LCCAS	Castries	
+LCCDS	Grand Cul De Sac Bay	Cul de Sac
+LCVIF	Vieux Fort	
+LKCMB	Colombo	
+LKGAL	Galle Harbor	Galle
+LKHBA	Hambantota	
+LKKNK	Kankesanturai	
+LKTRR	Trincomalee Harbor	Trincomalee
+LRCPA	Cape Palmas	
+LRGRE	Greenville	
+LRMLW	Monrovia	
+LRUCN	Buchanan	
+LTBOT	Butinge Oil Terminal	Botingé
+LTKLJ	Klaipeda	
+LVLPX	Liepaja	
+LVRIX	Salacgriva	Riga
+LVVNT	Ventspils	
+LYABK	Abu Khammash	Abu Kammash
+LYBEN	Banghazi	Bingazi (Benghazi)
+LYBOU	Bouri Oil Field	El Bouri
+LYDRX	Darnah	
+LYESI	As Sidr	
+LYKHM	Khoms	
+LYMBR	Al Burayqah	Marsá Al Burayqah
+LYMIS	Misratah	
+LYRLA	Ras Lanuf	
+LYTIP	Mina Tarabulus (Tripoli)	Tripoli
+LYTOB	Mersa Tobruq	Tobruk
+LYZAW	Az Zawiya	Az Zawiyah
+LYZUE	Ez Zueitina	Zueitina
+MAAGA	Agadir	
+MAAHU	Port D Al Hoceima	Al Hoceïma
+MACAS	Casablanca	
+MAELJ	El Jadida	
+MAESS	Essaouira	
+MAEUN	Laayoune	Laayoune (El Aaiun)
+MAJFL	El Jorf Lasfar	Jorf Lasfar
+MAMOH	Mohammedia	
+MANDR	Port Nador	Nador
+MANNA	Kenitra	Kenitra (ex Port Lyautey)
+MAPTM	Tangier-Mediterranean	Tanger Med
+MASFI	Safi	
+MATNG	Tanger	Tangier
+MCMON	Monaco	
+MEBAR	Bar	
+MEKOT	Kotor	
+MERSN	Risan	Risan (Risano)
+METIV	Tivat	
+MGDIE	Antsiranana	
+MGMJN	Mahajanga	Majunga (Mahajanga)
+MGMNJ	Mananjary	
+MGMOQ	Morondava	
+MGMXT	Maintirano	
+MGTLE	Toliara	Tulear (Toliara)
+MGTLN	Tolanaro	Taolagnaro
+MGTOA	Toamasina	
+MGWMN	Maroantsetra	
+MGWVK	Manakara	
+MHENT	Enitwetak Island	Enewetak Island
+MHKWA	Kwajalein	
+MHMAJ	Majuro Atoll	Majuro
+MMAKY	Sittwe	Akyab (Sittwe)
+MMBSX	Bassein	
+MMMER	Mergui	
+MMRGN	Rangoon	Yangon
+MOMFM	Macau	
+MPROP	Rota	
+MPSPN	Saipan	
+MPTIQ	Tinian	
+MQFDF	Fort De France	Fort-de-France
+MRNDB	Nouadhibou	
+MRNKC	Nouakchott	
+MTMAR	Marsaxlokk	
+MTMLA	Valletta Harbors	Valletta
+MUPLU	Port Louis	
+MUPMA	Port Mathurin	
+MVMCP	Male	Male' Commercial Harbor
+MXACA	Acapulco	
+MXATM	Altamira	
+MXCAT	Cayo Arcas Terminal	
+MXCME	Ciudad Del Carmen	Ciudad del Carmen
+MXCOA	Coatzacoalcos	
+MXCPE	Campeche	
+MXCZM	San Miguel De Cozumel	Cozumel
+MXDBT	Dos Bocas Terminal	
+MXESE	Ensenada	
+MXFRN	Frontera	
+MXGYM	Guaymas	
+MXLAP	La Paz	
+MXLZC	Lazaro Cardenas	Lázaro Cárdenas
+MXMTT	Minatitlan	
+MXMZT	Mazatlan	
+MXNAN	Nanchital	
+MXPGO	Progreso	
+MXPIC	Pichilingue	
+MXPMD	Puerto Madero	
+MXPMS	Puerto Morro Redondo	Puerto Morelos
+MXPVR	Puerto Vallarta	
+MXRST	Rosarito	Rosarito Terminal
+MXSCX	Salina Cruz	
+MXSJC	San Juan De La Costa	San Juan de la Costa
+MXSMI	Isla San Marcos	
+MXSRL	Santa Rosalia	
+MXTAM	Tampico	
+MXTPB	Topolobampo	
+MXTUX	Tuxpan	
+MXVER	Veracruz	
+MXZLO	Manzanillo	
+MYBKI	Kota Kinabalu	Kota Kinabalu, Sabah
+MYBKP	Bakapit	
+MYBTN	Bintangor	
+MYBTU	Bintulu Port	Bintulu, Sarawak
+MYJHB	Johor	Johor Bahru
+MYKCH	Kuching	Kuching, Sarawak
+MYKEM	Kemaman Harbor	Kemaman
+MYKUA	Kuantan New Port	Kuantan (Tanjong Gelang)
+MYKUD	Kudat	Kudat, Sabah
+MYLDU	Lahad Datu	Lahad Datu, Sabah
+MYLGK	Port Langkawi	Langkawi
+MYLUM	Lumut	
+MYLUT	Lutong	Lutong, Sarawak
+MYMEA	Melaka	
+MYMUA	Muar	
+MYMYY	Miri	Miri, Sarawak
+MYMZS	Mostyn	
+MYPDI	Port Dickson	
+MYPEN	Pulau Pinang	Penang (Georgetown)
+MYPKG	Port Klang	Port Klang (Pelabuhan Klang)
+MYSAR	Sarikei	
+MYSBW	Sibu	Sibu, Sarawak
+MYSDK	Pelabuhan Sandakan	Sandakan, Sabah
+MYSUP	Pelabuhan Sungai Udang	Sungai Udang Port
+MYTAN	Teluk Anson	Telok Anson
+MYTAT	Tapis Marine Terminal A	Tapis Terminal
+MYTGG	Kuala Trengganu	Kuala Terengganu
+MYTMP	Tg. Mani	Tanjung Manis
+MYTPP	Tanjung Pelepas	
+MYTWU	Tawa	Tawau, Sabah
+MZBEW	Beira	
+MZIBO	Ibo	
+MZINE	Chinde	
+MZINH	Inhambane	
+MZMNC	Nacala	
+MZMPM	Maputo	
+MZMZQ	Mocambique	
+MZPBE	Porto Belo	
+MZPEB	Pebane	
+MZPOL	Pemba	
+MZUEL	Quelimane	
+NALUD	Luderitz Bay	Lüderitz
+NAWVB	Walvis Bay	
+NCBUG	Baie Ugue	
+NCKOU	Baie De Kouaoua	Kouaoua
+NCNOU	Noumea	Nouméa
+NGABM	Agbami Oil Terminal	Agbami
+NGAKP	Akpo Oil Terminal	Akpo
+NGANA	Antan Oil Terminal	Antan
+NGBON	Bonny	
+NGBRA	Brass Oil Terminal	Brass
+NGBUR	Burutu	
+NGCBQ	Calabar	
+NGESC	Escravos Oil Terminal	Escravos
+NGFOR	Forcados	
+NGKOK	Koko	
+NGLOS	Lagos	
+NGODU	Odudu Terminal	
+NGOKN	Okono Terminal	Okono
+NGOKR	Okrika	
+NGOKW	Okwori Terminal	Okwori
+NGONN	Onne	
+NGPEN	Pennington Oil Terminal	Pennington
+NGPHC	Port Harcourt	
+NGQIB	Qua Iboe Oil Terminal	Qua Iboe
+NGSPL	Sapele	
+NGTIN	Tin Can Island	Tincan/Lagos
+NGUKP	Ukpokiti Marine Terminal	Ukpokiti
+NGWAR	Warri	
+NIBEF	Bluefields	
+NICIO	Corinto	
+NIELB	El Bluff	
+NIPSN	Puerto Sandino	
+NIPUZ	Puerto Cabezas	
+NLAMS	Amsterdam	
+NLDHR	Den Helder	
+NLDOR	Dordrecht	
+NLDZL	Delfzijl	
+NLEEM	Eemshaven	
+NLEUR	Europoort	
+NLHAN	Hansweert	Hansweert/Schore
+NLHAR	Harlingen	
+NLHVH	Hoek Van Holland	Hoek van Holland
+NLIJM	Ijmuiden	IJmuiden/Velsen
+NLMSL	Maassluis	
+NLRTM	Rotterdam	
+NLSCE	Scheveningen	
+NLSCI	Schiedam	
+NLTNZ	Terneuzen	
+NLVLA	Vlaardingen	
+NLVLI	Vlissingen	
+NLZAA	Zaandam	
+NOADN	Andenes	
+NOAES	Alesund	Ålesund
+NOAKM	Akrahamn	Åkrehamn
+NOALF	Alta	
+NOAND	Andalsnes	Åndalsnes
+NOARD	Ardalstangen	Årdalstangen
+NOARE	Arendal	
+NOBER	Berg	
+NOBGO	Bergen	
+NOBJF	Batsfjorden	Båtsfjord
+NOBLL	Litle Ballangen	Ballangen
+NOBNN	Bronnoysund	Brønnøysund
+NOBOO	Bodo	Bodø
+NOBSD	Ballstad	
+NOBTS	Brettesnes	
+NOBVG	Berlevag	Berlevåg
+NOBVK	Brevik	
+NODRG	Drag	
+NODRK	Drobak	Drøbak
+NODRM	Drammen	
+NOEGE	Egersund	
+NOFAN	Farsund	
+NOFAU	Fauske	
+NOFAX	Fagerstrand	
+NOFFD	Flekkefjorden	Flekkefjord
+NOFNE	Finnsnes	
+NOFRK	Fredrikstad	
+NOFRO	Floro	Florø
+NOGBD	Gibostad	
+NOGLO	Glomfjord	
+NOHAL	Halden	
+NOHAU	Haugesund	
+NOHEN	Henningsvaer	Henningsvær
+NOHFT	Hammerfest	
+NOHNE	Hemnesberget	
+NOHOK	Hommelvik	
+NOHOL	Holmestrand	
+NOHOR	Horten	
+NOHRD	Harstad	
+NOHRI	Hareid	
+NOHRS	Haroysund	Harøysundet
+NOHUR	Tofte	Hurum
+NOHUS	Husnes	
+NOHVG	Honningsvag	Honningsvåg
+NOJOS	Jossingfjord	Jøssingfjord
+NOKAR	Karsto	Kårstø
+NOKIR	Kirkehamn	
+NOKJE	Kjerringoy	Kjerringøy
+NOKJF	Kjollefjorden	Kjøllefjord
+NOKKN	Kirkenes	
+NOKMO	Kambo	
+NOKOP	Kopervik	
+NOKRA	Kragero	Kragerø
+NOKRS	Kristiansand	
+NOKSU	Kristiansund	
+NOKVS	Kvalsund	
+NOLAR	Larvik	
+NOLEV	Levanger	
+NOLGS	Langstein	
+NOLID	Lilandsgrunnen	Liland
+NOLOD	Lodingen	Lødingen
+NOLRI	Leirvik	
+NOLVG	Lakselv	Laksevåg
+NOMAN	Mandal	
+NOMAY	Maloy	Måløy
+NOMEH	Mehamnfjorden	Mehamn
+NOMJF	Mosjoen	Mosjøen
+NOMLM	Malm	
+NOMLT	Moldtustranda	
+NOMOL	Molde	
+NOMON	Mongstad	
+NOMOS	Mosterhamn	
+NOMQN	Mo I Rana	Mo i Rana
+NOMRV	Muruvik	Muruvika
+NOMSS	Moss	
+NONHS	Norheimsund	
+NONSN	Nesna	
+NONVK	Narvik	
+NONZG	Brattholmen	
+NOODD	Odda	
+NOOKF	Oksfjord	Øksfjord
+NOORS	Orstav	Ørsta
+NOOSL	Oslo	
+NOOSY	Namsos	
+NOPOR	Porsgrunn	
+NOREI	Reine	
+NOREK	Rekefjord	
+NORIS	Risor	Risør
+NORMJ	Olavsvern	Ramfjordnes
+NOROG	Rognan	
+NORVK	Rorvik	Rørvik
+NOSAD	Sandefjorden	
+NOSAS	Sandnes	
+NOSAU	Sauda	
+NOSBU	Salsbruket	
+NOSEG	Slagenstangen	
+NOSJV	Sjovegan	Sjøvegan
+NOSKE	Skien	
+NOSKN	Stokkmarknes	Stokmarknes
+NOSKU	Skudeneshavn	
+NOSKX	Fiborgtangen	Skogn
+NOSLX	Sortland	
+NOSPG	Sarpsborg	
+NOSRO	Skrova Havn	Skrova
+NOSSJ	Sandnessjoen	Sandnessjøen
+NOSTE	Steinkjer	
+NOSTU	Stura	
+NOSUN	Sunndalsora	Sunndalsøra
+NOSUZ	Stamsund	
+NOSVG	Stavanger	
+NOSVI	Ornes	Ørnes
+NOSVJ	Svolvaer	Svolvær
+NOSVR	Sorvaer	Sørvær
+NOSVV	Svelvik	
+NOTAE	Tananger	
+NOTJL	Tjotta	Tjøtta
+NOTON	Tonsberg	Tønsberg
+NOTOS	Tromso	Tromsø
+NOTRD	Trondheim	
+NOTRY	Tranoy	Tranøy
+NOTVE	Tvedestrand	
+NOUVK	Ulvik	
+NOVAK	Vaksdal	
+NOVAL	Valloy	Valløy
+NOVAO	Vardo	Vardø
+NOVDS	Vadso	Vadsø
+NRINU	Nauru	Nauru Island
+NUALO	Alofi	
+NZAKA	Akaroa	
+NZAKL	Auckland	
+NZBLU	Bluff Harbor	Bluff
+NZGIS	Gisborne	
+NZGMN	Greymouth	
+NZLYT	Port Lyttelton	Lyttelton
+NZMCY	Manukau Harbor	Manukau City
+NZNPE	Napier	
+NZNPL	New Plymouth	
+NZNSN	Nelson	
+NZOPX	Opua	
+NZORR	Otago Harbor	Otago Harbour
+NZPCN	Picton	
+NZTIU	Timaru	
+NZTKH	Tarakohe	
+NZTRG	Tauranga	
+NZWAG	Wanganui	
+NZWHR	Whangaroa	
+NZWLG	Wellington	
+NZWRE	Whangarei	
+NZWSZ	Westport	
+OMDQM	Duqm	
+OMKHS	Khawr Khasab	Khasab
+OMMFH	Mina Al Fahl	Mina' al Fahl
+OMQAL	Qalhat Lng Terminal	Qalhat
+OMSLL	Mina Raysut	Salalah
+OMSOH	Port Of Sohar	Sohar
+OMSTQ	Mina Qabus	Mina Sultan Qaboos, Muscat
+PAAML	Puerto Armuelles	
+PABLB	Balboa	
+PABOC	Bocas Del Toro	Bocas del Toro
+PACHA	Charco Azul	
+PACHG	Chiriqui Grande	Chiriquí Grande
+PACTB	Puerto Cristobal	Cristóbal
+PAMNP	Bahia De Las Minas	Las Minas
+PAONX	Puerto Colon	Colón
+PAPAM	Almirante	
+PAPED	Pedregal	
+PAVAC	Vacamonte	
+PEANC	Bahia De Ancon	Ancón
+PECAB	Puerto Cabo Blanco	Cabo Blanco
+PECHM	Puerto De Chimbote	Chimbote
+PECHY	Chancay	
+PECLL	Puerto Del Callao	Callao
+PECON	Conchan Oil Terminal	Conchán
+PEHCO	Puerto De Huacho	Huacho
+PEILQ	Puerto Ilo	Ilo
+PEIQT	Iquitos	
+PELOB	Caleta Lobitos	Lobitos
+PELPP	La Pampilla Oil Terminal	La Pampilla
+PEMRI	Bahia De Matarani	Matarani
+PEPAI	Paita	
+PEPLO	Punta Lobitos (Bahia De Huarmey)	Punta Lobitos
+PEPMT	Pimental	Pimentel
+PEPUB	Puerto Bayovar	Bayovar
+PESNX	Bahia San Nicolas	San Nicolas
+PESUP	Puerto Supe	Supe
+PESVY	Salaverry	
+PETYL	Talara	
+PFAUQ	Atuona	
+PFPPT	Papeete	
+PFTAI	Baie Taiohae	Taiohae
+PFUTU	Uturoa	
+PFVAI	Vaitape	
+PGBAA	Bialla	
+PGDAU	Daru	
+PGGUR	Alotoa	Alotau
+PGKIE	Kieta	
+PGKIM	Kimbe	
+PGKUL	Kumul	
+PGKVG	Kavieng Harbor	Kavieng
+PGLAE	Lae	
+PGLOR	Lorengau	Lorengau, Manus Island
+PGMAG	Madang	
+PGPOM	Port Moresby	
+PGRAB	Rabaul	
+PGROR	Oro Bay	Orobay
+PGSQT	Samarai	
+PGVAI	Vanimo	
+PGWWK	Wewak Harbor	Wewak
+PHAPR	Aparri	Aparri, Luzon
+PHBAI	Bais	Bais/Dumaguete
+PHBCT	Basilian City (Isabela)	Isabela, Basilan
+PHBGV	Port Borongan	Borongan
+PHBSO	Basco	
+PHBTG	Batangas City	Batangas/Luzon
+PHBUG	Bugo	
+PHBXU	Butuan City	Butuan Bay/Masao
+PHBYB	Baybay	Baybay/Tacloban
+PHCEB	Cebu	
+PHCGY	Cagayan De Oro	Cagayan de Oro, Mindanao
+PHCLP	Calapan	Calapan/Batangas
+PHCLV	Claveria	Claveria/Aparri
+PHCSI	Port Capiz	Culasi
+PHCTS	Catbalogan	Catbalogan, Samar
+PHDGT	Dumaguete	
+PHDVO	Davao	Davao, Mindanao
+PHGES	General Santos	
+PHGIN	Gingoog	Gingoog/Masao
+PHGUN	Guiuan	
+PHHNT	Hinatuan	Hinatuan/Bislig
+PHHON	Hondagua	Hondagua/Siain
+PHIGN	Iligan	Iligan, Mindanao
+PHILO	Iloilo	Iloilo, Panay
+PHISL	Isabel	
+PHJNZ	Jimenez	Jimenez/Ozamis
+PHJOL	Jolo	
+PHJPM	Jose Panganiban	Jose Panganiban, Luzon
+PHLGP	Legazpi Port	Legaspi Apt, Luzon
+PHLZB	Lazi	
+PHMAA	Maasin	
+PHMAS	Masao	
+PHMBT	Masbate	
+PHMGG	Mangagoy	Mangogoy/Bislig
+PHMNL	Manila	
+PHMSC	Masinloc	Masinloc/Sual
+PHMVS	Mariveles	Mariveles, Luzon
+PHMXI	Mati	Mati, Mindanao
+PHNAS	Nasipit Port	Nasipit/Masao
+PHNUG	Nasugbu	Nasugbu, Luzon
+PHORC	Ormoc	Ormoc/Tacloban
+PHOZC	Port Ozamis	Ozamis, Mindanao
+PHPAG	Pagadian	Pagadian/Zamboanga
+PHPHD	Port Holland	
+PHPLC	Polloc (Cotabato)	Polloc
+PHPPN	Palompon	
+PHPPS	Puerto Princesa	Puerto Princesa, Palawan
+PHPUL	Pulupandan	
+PHROM	Port Romblon	Romblon
+PHSCA	San Carlos	San Carlos/Dumaguete
+PHSFE	San Fernando Harbor	San Fernando, Luzon
+PHSFS	Subic Bay	
+PHSNG	Toledo	Sangi/Cebu
+PHSOR	Sorsogon	Sorsogon/Legaspi
+PHSSV	Siasi	
+PHSUG	Surigao City	Surigao, Mindanao
+PHTAC	Tacloban	Tacloban, Leyte
+PHTAG	Tagbilaran	Tagbilaran, Bohol
+PHTBC	Tabaco	Tabaco/Legaspi
+PHTNU	Tanauan	Tanauan/Tacloban
+PHTON	Tubigan	Tubigon
+PHVNV	Villanueva	
+PHVRC	Virac	
+PHZAM	Zamboanga	
+PKBQM	Muhamamad Bin Qasim	Muhammad Bin Qasim/Karachi
+PKGWD	Gwadar	
+PKKHI	Karachi	
+PLDAR	Darlowo	
+PLGDN	Gdansk	
+PLGDY	Gdynia	
+PLKOL	Kolobrzeg	
+PLNWA	Nowy Port	Nowe Warpno
+PLPLC	Police	
+PLSWI	Swinoujscie	
+PLSZZ	Szczecin	
+PLUST	Ustka	
+PMFSP	Port De St Pierre	Saint-Pierre
+PRARE	Arecibo	
+PRARR	Arroyo	
+PRBQN	Aguadilla	
+PRFAJ	Bahia De Fajardo	Fajardo
+PRGUX	Playa De Guanica	Guanica
+PRGUY	Playa De Guayanilla	Guayanilla
+PRHUC	Playa De Humacao	Humacao
+PRLAM	Las Mareas	Las Mareas (Guayama)
+PRMAZ	Mayaguez	Mayagüez
+PRPJO	Bahia De Jobos	Puerto de Jobos
+PRPSE	Playa De Ponce	Ponce
+PRPYA	Puerto Yabucoa	
+PRSJU	San Juan	
+PTADH	Angra Do Heroismo	Angra do Heroísmo
+PTAVE	Aveiro	
+PTDOU	Oporto	Douro
+PTFAO	Faro	
+PTFDF	Figueira Da Foz	Figueira da Foz
+PTFNC	Funchal	Funchal, Madeira
+PTHOR	Horta	
+PTLDP	Lajes	
+PTLEI	Porto De Leixoes	Leixões
+PTLIS	Lisboa	
+PTLOS	Lagos	
+PTPDL	Ponta Delgada	
+PTPRV	Praia De Vitoria	Praia da Vitória
+PTSET	Setubal	Setúbal
+PTSIE	Sines	
+PTVDC	Viana Do Castelo	Viana do Castelo
+PTVDP	Vila Do Porto	Vila do Porto
+PTVNC	Vila Real De S Antonio	Vila Nova do Corvo
+PYASU	Puerto De Asuncion	Asunción
+QAASN	Al Shaheen Terminal	Al Shaheen
+QADOH	Doha	
+QAHAL	Jazirat Halul	Halul
+QARLF	Ras Laffan	
+QARYN	Al Rayyan Terminal	Al Rayyan
+QAUMS	Umm Said	Umm Sa'id (Mesaieed)
+RERUN	Saint-Denis	
+REZSE	Saint-Pierre	
+ROBAB	Basarabi	
+ROBRA	Braila	
+ROCEV	Cernavoda	
+ROCND	Constanta	
+ROGAL	Galati	
+ROMAG	Mangalia	
+ROMED	Medgidia	
+ROMID	Midia	
+ROSUL	Sulina	Sulina (Port et Zone Franche)
+ROTCE	Tulcea	
+RUAAQ	Anapa	
+RUAER	Sochi	
+RUARH	Arkhangels'k	Arkhangelsk
+RUAZO	Azov	
+RUBER	Port Beringovsky	Beringovskiy, Port
+RUBLT	Baltiysk	
+RUBRK	Lomonosov	
+RUDKA	De Kastri	De-Kastri
+RUDKS	Port Dikson	Dikson
+RUDUD	Dudinka	
+RUGDZ	Gelendzhik	Gelendzik
+RUGRH	Ostrovnoy Gremikha	Gremikha
+RUIAA	Igarka	
+RUIKS	Tiksi	
+RUKAN	Kandalaksha	
+RUKDT	Kronshtadt	
+RUKGD	Kaliningrad	
+RUKHO	Kholmsk	
+RUKOR	Korsakov	
+RUKZP	Kavkaz Oil Terminal	Kavkaz
+RULAZ	Lazarev	
+RULED	Sankt-Peterburg	Saint Petersburg (ex Leningrad)
+RULES	Lesogorsk	
+RUMAG	Bukhta Nagayeva (Magadan)	Magadansky, Port
+RUMEZ	Mezen	
+RUMMK	Murmansk	
+RUMVO	Moskal Vo	Moskalvo
+RUNEV	Nevelsk	
+RUNIA	Nikolayevsk Na Amur	Nikolayevsk-na-Amure
+RUNJK	Nakhodka	
+RUNVS	Novorossiysk	
+RUOHO	Okhotsk Iy Reyd	Okhotsk
+RUOKA	Okha	Okha, Sakhalin
+RUOKT	Mys Rogatyy Oktyabrskiy	Oktyabr'skiy
+RUPKC	Petropavlovsk	Petropavlovsk-Kamchatskiy
+RUPRI	Primorsk	Primorsk (Koivisto)
+RUPRN	Poronaysk	Poronaisk
+RUPSE	Pos'yet	Posyet
+RUPVS	Provideniya	Provideniya, Bukhta
+RUPWE	Pevek	
+RURND	Rostov-Na-Donu	Rostov-na-Donu
+RUSAK	Aleksandrovsk -Sakhalinskiy	Aleksandrovsk-Sakhalinskiy
+RUSEW	Severodvinsk	
+RUSHA	Shakhtersk	
+RUSKA	Slavyanka	
+RUSOG	Sovetskaya Gavan	
+RUTAG	Taganrog	
+RUTMR	Temryuk	
+RUTUA	Tuapse	
+RUUGL	Uglegorsk	
+RUULU	Reka Luga	Ust'-Luga
+RUVIT	Vitino	
+RUVNN	Bukhta Vanino	Vanino
+RUVVO	Vladivostok	
+RUVYG	Vyborg	
+RUVYP	Vostochnyy	Vostochnyy Port
+RUVYS	Gavan Vysotsk	Vysotsk
+RUYEY	Yeysk	
+RUZAR	Zarubino	
+SADHU	Duba	Port of NEOM
+SADMM	Dammam	Ad Dammam
+SAGIZ	Jizan	
+SAJBI	Al Jubayl	Al Jubayl Industrial City
+SAJED	Jiddah	Jeddah
+SAJUT	Ju Aymah Oil Terminal	Juaymah Terminal
+SARAB	Rabigh	
+SARAM	Ras Al Mishab	Ras al Mishab
+SARAR	Ras Al Khafji	Ras al Khafji
+SARTA	Ras Tannurah	Ras Tanura
+SAYBI	Yanbu	Yanbu Industrial City
+SBGZO	Gizo Harbor	Gizo
+SBHIR	Honiara	Honiara, Guadalcanal Is
+SBNOR	Port Noro	Noro, New Georgia
+SBRIN	Ringgi Cove	Ringgi Cove, Kolombangara
+SBTLG	Tulaghi	Tulagi, Ngella
+SBXYA	Yandina	Yandina, Russell Island
+SCPOV	Victoria	Port Victoria
+SDPZU	Port Sudan	
+SDSSD	Sawakin Harbor	Sawakin
+SEAHU	Ahus	Åhus
+SEBEA	Bergkvara	
+SEBLD	Bovallstrand	
+SEBNF	Brannfors	Brännfors
+SEBOL	Bollstabruk	
+SEBRO	Brofjorden	
+SEDEG	Degerhamn	
+SEDOM	Domsjo	Domsjö
+SEFAG	Falkenberg	
+SEFIG	Figeholm	
+SEFJA	Fjallbacka	Fjällbacka
+SEFSD	Farosund	Fårösund
+SEGOT	Goteborg	Göteborg
+SEGRE	Grebbestad	
+SEGRH	Grisslehamn	
+SEGUB	Gustavsberg	
+SEGUS	Gustavsvik	
+SEGVX	Gavle	Gävle
+SEHAD	Halmstad	
+SEHAK	Hallstavik	
+SEHAN	Hargshamn	
+SEHEL	Helsingborg	
+SEHND	Harnosand	Härnösand
+SEHOG	Hoganas	Höganäs
+SEHUN	Hunnebostrand	
+SEHUS	Husum	
+SEHUV	Hudiksvall	
+SEIGG	Iggesund	
+SEJAT	Stora Jatterson	Jättersön
+SEKAA	Karlskrona	
+SEKAN	Karlshamn	
+SEKAS	Karskar	Karskär
+SEKLI	Klintehamn	
+SEKLR	Kalmar	
+SEKMH	Kopmanholmen	Köpmanholmen
+SEKRF	Kramfors	
+SEKXV	Karlsborg	Karlsborg Axelvik
+SELAA	Landskrona	
+SELIM	Limhamn	
+SELLA	Lulea	Luleå
+SELYS	Lysekil	
+SEMMA	Malmo	Malmö
+SEMSD	Marstrand	
+SENOG	Nordmaling	
+SENOT	Norrsundet	
+SENRK	Norrkoping	Norrköping
+SENYN	Nynashamn	Nynäshamn
+SENYO	Nykoping	Nyköping
+SEOBB	Obbola	
+SEOER	Ornskoldsvik	Örnsköldsvik
+SEOSK	Oskarshamn	
+SEOXE	Oxelosund	Oxelösund
+SEPIT	Pitea	Piteå
+SERNB	Ronneby	
+SERNH	Ronehamn	
+SERUV	Rundvik	
+SESAE	Sandarne	
+SESAK	Sandvik	
+SESDL	Sundsvall	
+SESIM	Simrishamn	
+SESKE	Skelleftehamn	
+SESLI	Slite	
+SESMD	Stromstad	Strömstad
+SESOE	Sodertalje	Södertälje
+SESOL	Solvesborg	Sölvesborg
+SESOO	Soderhamn	Söderhamn
+SESOR	Soraker	Söråker
+SESSR	Skutskar	Skutskär
+SESTA	Stocka	
+SESTE	Stenungsund	
+SESTK	Stockvik	Stockviksverken
+SESTO	Stockholm	
+SESUS	Storugns	
+SETOE	Torehamn	Töre
+SETRG	Trelleborg	
+SEUDD	Uddevalla	
+SEUME	Umea Hamn	Umeå
+SEUTA	Utansjo	Utansjö
+SEVAG	Varberg	
+SEVAJ	Vaja	Väja
+SEVAL	Vallvik	
+SEVBY	Visby	
+SEVER	Verkeback	Verkebäck
+SEVIV	Vivstavarv	
+SEVST	Vasteras	Västerås
+SEVVK	Vastervik	Västervik
+SEYST	Ystad	
+SGJUR	Jurong Island	Jurong
+SGKEP	Keppel - (East Singapore)	Keppel
+SGPUB	Pulau Bukom	
+SGSEB	Pulau Sebarok	
+SHASI	Georgetown	
+SHSHN	Jamestown	
+SIKOP	Koper	
+SIPIR	Piran	
+SJBAR	Barentsburg	
+SJLYR	Longyearbyen	
+SJNYA	Ny Alesund	Ny-Ålesund
+SLBTE	Bonthe	
+SLFNA	Freetown	
+SLPEP	Pepel	
+SNDKR	Dakar	
+SNLYN	Lyndiane	
+SNMBA	M Bao Oil Terminal	M'bao Terminal
+SNRQ2	Rufisque	
+SNXLS	St Louis	Saint Louis
+SOBBO	Berbera	
+SOBSA	Boosaaso	Bossaso
+SOKMU	Kismaayo	Kismayu
+SOMER	Marka	Merca
+SOMGQ	Muqdisho	Mogadishu
+SRICK	Nieuw Nickerie	
+SRMOJ	Moengo	
+SRPBM	Paramaribo	
+SRPRM	Paranam	
+STSAA	Santo Antonio	
+STTMS	Sao Tome	Sao Tome Island
+SVAQJ	Acajutla	
+SVLUN	La Union	
+SXPHI	Philipsburg	
+SYALD	Al Ladhiqiyah	
+SYBAN	Baniyas	
+SYTTS	Tartus	
+TC9CB	Cockburn Harbor	Cockburn Harbour
+TCGDT	Grand Turk	Grand Turk Island
+TGKPE	Kpeme	
+TGLFW	Lome	
+THBEN	Benchamas Terminal	Benchamas
+THBKK	Bangkok	
+THBSP	Bang Saphan	
+THERA	Erawan Terminal	Erawan
+THKAN	Kantang Harbor	Kantang
+THKHA	Khanom	
+THKRV	Krabi	
+THKSI	Ko Si Chang Terminal	Ko Sichang
+THLCH	Laem Chabang	
+THMAT	Map Ta Phut	
+THPKT	Phuket	Phuket Port
+THPTN	Pattani	
+THRYG	Rayong Tpi Terminal	Rayong
+THSAT	Sattahip	
+THSBP	Siam Seaport	
+THSGK	Songkhla Harbor	Songkhla
+THSRI	Si Racha Terminal	Si Racha
+THTTE	Tantawan Marine Terminal	Tantawan Terminal
+TLDIL	Dili	
+TNASH	Ashtart Oil Terminal	Ashtart Terminal
+TNBIZ	Banzart	Bizerte
+TNDID	Didon Terminal	Didon
+TNDJE	Houmt Souk	Djerba
+TNGAE	Gabes	Gabès
+TNLGN	La Goulette	La Goulette Nord (Halqueloued)
+TNLSK	Skhira	La Skhirra
+TNMAD	Mahdia	
+TNMBA	Menzel Bourguiba	
+TNRDS	Rades	Radès
+TNSFA	Mersa Sfax	Sfax
+TNSUS	Sousse	
+TNTAT	Tazerka Oil Terminal	Tazerka Terminal
+TNTBJ	Tabarka	
+TNTUN	Tunis	
+TNZRZ	Zarzis	
+TONEI	Neiafu	
+TOPAN	Pangai	
+TOTBU	Nuku Alofa	Nuku'alofa
+TRALA	Alanya	
+TRALI	Aliaga	
+TRAMR	Ambarli	
+TRAYT	Antalya	
+TRAYV	Ayvalik	
+TRBDM	Bandirma	
+TRBOT	Botas	
+TRBXN	Bodrum	
+TRCKZ	Canakkale	Çanakkale
+TRDIK	Dikili	
+TRDRC	Derince Burnu	Derince
+TRECE	Eceabat	
+TRERE	Eregli	
+TRERK	Erdek	
+TRFET	Fethiye	
+TRGEB	Gebze	
+TRGEL	Gelibolu	
+TRGEM	Gemlik	
+TRGIR	Giresun	
+TRGOK	Golcuk Burnu	Gölcük
+TRGUL	Gulluk	Güllük
+TRHAY	Haydarpasa	
+TRHOP	Hopa	
+TRINE	Inebolu	
+TRISK	Iskenderun	
+TRIST	Istanbul	
+TRITY	Istinye	Istinye/Istambul
+TRIZM	Izmir	İzmir
+TRIZT	Izmit	
+TRKRB	Karabiga	
+TRKUS	Kusadasi	
+TRMER	Mersin	
+TRMRM	Marmaris	
+TRMUD	Mudanya	
+TRNEM	Nemrut Limani Bay	Nemrut Bay
+TRORD	Ordu	
+TRRIZ	Rize	
+TRSIC	Sinop	
+TRSSX	Samsun	
+TRTAS	Tasucu	
+TRTEK	Tekirdag	
+TRTGT	Toros Gubre	Toros Gubre Terminal, Gubre
+TRTZX	Trabzon	
+TRUZE	Antalya Offshore Terminal	Antalya Free Zone
+TRYAK	Yakacik	
+TRYAR	Yarimca	
+TRZON	Zonguldak	
+TTCHA	Chaguaramas	
+TTGUA	Galeota Point Terminal	Guayaguayare
+TTLAB	Brighton	La Brea (Brighton)
+TTPOS	Port Of Spain	Port-of-Spain
+TTPTF	Point Fortin	
+TTPTP	Pointe A Pierre	Pointe a Pierre
+TTPTS	Point Lisas Industrial Port	Point Lisas
+TTSCA	Scarborough	Scarborough/Tobago
+TTTEM	Anse Tembladora	Tembladora
+TVFUN	Funafuti Atoll	Funafuti
+TWHUN	Hua-Lien Kang	Hualien
+TWKEL	Chi-Lung	Keelung (Chilung)
+TWKHH	Kao-Hsiung	Kaohsiung
+TWMLI	Mailiao	Mai-liao
+TWMZG	Peng-Hu Kang	Makung
+TWTPE	Tan-Shui	Taipei
+TWTXG	Tai-Chung Kang	Taichung
+TZDAR	Dar Es Salaam	Dar es Salaam
+TZKIK	Kilwa Kivinje	
+TZMIK	Mikindani	
+TZMYW	Mtwara	
+TZTGT	Tanga	
+TZZNZ	Zanzibar	
+UABGD	Belgorod-Dnestrovsky	Bilhorod-Dnistrovskyi
+UAERD	Berdyansk	Berdiansk
+UAFEO	Feodosiya	Feodosiia
+UAILK	Chornomors Ke	Chornomorsk
+UAIZM	Izmayil	Izmail
+UAKEH	Kerch	
+UAKHE	Kherson	
+UAMPW	Mariupol	
+UANLV	Mykolayiv	Mykolaiv
+UAOCT	Port Oktyabrsk	Olviia
+UAODS	Odesa	
+UARNI	Reni	
+UASKD	Skadovs'k	Skadovsk
+UASVP	Sevastopol	
+UAUDY	Ust-Dunaisk	Ust-Dunaisk/Vylkove
+UAYAL	Yalta	
+UAYZE	Yuzhnyy	Yuzhne
+UAZKA	Yevpatoriya	Yevpatoriia
+US8BY	Bayway	
+US9HA	Bass Harbor	
+US9MP	Machiasport	
+US9NV	North Haven	
+US9SA	Thomaston	South Thomaston
+US9SO	Sorrento	
+US9VV	Vinalhaven	
+US9WA	Hoodsport	
+USAAF	Apalachicola	
+USACC	Raymond	
+USACG	Catskill	
+USACI	Machias	
+USACJ	South Bend	
+USACK	Nantucket	
+USADQ	Kodiak	
+USAIN	Wainwright	
+USAIY	Atlantic City	
+USALB	Albany	
+USALG	Algonac	
+USANC	Anchorage	
+USANP	Annapolis	
+USANZ	Antioch	
+USAOU	Avalon	
+USAPN	Alpena	
+USAQQ	Camden	
+USASF	Ashtabula	
+USAST	Astoria	
+USASX	Ashland	
+USAUG	Augusta	
+USAXB	Alexandria Bay	
+USAXK	Adak Naval Air Station	Adak
+USAXR	Alexandria	
+USBAL	Baltimore	
+USBAY	Bayonne	
+USBCG	Boca Grande	
+USBCY	Bay City	
+USBDR	Bridgeport	
+USBDY	Bandon	
+USBEL	Belfast	
+USBET	Bethel	
+USBFI	Bayfield	
+USBFO	Beaufort	
+USBFT	Beaufort	
+USBG7	Barnegat	
+USBGR	Bangor	
+USBHB	Bar Harbor	
+USBIX	Biloxi	
+USBL3	Brooklin	Brooklin, Hancock
+USBLI	Bellingham	
+USBNC	Benicia	
+USBOS	Boston	
+USBOY	Brooklyn	Brooklyn/New York
+USBPT	Beaumont	
+USBPV	Belhaven	
+USBRO	Brownsville	
+USBRW	Barrow	
+USBSE	Bristol	
+USBTH	Bath	
+USBTR	Baton Rouge	
+USBUF	Buffalo	
+USBUH	Burlington	
+USBUP	Bucksport	
+USBVY	Beverly	
+USBWS	Blaine	
+USCAS	Castine	
+USCAY	Calumet Harbor	Calumet City
+USCBL	Coupeville	
+USCCJ	Cape Charles	
+USCDB	Cold Bay	
+USCDE	Camden	
+USCDV	Cordova	
+USCDY	Conneaut	
+USCEC	Crescent City	
+USCEN	Convent	
+USCGA	Craig	
+USCHI	Chicago	
+USCHS	Charleston	
+USCHT	Chester	
+USCLE	Cleveland	
+USCLM	Port Angeles	
+USCLP	Clarks Point	
+USCLY	Clayton	
+USCMS	Camas	
+USCOB	Coos Bay	
+USCP4	Cherry Point	
+USCPT	Carpinteria	
+USCRB	Carrabelle	
+USCRM	Crockett	
+USCRP	Corpus Christi	
+USCSF	Carteret	
+USCSX	Charlevoix	
+USCUB	Columbia	
+USCYM	Chatham	
+USDAV	Davenport	
+USDET	Detroit	
+USDEX	Deer Park	
+USDHB	Bodega Bay	
+USDIE	Darien	
+USDKK	Dunkirk	
+USDLG	Dillingham	
+USDLH	Duluth	
+USDLS	The Dalles	
+USDOJ	Leonardo	
+USDPW	Deepwater Point	Deepwater
+USDRF	Drift River	
+USDRG	Deering	
+USDUT	Dutch Harbor	
+USDVV	Davisville Depot	Davisville
+USDZT	Mount Desert	
+USECG	Elizabeth City	
+USECH	Indiana Harbor	East Chicago
+USEDE	Edenton	
+USEEX	Essex	
+USEGW	Edgewater	
+USEGX	Egegik	
+USEKA	Eureka	
+USEL3	Ellwood	
+USELS	El Segundo	
+USELV	Elfin Cove	
+USENA	Kenai	
+USENW	Kenosha	
+USEPM	Eastport	
+USERI	Erie	
+USESC	Escanaba	
+USESR	Ellsworth	
+USETW	Edgartown	
+USEWN	New Bern	
+USEWR	Newark	
+USEXI	Excursion Inlet	
+USEYW	Key West	
+USF5L	Fields Landing	
+USF8O	Frenchboro	
+USFAV	Fall River	
+USFDB	Fredericksburg	
+USFEB	Fernandina Beach	
+USFMH	Falmouth	
+USFNE	Florence	
+USFNF	Frankfort	
+USFNR	Funter	Funter Bay
+USFOB	Fort Bragg	
+USFPO	Freeport	
+USFPR	Fort Pierce	
+USFPT	Fairport	Fairport Harbor Village
+USFRD	Friday Harbor	
+USFSP	Friendship	
+USGDE	Gladstone	
+USGDN	Gardiner	
+USGDR	Gardiner	
+USGGE	Georgetown	
+USGHN	Grand Haven	
+USGHR	Aberdeen	
+USGIJ	Grand Isle	
+USGLC	Gloucester	Gloucester City
+USGLS	Galveston	
+USGP4	Greenport	
+USGPT	Gulfport	
+USGRB	Green Bay	
+USGRH	Greenwich	
+USGRL	Great Lakes	
+USGRM	Grand Marais	
+USGTL	Gretna	
+USGYY	Gary	
+USHB4	Harbor Beach	
+USHBK	Hoboken	
+USHD4	Hertford	
+USHDC	Havre De Grace	Havre de Grace
+USHLM	Holland	
+USHNH	Hoonah	
+USHNL	Honolulu	
+USHNM	Hana	
+USHNS	Haines	
+USHOM	Homer	
+USHOU	Houston	
+USHP4	South Harpswell	Harpswell Center
+USHPY	Baytown	
+USHQJ	Washington Bay	Washington
+USHQM	Hoquiam	
+USHS3	Harbor Springs	
+USHTL	Houghton	
+USHUB	Huron	
+USHVN	New Haven	
+USHWI	Hawk Inlet	
+USHYA	Hyannis	
+USHYG	Hydaburg	
+USHYM	Chrome	
+USIL8	Isleton	
+USILG	Wilmington	
+USILM	Wilmington	
+USINV	Madisonville	
+USIOR	Samoa	
+USIQL	Ilwaco	
+USIS3	City Island	
+USIS9	Swans Island	
+USISQ	Manistique	
+USITO	Hilo	
+USJAX	Jacksonville	
+USJBK	Berkeley	
+USJEC	Jersey City	
+USJMC	Sausalito	
+USJNP	Newport Beach	
+USJNU	Juneau	
+USJON	Jonesport	
+USJPP	La Pointe	
+USJRT	Rockport	
+USKA7	Kailua	
+USKAE	Kake	
+USKAM	Kalama	
+USKAU	Kaukauna	
+USKBP	Kennebunkport	
+USKCL	Chignik	
+USKGT	Kingston	
+USKIB	Ivanof Bay	
+USKIS	Kiska	Kiska Island
+USKJH	Washington	
+USKKU	Ekuk	
+USKLN	Larsen Bay	
+USKLW	Klawock	
+USKOT	Kotlik	
+USKOZ	Ouzinkie	
+USKQA	Akutan Harbor	Akutan
+USKTN	Ketchikan	
+USKUA	Kaunakakai	Kaunakakai (Molokai)
+USKUY	Uyak	
+USKVC	King Cove	
+USKWF	Waterfall	
+USKWH	Kawaihae	
+USKWU	Kewaunee	
+USKWY	Mackinaw City	
+USKXA	Kasaan	
+USKYK	Karluk	
+USKYP	Keyport	
+USLAJ	L Anse	L'Anse
+USLAX	Los Angeles	
+USLB2	Lubec	
+USLBA	Alabaster	
+USLCH	Lake Charles	
+USLDM	Ludington	
+USLGB	Long Beach	
+USLHN	Lahaina	
+USLMO	Morgan City	
+USLO9	Loop Terminal	
+USLOG	Longview	
+USLOR	Lorain	
+USLPW	Little Port Walter	
+USLZN	Lynn	
+USMAH	Marcus Hook	
+USMBL	Manistee	
+USMCD	Mackinac Island	
+USMEM	Port Of Memphis	Memphis
+USMGC	Michigan City	
+USMGS	Munising	
+USMH2	Marblehead	
+USMI3	Calcite	
+USMI8	Mare Island	
+USMIA	Miami	
+USMJK	Morro Bay	
+USMKE	Milwaukee	
+USMKG	Muskegon	
+USMKI	Mukilteo	
+USMLG	Moss Landing	
+USMLQ	Milbridge	
+USMNM	Menominee	
+USMOB	Mobile	
+USMOI	Monroe	
+USMOY	Marinette	
+USMQI	Quincy	
+USMQT	Marquette	
+USMRH	Morehead City	
+USMRZ	Martinez	
+USMSY	New Orleans	
+USMTM	Metlakatla	
+USMTP	Montauk Harbor	Montauk
+USMTW	Manitowoc	
+USMY3	Monterey	
+USMYC	Mystic	
+USNAX	Barber's Point	Barbers Point (Oahu)
+USNBD	New Bedford	
+USNCO	Quonset Point	
+USNEB	Neah Bay	
+USNEW	Destrehan	
+USNGZ	Alameda	
+USNIJ	Nawiliwili Bay	Nawiliwili
+USNIK	Nikiski	
+USNIN	Ninilchik	
+USNK3	Noank	
+USNLO	New London	
+USNNK	Naknek	
+USNNS	Newport News	
+USNOC	Norwich	
+USNPO	Newport	
+USNPT	Newport	
+USNRB	Mayport	
+USNSS	Sabine Pass	
+USNSX	New Castle	
+USNTD	Port Hueneme	
+USNYC	New York City	New York
+USOAK	Oakland	
+USOCE	Ocean City	
+USOCQ	Oconto	
+USOGG	Kahului	
+USOGS	Ogdensburg	
+USOL2	Oleum	
+USOLM	Olympia	
+USOME	Nome	
+USOMU	Solomons Island	Solomons
+USONG	Ontonagon	
+USORF	Norfolk	
+USORG	Orange	
+USORQ	Norwalk	
+USOSC	Oscoda	
+USOSW	Oswego	
+USOSZ	Orca	
+USOTH	North Bend	
+USOTS	Anacortes	
+USOTZ	Kotzebue	
+USOW4	Point Wells	
+USOYH	Boothbay Harbor	
+USP2C	Pinole Point	Pinole
+USPAB	Palm Beach	
+USPAE	Everett	
+USPAL	Port Allen	
+USPAS	Pasadena	
+USPAU	Paulsboro	
+USPAY	Perth Amboy	
+USPB5	Pismo Beach	
+USPBG	Pittsburg	
+USPCN	Port Clinton	
+USPCP	Patchogue	
+USPCV	Canaveral Harbor	Port Canaveral
+USPCX	Port Costa	
+USPDX	Portland	
+USPEC	Pelican	
+USPEF	Port Everglades	
+USPET	Petoskey	
+USPFN	Panama City	
+USPGH	Port Gamble	
+USPGL	Pascagoula	
+USPGM	Port Graham	
+USPHL	Philadelphia	
+USPHN	Port Huron	
+USPIE	St Petersburg	Saint Petersburg
+USPIP	Pilot Point	
+USPIS	Port Isabel	
+USPJS	San Juan Cannery	Port San Juan
+USPLV	Port Lavaca	
+USPME	Port Manatee	
+USPML	Port Moller	
+USPNS	Pensacola	
+USPO2	Port Orford	
+USPOA	Port Arthur	
+USPON	Port Neches	
+USPOU	Poughkeepsie	
+USPRD	Port Reading	
+USPRJ	Port Royal	
+USPSG	Petersburg	
+USPSJ	Port St Joe	Port Saint Joe
+USPSL	Port San Luis	
+USPSM	Portsmouth	
+USPSS	Presque Isle	
+USPSX	Palacios	
+USPTD	Port Alexander	
+USPTH	Port Heiden	
+USPTJ	Port Jefferson	
+USPTL	Port Armstrong	
+USPTM	Portsmouth	
+USPTU	Platinum	
+USPU2	Put In Bay	Put-In-Bay
+USPUL	Poulsbo	
+USPUP	Dupont	
+USPVC	Provincetown	
+USPVD	Providence	
+USPWA	Port Washington	
+USPWI	Port William	Port Williams
+USPWM	Portland	
+USPWR	Big Port Walter	Port Walter
+USPWT	Bremerton	
+USPXO	Port Orchard	
+USPYM	Plymouth	
+USPYP	Piney Point	
+USQAG	Algoma	
+USQMW	Mccord	McCleary
+USQPX	Prosper	
+USQSK	Saco	
+USRAC	Racine	
+USRAI	Rainier	
+USRCE	Roche Harbor	
+USRCH	Point Richmond	Richmond
+USRCY	Rogers City	
+USRER	Rensselaer	
+USRGA	Baraga	
+USRI4	Port Richmond SI	Port Richmond
+USRIC	Richmond	
+USRKD	Rockland	
+USRKP	Rockport	
+USROC	Rochester	
+USRP3	Rockport	
+USRSF	Reserve	
+USRVA	Rio Vista	
+USRWC	Redwood City	
+USS8B	South Bristol	
+USSAB	Sabine	
+USSAC	Sacramento	
+USSAK	Point San Pablo	San Pablo
+USSAN	San Diego	
+USSAV	Savannah	
+USSBA	Santa Barbara	
+USSBM	Sheboygan	
+USSBY	Salisbury	
+USSCC	Prudhoe Bay	
+USSCK	Stockton	
+USSCL	St Clair	Saint Clair
+USSCU	Scituate	
+USSDP	Sand Point	
+USSEA	Seattle	
+USSEM	Salem Nj	Salem
+USSFO	San Francisco	
+USSG4	Stonington	
+USSGM	Saginaw	
+USSGN	Stonington	
+USSGY	Skagway	
+USSHG	Cheboygan	Shungnak
+USSHH	Shishmaref	
+USSIF	Silverdale	
+USSIT	Sitka	
+USSKY	Sandusky	Sandusky, Erie
+USSLM	Salem	
+USSMK	St. Michael	Saint Michael
+USSNJ	St. James	Saint James
+USSOD	Sodus Bay	Sodus Point
+USSOH	South Haven	
+USSOL	Solomon	
+USSOV	Seldovia	
+USSRE	St Rose	Saint Rose
+USSRP	Searsport	
+USSRU	Santa Cruz	
+USSSI	Brunswick	
+USSSM	Sault Ste Marie	Sault Sainte Marie
+USSTH	St Helens	Saint Helens
+USSUE	Sturgeon Bay	
+USSUL	Port Sulphur	
+USSUW	Superior	
+USSVA	Savoonga	
+USSW8	Southwest Pass	
+USSWD	Seward	
+USSWF	Newburgh	
+USSWN	Sewaren	
+USSXX	St Joseph	Saint Joseph
+USSYP	Sandypoint	Sandy Point
+USTDX	Toledo	
+USTHB	Two Harbors	
+USTIV	Tiverton	
+USTIW	Tacoma	
+USTKE	Tenakee Springs	
+USTOL	Toledo	
+USTPA	Tampa	
+USTRY	Troy	
+USTTN	Trenton	
+USTVC	Traverse City	
+USTWD	Port Townsend	
+USTWR	Two Rivers	
+USTWY	Tawas City	
+USTXT	Texas City	
+USUAA	Unalaska	
+USUAC	Bristol	
+USUGN	Waukegan	
+USUGS	Ugashik	
+USUNK	Unalakleet	
+USURD	Courtland	
+USUST	St Augustine	Saint Augustine
+USUTP	Southport	
+USUXZ	Port Chester	
+USUYN	Slidell	
+USUZF	Tonawanda	
+USVAN	Vancouver	
+USVDZ	Valdez	
+USVE9	Vermilion	
+USVI2	West Point	
+USVLO	South Vallejo	Vallejo
+USVNT	Ventura	
+USVYH	Vineyard Haven	
+USW8S	Southwest Harbor	
+USW9A	Washougal	Washington Terrace
+USWAS	Washington D.C.	Washington
+USWDC	Ward Cove	
+USWEK	White Lake	
+USWGC	Wrightsville	Wrightsville Beach
+USWH5	Winter Harbor	
+USWHD	Hyder	
+USWHO	Woods Hole	Whitestone/Queens/New York
+USWIE	Winterport	
+USWIH	Willapa Harbor	Willapa
+USWJQ	Weehawken	
+USWLR	Loring	
+USWQF	Whittier	
+USWRG	Wrangell	
+USWSB	Steamboat Bay	
+USWSZ	Westport	
+USWTO	Warrenton	
+USWYD	Wyandotte	
+USWZU	Washburn	
+USXJY	Orcas	
+USXKN	Plymouth	
+USXLX	Stamford	
+USXMK	Southport	
+USXNA	Sayreville	
+USXNG	Trenton	
+USXSI	Shelton	Shelter Island
+USXTT	Wilmette	
+USYAK	Yakutat	
+USYAS	Port Aransas	Aransas Pass
+USYIG	Port Ingleside	Ingleside
+USYKW	Yorktown	
+USYON	Yonkers	
+USYTW	Youngstown	
+USYXG	Walnut Grove	
+USZAK	Alcan Harbor	Alcan
+USZIP	Elizabethport	
+USZKL	Tarpon Springs	
+USZMP	Newburyport	
+USZZM	South Amboy	
+UYCYR	Colonia	
+UYFZB	Fray Bentos	
+UYJIT	Jose Ignacio	Jose Ignacio Terminal
+UYJLC	Puerto Sauce	Juan L. Lacaze
+UYLAP	La Paloma	La Paloma/Rocha
+UYMVD	Montevideo	
+UYNVP	Nueva Palmira	
+UYPDU	Paysandu	
+VCKTN	Kingstown	
+VEAMY	Amuay (Bahia De Amuay)	Amuay
+VEBJV	Bajo Grande	Bajo Grande/Maracaibo L
+VEBOR	Puerto Borburata	Borburata
+VECAR	Caripito	
+VECBL	Ciudad Bolivar	Ciudad Bolívar
+VECHV	Puerto Chichiriviche	Chichiriviche
+VECLM	Catia La Mar	
+VECMR	Puerto Cumarebo	
+VECUM	Cumana (Puerto Sucre)	Cumana
+VECUP	Carupano	
+VEEGU	El Guamache	
+VEELP	El Palito	
+VEETV	El Tabiazo	El Tablazo/Maracaibo L
+VEGUI	Guiria	
+VEGUT	Guanta	
+VEJOT	Jose Terminal	
+VELAG	La Guaira	
+VELSP	Las Piedras	
+VELSV	La Salina	La Salina/Maracaibo L
+VEMAR	Maracaibo	
+VEMIV	Puerto Miranda	Puerto Miranda/Maracaibo L.
+VEPBL	Puerto Cabello	
+VEPCN	Punta Cardon	Punta Cardón
+VEPCZ	Puerto La Cruz	
+VEPHO	Puerto De Hierro	Puerto de Hierro
+VEPLA	Palua	Palúa
+VEPLV	Punta De Palmas	Punta de Palmas
+VEPRG	Bahia De Pertigalete	Pertigalete
+VEPZO	Puerto Ordaz	
+VESLV	San Lorenzo	San Lorenzo/Maracaibo L
+VGRAD	Road Harbor	Road Town, Tortola
+VICHA	Charlotte Amalie	Charlotte Amalie, Saint Thomas
+VICTD	Christiansted	Christiansted, Saint Croix
+VICZB	Cruz Bay	Cruz Bay, Saint John
+VIFRD	Frederiksted	Frederiksted, Saint Croix
+VILIB	Limetree Bay	
+VIPAX	Port Alucroix	
+VNBNO	Vinh Cam Ranh	Ba Ngoi
+VNCLI	Cat Lai	Cát Lái
+VNCPH	Cam Pha	
+VNDAD	Da Nang	
+VNHON	Hon Gai	Hongai
+VNHPH	Hai Phong	Haiphong
+VNNGT	Nghe Tinh	
+VNNHA	Nha Trang	
+VNPHU	Phu My	
+VNPQC	Duong Dong	Phu Quoc
+VNSGN	Thanh Ho Chi Minh	Ho Chi Minh City
+VNTHO	Thanh Hoa	
+VNUIH	Qui Nhon	Quy Nhon
+VNVUT	Vung Tau	
+VULUG	Luganville	
+VUVLI	Port Vila	
+WFMAU	Mata-Utu	Matâ'utu
+WSAPW	Apia	
+YEADE	Aden	
+YEASR	Ash Shihr Oil Terminal	Ash Shihr
+YEBLH	Balhaf	
+YEHOD	Al Ahmadi	Hodeidah
+YEMOK	Al Mukha	Mokha
+YENIS	Nishtun	
+YERAI	Ras Isa Marine Terminal	Ras Isa Terminal
+YESAL	Salif	Saleef Port
+YEZAM	Al Mukalla	
+ZACPT	Cape Town	
+ZADUR	Durban	
+ZAELS	East London	
+ZAMZY	Mossel Bay	
+ZAPLZ	Port Elizabeth	Gqeberha
+ZARCB	Richards Bay	
+ZASDB	Saldanha Bay	
+ZASMN	Simonstown	Simon's Town
