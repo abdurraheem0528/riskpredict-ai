@@ -243,6 +243,11 @@ def test_default_config_matches_the_contract():
     assert CFG.company_threshold == 0.95 and "sim ≥ 0.95" in SPEC
     assert dict(CFG.country_confidence) == {"site": 0.8, "supplier": 0.6, "customer": 0.5, "route": 0.5, "port": 0.5}
     assert math.isclose(CFG.full_exposure_share, 0.25)
+    # §5.9 (engine 1.2.0)
+    assert CFG.support_weight == 0.5 and "`w = support_weight = 0.5`" in SPEC
+    assert CFG.market_only_score_cap == 50.0 and "market_only_score_cap = 50" in SPEC
+    assert CFG.inferred_chokepoint_factor == 0.5 and "`inferred_chokepoint_factor = 0.5`" in SPEC
+    assert CFG.support_match_types == {"commodity", "currency"} and CFG.market_event_prefix == "market."
 
 
 def test_same_inputs_same_assessments_in_the_same_order():

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -23,6 +24,8 @@ from api.core import engine as engine_iface
 from api.core.config import Settings
 from api.core.groq import GroqUnavailable, chat_json
 from jobs import codes
+
+log = logging.getLogger("riskpredict.mapping")
 
 ENTITY_KINDS = ("supplier", "site", "customer", "route", "port", "currency", "commodity", "software")
 ALL = ENTITY_KINDS
@@ -108,6 +111,14 @@ def validate_spec(spec: Any, column_names: Iterable[str], *, suggestion: bool = 
         seen_columns.add(col)
         used[fld] = used.get(fld, 0) + 1
         item: dict[str, Any] = {"column": col, "field": fld}
+        ccy = c.get("currency")
+        if ccy is not None:
+            if fld != "annual_spend":
+                errors.append({"field": f"{p}/currency", "message": "only an annual_spend column has a currency"})
+            elif not isinstance(ccy, str) or not codes.is_currency(ccy):
+                errors.append({"field": f"{p}/currency", "message": "not an ISO 4217 currency code"})
+            else:
+                item["currency"] = ccy
         split = c.get("split")
         if split is not None:
             if not isinstance(split, str) or not 1 <= len(split) <= 5:
@@ -165,7 +176,7 @@ _RULES: list[tuple[str, str, str]] = [
     (r" (currency|ccy) ", "currency", "header names a currency"),
     (r" (revenue share|share of revenue|% of revenue|revenue %|revenue pct) ", "revenue_share", "header names revenue share"),
     (r" (hs|hs code|hs6|hts|tariff code|tariff) ", "hs_code", "header names an HS code"),
-    (r" (commodity|commodities|material|materials|raw material) ", "commodity", "header names a commodity"),
+    (r" (commodity|commodities|material|materials|raw material|products?|goods) ", "commodity", "header names a commodity"),
     (r" (criticality|critical|priority|tier|importance) ", "criticality", "header names criticality"),
     (r" (kind|entity type|type) ", "kind", "header names the entity kind"),
     (r" (id|key|code|record id|supplier id|vendor id|customer id|site id|number|no) ", "row_key", "header looks like an id"),
@@ -181,6 +192,37 @@ _KIND_HINTS = [
     (r" (purl|cpe|package|software|library|dependency) ", "software"),
     (r" (commodity|material) ", "commodity"),
 ]
+
+
+# Currency symbols read in a header. A bare "$" is read as USD (the usual meaning in a
+# header); the prefixed forms name their dollar. "¥" (JPY or CNY) and "kr" are not read.
+_SYMBOLS = [("US$", "USD"), ("HK$", "HKD"), ("NZ$", "NZD"), ("MX$", "MXN"), ("A$", "AUD"), ("C$", "CAD"),
+            ("S$", "SGD"), ("R$", "BRL"), ("$", "USD"), ("€", "EUR"), ("£", "GBP"), ("₹", "INR"), ("₩", "KRW"),
+            ("₺", "TRY"), ("₱", "PHP"), ("₫", "VND")]  # fmt: skip
+
+
+# ISO 4217 codes that are also English words: read only when marked, "(MAD)" or "in MAD".
+_WORD_CODES = frozenset({"ALL", "TOP", "CUP", "MOP", "PEN", "BOB", "MAD", "SOS", "TRY", "NIO"})
+
+
+def header_currency(header: str) -> str | None:
+    """The ISO 4217 code a column header names, e.g. ``Annual spend (USD)``, ``Spend in EUR``,
+    ``Spend €``, ``Purchases [usd]``; ``None`` if it names none, or more than one."""
+    found: list[str] = []
+    for m in re.finditer(r"(?<![A-Za-z])([A-Za-z]{3})(?![A-Za-z])", header):
+        tok = m.group(1)
+        before = header[: m.start()].rstrip()
+        after = header[m.end() :].lstrip()
+        marked = (before.endswith(("(", "[")) and after.startswith((")", "]"))) or re.search(r"(?i)\bin$", before)
+        if ((tok.isupper() and tok not in _WORD_CODES) or marked) and codes.is_currency(tok.upper()):
+            found.append(tok.upper())
+    rest = header
+    for sym, code in _SYMBOLS:
+        if sym in rest:
+            found.append(code)
+            rest = rest.replace(sym, " ")
+    found = list(dict.fromkeys(found))
+    return found[0] if len(found) == 1 else None
 
 
 def _sample_field(samples: list[str]) -> str | None:
@@ -216,7 +258,10 @@ def heuristic_suggest(columns: list[dict]) -> dict:
         if field_name not in REPEATABLE and field_name in used:
             field_name, reason, conf = "ignore", "another column already has this field", 0.2
         used.add(field_name)
-        out.append({"column": name, "field": field_name, "confidence": conf, "reason": reason})
+        item = {"column": name, "field": field_name, "confidence": conf, "reason": reason}
+        if field_name == "annual_spend" and (ccy := header_currency(name)):
+            item.update(currency=ccy, reason=f"{reason}; currency from the header: {ccy}")
+        out.append(item)
     if "name" not in used:
         # The first mostly-text column is the likeliest name.
         for item, col in zip(out, columns):
@@ -245,6 +290,8 @@ Fields: name, kind, row_key, country, countries, city, address, lat, lon, port, 
 route_destination_port, via_chokepoints, currency, currencies, hs_code, commodity, software, annual_spend,
 spend_currency, revenue_share, criticality, notes, ignore.
 Exactly one column is "name". Map every column; use "ignore" for columns that fit no field.
+When an annual_spend header names its currency (for example "Annual spend (USD)", "Spend in EUR", "Spend €")
+and no column holds the spend currency, add "currency": "<ISO 4217 code>" to that column.
 Use only the headers and samples given. Do not invent columns."""
 
 
@@ -265,9 +312,11 @@ def suggest(settings: Settings, columns: list[dict]) -> tuple[dict, str]:
     heur = heuristic_suggest(columns)
     try:
         ai = groq_suggest(settings, columns)
-    except GroqUnavailable:
+    except GroqUnavailable as exc:
+        log.info("mapping falls back to the header heuristics (%s)", exc)
         return heur, "heuristic"
     if not ai["columns"]:
+        log.info("mapping falls back to the header heuristics (no usable column in the reply)")
         return heur, "heuristic"
     # Keep one `name`; fill columns the model left out with the heuristics.
     by_col = {c["column"]: c for c in ai["columns"]}
@@ -280,10 +329,19 @@ def suggest(settings: Settings, columns: list[dict]) -> tuple[dict, str]:
                 c = {**c, "field": "ignore"}
             has_name = True
         merged.append(c)
+    for c in merged:  # the header's currency, if the model left it out
+        if c["field"] == "annual_spend" and "currency" not in c and (ccy := header_currency(c["column"])):
+            c["currency"] = ccy
     return {"entity_kind": ai.get("entity_kind") or heur.get("entity_kind"), "columns": merged}, f"groq:{settings.groq_mapping_model}"
 
 
 # --- applying a mapping -----------------------------------------------------------------
+
+
+# Part of every row digest (and so of a source's content hash). Bump it when ``apply`` reads
+# the same row differently, so the worker's next re-read re-syncs each source once.
+# 2: the spend currency is read from an "Annual spend (USD)" header.
+APPLY_RULES_VERSION = 2
 
 
 @dataclass
@@ -293,7 +351,8 @@ class RawRow:
     values: dict[str, str]
 
     def digest(self) -> str:
-        return hashlib.sha256(json.dumps(self.values, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        payload = {"rules": APPLY_RULES_VERSION, "values": self.values}
+        return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 @dataclass
@@ -412,6 +471,7 @@ def apply(
         lat = lon = None
         lat_col = lon_col = ""
         spend_col = ""
+        spend_header_ccy: str | None = None
         for c in cols:
             col, fld = c["column"], c["field"]
             raw = (row.values.get(col) or "").strip()
@@ -502,6 +562,7 @@ def apply(
                         problem(row, col, v, "not a number")
                     else:
                         e.annual_spend, spend_col = n.quantize(Decimal("0.01")), col
+                        spend_header_ccy = c.get("currency") or header_currency(col)
                 elif fld == "spend_currency":
                     code = v.upper()
                     if codes.is_currency(code):
@@ -532,6 +593,8 @@ def apply(
             problem(row, lat_col or lon_col, "", "latitude and longitude must both be present")
         elif lat is not None:
             e.lat, e.lon = lat, lon
+        if e.annual_spend is not None and not e.spend_currency and spend_header_ccy:
+            e.spend_currency = spend_header_ccy  # "Annual spend (USD)": the header names it
         if e.annual_spend is not None and not e.spend_currency:
             problem(row, spend_col, str(e.annual_spend), "annual spend needs a spend currency")
             e.annual_spend = None

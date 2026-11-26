@@ -321,23 +321,50 @@ def shock_feeds(inputs: ScenarioInputs, entities: Sequence[Entity], feeds: FeedS
     return replace(feeds, events=(*feeds.events, *events), anomalies=(*feeds.anomalies, *anomalies))
 
 
-def _side(assessments: Sequence[Assessment]) -> dict:
-    prod = 1.0
+def risk_index(assessments: Sequence[Assessment], entities: Sequence[Entity],
+               config: EngineConfig = DEFAULT_CONFIG) -> float:  # fmt: skip
+    """The What-if *risk index*, 0–100 (risk-engine.md §12).
+
+    Per entity: the worst score in each category, combined across categories
+    (``E = 100 × (1 − Π_c (1 − worst_c / 100))``): many risks of one kind do not stack,
+    different kinds do. The index is the criticality-weighted mean of ``E`` over *all*
+    the workspace's entities (an entity with no risk counts as 0), so it does not grow
+    with the number of risks, it moves whenever a scenario adds or removes exposure, and
+    with one entity it equals that entity's combined score.
+    """
+    if not entities:
+        return 0.0
+    worst: dict[UUID, dict[str, float]] = {}
+    for a in assessments:
+        per = worst.setdefault(a.entity_id, {})
+        per[a.category] = max(per.get(a.category, 0.0), a.score)
+    total = weights = 0.0
+    for e in entities:
+        w = config.criticality_weights.get(e.criticality or "", config.default_criticality_weight)
+        prod = 1.0
+        for score in worst.get(e.id, {}).values():
+            prod *= 1 - score / 100.0
+        total += w * 100 * (1 - prod)
+        weights += w
+    return round(total / weights, 1) if weights else 0.0
+
+
+def _side(assessments: Sequence[Assessment], entities: Sequence[Entity], config: EngineConfig = DEFAULT_CONFIG) -> dict:
     by_cat = {c: 0 for c in CATEGORIES}
     for a in assessments:
-        prod *= 1 - a.score / 100.0
         by_cat[a.category] += 1
     return {
         "risk_count": len(assessments),
         "max_score": max((a.score for a in assessments), default=None),
-        "portfolio_score": round(100 * (1 - prod), 1),
+        "portfolio_score": risk_index(assessments, entities, config),
         "by_category": by_cat,
     }
 
 
 def compare(baseline: Sequence[Assessment], scenario: Sequence[Assessment], entities: Mapping[UUID, Entity],
-            risk_ids: Mapping[str, UUID], now: datetime) -> dict:  # fmt: skip
-    """``ScenarioResults`` from two assessment lists."""
+            risk_ids: Mapping[str, UUID], now: datetime, *, baseline_entities: Sequence[Entity] | None = None,
+            scenario_entities: Sequence[Entity] | None = None, config: EngineConfig = DEFAULT_CONFIG) -> dict:  # fmt: skip
+    """``ScenarioResults`` from two assessment lists (and each side's entities, for the index)."""
     b = {a.fingerprint: a for a in baseline}
     s = {a.fingerprint: a for a in scenario}
     changes = []
@@ -357,9 +384,11 @@ def compare(baseline: Sequence[Assessment], scenario: Sequence[Assessment], enti
             "countries": list(a.countries),
         })  # fmt: skip
     changes.sort(key=lambda c: (-abs(c["delta"]), c["fingerprint"]))
+    base_ents = list(entities.values()) if baseline_entities is None else baseline_entities
+    scen_ents = base_ents if scenario_entities is None else scenario_entities
     return {
-        "baseline": _side(baseline),
-        "scenario": _side(scenario),
+        "baseline": _side(baseline, base_ents, config),
+        "scenario": _side(scenario, scen_ents, config),
         "changes": changes[:MAX_CHANGES],
         "engine_version": ENGINE_VERSION,
         "as_of": rfc3339(now),
@@ -379,7 +408,8 @@ def scenario_results(entities: Sequence[Entity], feeds: FeedSnapshot, inputs: Sc
     shocked = shock_feeds(inputs, entities, feeds, base_currency, config)
     scenario = assess(changed, shocked, base_currency=base_currency, config=config)
     by_id = {e.id: e for e in [*entities, *changed]}
-    return compare(baseline, scenario, by_id, risk_ids or {}, feeds.now)
+    return compare(baseline, scenario, by_id, risk_ids or {}, feeds.now, baseline_entities=entities,
+                   scenario_entities=changed, config=config)  # fmt: skip
 
 
 def run_scenario(conn, workspace_id: UUID, inputs: ScenarioInputs | Mapping[str, Any], *,

@@ -105,7 +105,7 @@ expose to the browser.
 | `COMPOSIO_AUTH_CONFIGS` | | ✓ | ✓ | | `<app>:<auth config id>` per tool, e.g. `airtable:ac_…` (Composio dashboard) |
 | `COMPOSIO_TRIGGER_SLUGS` | | | optional | | `<app>:<trigger slug>` to subscribe to on connect |
 | `GROQ_API_KEY` | | ✓ | ✓ | | Groq free tier |
-| `GROQ_MAPPING_MODEL` / `GROQ_ADVICE_MODEL` | | ✓ | ✓ | | Llama model ids; configurable because Groq renames models |
+| `GROQ_MAPPING_MODEL` / `GROQ_ADVICE_MODEL` | | ✓ | ✓ | | Groq model ids; default `openai/gpt-oss-120b` / `openai/gpt-oss-20b` (the free plan's models; Llama was retired for free accounts). Configurable because Groq renames models |
 | `WORKER_DB_INTERVAL_SECONDS` / `SOURCE_RECHECK_SECONDS` | | | optional | | The loop's database pass (default 1800) and re-read (default 900), docker compose only |
 | `WORKER_ONCE_BUDGET_SECONDS` | | | optional | | Time budget of `python -m worker --once` (default 480; the job's timeout is 10 min) |
 | `INLINE_BUDGET_SECONDS` / `WEBHOOK_BUDGET_SECONDS` | | optional | | | Work done inside a request: sync and scoring (default 240, under Vercel's 300 s) and webhook processing (default 20) |

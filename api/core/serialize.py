@@ -211,13 +211,37 @@ def entity_feature(row: dict) -> dict:
     }
 
 
+# A story is one feed item (news report, hazard, listing) that reaches several entities: the
+# engine writes the same `factors.story` key on each of their risks (risk-engine.md §5.9).
+# The grouped subquery runs once per statement (hash join), over the workspace's live risks.
+STORY_KEY = "coalesce(r.factors->>'story', 'risk:' || r.id::text)"
 RISK_SELECT = """
 SELECT r.*, e.kind AS entity_kind, e.name AS entity_name,
        (SELECT count(*) FROM biz.risk_evidence ev WHERE ev.workspace_id = r.workspace_id AND ev.risk_id = r.id)
-       AS evidence_count
+       AS evidence_count,
+       st.n AS story_size, st.entities AS story_entities
 FROM biz.risks r
 JOIN biz.entities e ON e.workspace_id = r.workspace_id AND e.id = r.entity_id
+LEFT JOIN (
+    SELECT s.factors->>'story' AS story, count(*) AS n,
+           jsonb_agg(jsonb_build_object('id', s.entity_id, 'name', se.name) ORDER BY s.score DESC, s.id) AS entities
+    FROM biz.risks s JOIN biz.entities se ON se.workspace_id = s.workspace_id AND se.id = s.entity_id
+    WHERE s.status IN ('open', 'acknowledged', 'mitigating') AND s.factors ? 'story'
+    GROUP BY 1
+) st ON st.story = r.factors->>'story'
 """
+MAX_STORY_ENTITIES = 10
+
+
+def story(row: dict) -> dict:
+    """``{key, risk_count, entities}``: the risk's story and the entities it reaches (≤ 10)."""
+    factors = row.get("factors") or {}
+    key = factors.get("story") if isinstance(factors, dict) else None
+    own = {"id": str(row["entity_id"]), "name": row["entity_name"]}
+    if not key or not row.get("story_size"):
+        return {"key": key or f"risk:{row['id']}", "risk_count": 1, "entities": [own]}
+    ents = [{"id": str(e["id"]), "name": e["name"]} for e in (row.get("story_entities") or [])]
+    return {"key": key, "risk_count": int(row["story_size"]), "entities": ents[:MAX_STORY_ENTITIES] or [own]}
 
 
 def risk(row: dict) -> dict:
@@ -238,6 +262,7 @@ def risk(row: dict) -> dict:
         "first_seen_at": ts(row["first_seen_at"]),
         "last_seen_at": ts(row["last_seen_at"]),
         "status_changed_at": ts(row["status_changed_at"]),
+        "story": story(row),
     }
 
 

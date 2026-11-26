@@ -260,7 +260,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
             </span>
             <span className="t12" style={{ textAlign: 'right' }} title="Share of the likelihood"><Pct value={e.contribution} /></span>
             <span className="t12" style={{ gridColumn: '1 / -1' }}>
-              {e.event ? feedName(e.event.source) : 'Anomaly'} · {MATCH_TEXT[e.match_type]}: {e.match_type === 'chokepoint' ? chokeName(e.match_value) : matchValue(e)}
+              {e.event ? feedName(e.event.source) : 'Anomaly'} · {matchText(e)}: {e.match_type === 'chokepoint' ? chokeName(e.match_value) : matchValue(e)}
               {e.snapshot.published_at ? ` · ${fmtDate(e.snapshot.published_at)}` : ''}
               {!e.still_in_feeds ? (e.match_type === 'sanctions_name' ? ' · no longer on the list' : ' · no longer in the feed') : ''}
             </span>
@@ -268,6 +268,18 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
         ))}
         {r.evidence.length > 6 && <span className="t12" style={{ paddingTop: 6 }}>{plural(r.evidence.length - 6, 'more signal')}</span>}
       </div>
+
+      {r.story.risk_count > 1 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span className="lbl">The same story also reaches</span>
+          <span className="t13">
+            {r.story.entities.filter((e) => e.id !== r.entity.id).map((e) => e.name).join(', ')}
+            {r.story.risk_count > r.story.entities.length ? ` and ${plural(r.story.risk_count - r.story.entities.length, 'more')}` : ''}
+          </span>
+        </div>
+      )}
+
+      {r.factors.explain && <HowScored explain={r.factors.explain} />}
 
       {anomaly && series.data && series.data.points.length > 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -301,6 +313,47 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
       </div>
     </>
   );
+}
+
+/** The numbers behind the score, collapsed until asked for (factors.explain, engine 1.2.0). */
+function HowScored({ explain }: { explain: NonNullable<RiskDetail['factors']['explain']> }) {
+  const m = explain.matched;
+  const via = m.inferred_from ? inferredText(m.inferred_from) : null;
+  return (
+    <details className="how">
+      <summary>
+        <span className="lbl">How this was scored</span>
+        <Icon name="chev" size={14} stroke={2} className="chev" />
+      </summary>
+      <div className="step">
+        <span className="t12">Matched on</span>
+        <span>
+          {m.label}
+          {m.matched_text ? ` (“${m.matched_text}”)` : ''}
+          {via ? `, ${via}` : ''}
+          {m.supported_by ? `, with ${m.supported_by.matched_text ?? m.supported_by.match_value} (${m.supported_by.match_value})` : ''}
+        </span>
+      </div>
+      {explain.steps.map((s) => (
+        <div className="step" key={s.label}>
+          <span className="t12">{s.label}</span>
+          <span className="tnum">{s.formula}</span>
+        </div>
+      ))}
+    </details>
+  );
+}
+
+function inferredText(via: string) {
+  if (via.startsWith('port ')) return `inferred from the port ${portName(via.slice(5))}`;
+  if (via.startsWith('country ')) return `inferred from ${countryName(via.slice(8))}`;
+  return 'inferred from the location';
+}
+
+function matchText(e: S['Evidence']) {
+  const via = (e.snapshot as { inferred_from?: string | null }).inferred_from;
+  if (e.match_type === 'chokepoint' && via) return via.startsWith('port ') ? 'inferred from the port' : 'inferred from the location';
+  return MATCH_TEXT[e.match_type];
 }
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);

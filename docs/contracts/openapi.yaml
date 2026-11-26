@@ -900,6 +900,13 @@ paths:
         - name: sort
           in: query
           schema: {type: string, enum: ["-score", "-last_seen_at", "-first_seen_at", "-likelihood", "-impact"], default: "-score"}
+        - name: group
+          in: query
+          description: |
+            `story`: one item per story (`Risk.story.key`): the highest-scored matching risk of
+            each, with `story.entities` listing every entity the story reaches. Without it, every
+            risk is listed.
+          schema: {type: string, enum: [story]}
       responses:
         "200":
           description: Page of risks
@@ -1746,8 +1753,9 @@ components:
       description: |
         Where a column's values go. Normalisation (same rules as `jobs/codes.py`):
         `country`/`countries` accept names, alpha-2 or alpha-3 → alpha-3; `port`/`ports`
-        accept UN/LOCODE with or without space; `currency` ISO 4217 or common symbols
-        are *not* guessed (only codes); `hs_code` digits only (2/4/6, dots removed);
+        accept UN/LOCODE with or without space; `currency` ISO 4217 codes only (symbols
+        are *not* guessed in values); `spend_currency` may also come from the
+        `annual_spend` column's header (`MappingSpec.columns[].currency`); `hs_code` digits only (2/4/6, dots removed);
         `software` purl or CPE 2.3; `annual_spend`/`revenue_share` numbers
         (`revenue_share` 0–1 or a percentage like "12%"); `criticality` low/medium/high/critical
         (case-insensitive; also 1–4); `kind` one of EntityKind (case-insensitive,
@@ -1818,6 +1826,7 @@ components:
               column: {type: string, description: Header name exactly as in SourceColumn.name}
               field: {$ref: "#/components/schemas/MappingField"}
               split: {type: string, maxLength: 5, description: "Separator characters for multi-value fields"}
+              currency: {type: string, pattern: "^[A-Z]{3}$", description: "`annual_spend` only: the spend currency for this column, read from its header (`Annual spend (USD)`, `Spend in EUR`, `Spend €`). Used when no `spend_currency` column has a value; without it, the server reads the header itself"}
               confidence: {type: number, minimum: 0, maximum: 1, description: "Suggestions only: the model's confidence"}
               reason: {type: string, maxLength: 200, description: "Suggestions only: one-line reason"}
     ColumnMapping:
@@ -1924,7 +1933,7 @@ components:
       enum: [open, acknowledged, mitigating, resolved, dismissed]
     Risk:
       type: object
-      required: [id, entity, category, title, likelihood, impact, score, status, countries, ports, lat, lon, evidence_count, first_seen_at, last_seen_at, status_changed_at]
+      required: [id, entity, category, title, likelihood, impact, score, status, countries, ports, lat, lon, evidence_count, first_seen_at, last_seen_at, status_changed_at, story]
       properties:
         id: {type: string, format: uuid}
         entity:
@@ -1952,13 +1961,33 @@ components:
         first_seen_at: {type: string, format: date-time}
         last_seen_at: {type: string, format: date-time}
         status_changed_at: {type: string, format: date-time}
+        story:
+          type: object
+          description: |
+            One feed item (a news report, a hazard, a listing) that reaches several entities is one
+            *story*: the engine gives each of their risks the same key (`factors.story`,
+            risk-engine.md §5.9). Counts and lists that should not repeat a story use it.
+          required: [key, risk_count, entities]
+          properties:
+            key: {type: string, description: "`<category>|<evidence key of the strongest item>`, or `risk:<id>` for a risk scored before engine 1.2.0"}
+            risk_count: {type: integer, minimum: 1, description: "Open, acknowledged or mitigating risks in this story (1 when only this one)"}
+            entities:
+              type: array
+              maxItems: 10
+              description: The entities the story reaches, highest score first
+              items:
+                type: object
+                required: [id, name]
+                properties:
+                  id: {type: string, format: uuid}
+                  name: {type: string}
     RiskDetail:
       allOf:
         - {$ref: "#/components/schemas/Risk"}
         - type: object
           required: [explanation, factors, advice, evidence, history, status_note, engine_version]
           properties:
-            explanation: {type: string}
+            explanation: {type: string, description: "One plain sentence (engine 1.2.0); the numbers are in `factors.explain`"}
             factors: {$ref: "#/components/schemas/RiskFactors"}
             advice:
               oneOf:
@@ -2000,6 +2029,7 @@ components:
           properties:
             method: {type: string, enum: [noisy_or]}
             value: {type: number}
+            capped_from: {type: number, description: "Present when a market-only risk was capped (risk-engine.md §5.9): the likelihood before the cap"}
             items:
               type: array
               items:
@@ -2023,6 +2053,53 @@ components:
             exposure_norm: {type: [number, "null"]}
             category_multiplier: {type: number}
         engine_version: {type: string}
+        story: {type: string, description: "Engine 1.2.0+: the story key (`Risk.story.key`)"}
+        explain:
+          type: object
+          description: |
+            Engine 1.2.0+: the numbers behind the score, for the collapsed "How this was scored"
+            section. Absent on risks not re-scored since then.
+          required: [matched, strongest, item_count, steps]
+          properties:
+            matched:
+              type: object
+              required: [match_type, match_value, label, matched_text, inferred_from, supported_by]
+              properties:
+                match_type: {type: string}
+                match_value: {type: string}
+                label: {type: string, examples: ["country: China (CHN)"]}
+                matched_text: {type: [string, "null"], description: "The text in the item that matched (tagged place or company, listed name)"}
+                inferred_from: {type: [string, "null"], description: "Chokepoints only: `port TWKHH`, `country VNM` or `position` when the chokepoint was inferred, not declared on a route"}
+                supported_by:
+                  description: A commodity or HS-chapter match of the same item that strengthened this match
+                  oneOf:
+                    - type: "null"
+                    - type: object
+                      required: [match_type, match_value, matched_text, confidence]
+                      properties:
+                        match_type: {type: string}
+                        match_value: {type: string, examples: ["HS 85"]}
+                        matched_text: {type: [string, "null"]}
+                        confidence: {type: number}
+            strongest:
+              type: object
+              required: [evidence_key, title, source, published_at]
+              properties:
+                evidence_key: {type: string}
+                title: {type: string}
+                source: {type: string}
+                published_at: {type: [string, "null"], format: date-time}
+            item_count: {type: integer, minimum: 1}
+            steps:
+              type: array
+              description: In order; the last is the score
+              items:
+                type: object
+                required: [label, formula, value]
+                properties:
+                  label: {type: string, examples: ["Likelihood"]}
+                  formula: {type: string, examples: ["noisy-OR of 2 items: 1 − (1 − 0.351) × (1 − 0.330) = 0.565"]}
+                  value: {type: number}
     Evidence:
       type: object
       required: [evidence_key, kind, match_type, match_value, match_confidence, signal, recency, contribution, snapshot, still_in_feeds, last_linked_at]
@@ -2075,11 +2152,18 @@ components:
         baseline: {type: [number, "null"]}
         score: {type: [number, "null"]}
         unit: {type: [string, "null"]}
+        inferred_from: {type: [string, "null"], description: "Chokepoint evidence of a supplier, site or port: what the chokepoint was inferred from (see `RiskFactors.explain`)"}
+        supported_by: {type: [object, "null"], description: "The commodity match that strengthened this item's match, as in `RiskFactors.explain`"}
     RiskSummary:
       type: object
-      required: [open_count, by_category, by_status, max_score, top, last_scored_at, feeds_as_of]
+      required: [open_count, story_count, by_category, stories_by_category, by_status, max_score, top, last_scored_at, feeds_as_of]
       properties:
         open_count: {type: integer, description: "open + acknowledged + mitigating"}
+        story_count: {type: integer, description: "Distinct stories among those risks (`Risk.story.key`): what the Overview counts"}
+        stories_by_category:
+          type: object
+          description: RiskCategory → distinct open stories (all categories present, 0 if none)
+          additionalProperties: {type: integer}
         by_category:
           type: object
           description: RiskCategory → open count (all categories present, 0 if none)
@@ -2156,12 +2240,13 @@ components:
                 oneOf: [{$ref: "#/components/schemas/PointGeometry"}, {type: "null"}]
               properties:
                 type: object
-                required: [place_type, place_key, risk_count, max_score, top_categories, top_risk_ids]
+                required: [place_type, place_key, risk_count, story_count, max_score, top_categories, top_risk_ids]
                 properties:
                   place_type: {type: string, enum: [country, port, point]}
                   place_key: {type: string, description: "alpha-3, LOCODE or entity id"}
                   label: {type: [string, "null"]}
                   risk_count: {type: integer}
+                  story_count: {type: integer, description: "Distinct stories at this place; `top_risk_ids` lists one risk per story"}
                   max_score: {type: number}
                   top_categories:
                     type: array
@@ -2389,7 +2474,16 @@ components:
       properties:
         risk_count: {type: integer}
         max_score: {type: [number, "null"]}
-        portfolio_score: {type: number, minimum: 0, maximum: 100, description: "100 × (1 − Π(1 − score_i/100))"}
+        portfolio_score:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: |
+            The risk index (engine 1.2.0, risk-engine.md §12): per entity, its worst score in each
+            category combined across categories, `E = 100 × (1 − Π_c (1 − worst_c/100))`; the
+            index is the criticality-weighted mean of `E` over all the side's entities (0 for an
+            entity no risk touches). It does not grow with the number of risks, and it is on
+            the same 0–100 scale (and level bands) as a risk score.
         by_category:
           type: object
           additionalProperties: {type: integer}

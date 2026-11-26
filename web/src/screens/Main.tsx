@@ -25,9 +25,11 @@ const LEGEND: Partial<Record<RiskCategory, string>> = {
   cyber: 'Your software, checked against known exploited flaws',
 };
 
-export function RiskPlace(r: Pick<Risk, 'entity' | 'countries' | 'ports'>) {
+export function RiskPlace(r: Pick<Risk, 'entity' | 'countries' | 'ports'> & { story?: Risk['story'] }) {
   const where = placeLabel({ ports: r.ports.slice(0, 1), countries: r.countries });
-  return where ? `${r.entity.name} · ${where}` : r.entity.name;
+  // One story that reaches several entities is listed once, with the others counted.
+  const more = r.story && r.story.risk_count > 1 ? ` and ${r.story.risk_count - 1} more` : '';
+  return where && !more ? `${r.entity.name} · ${where}` : `${r.entity.name}${more}`;
 }
 
 export function Main({ mode }: { mode: 'overview' | 'register' }) {
@@ -40,7 +42,8 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
   const [picked, setPicked] = useState<string | null>(null);
 
   const summary = useRiskSummary(ws);
-  const risks = useRisks(ws, { category, sort, limit: mode === 'overview' ? 4 : 50, entityId: entityFilter });
+  // One row per story: a news report that reaches ten suppliers is one risk on the list.
+  const risks = useRisks(ws, { category, sort, limit: mode === 'overview' ? 4 : 50, entityId: entityFilter, group: entityFilter ? null : 'story' });
   const mapRisks = useMapRisks(ws, category);
   const entities = useMapEntities(ws);
   const health = useFeedHealth();
@@ -65,8 +68,9 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
 
   const pickPlace = (id: string) => (mode === 'overview' ? setPicked(id) : navigate(`/risks/${id}`));
 
-  const chips = CATEGORY_ORDER.filter((c) => (summary.data?.by_category[c] ?? 0) > 0);
-  const open = summary.data?.open_count ?? 0;
+  const byCategory = summary.data?.stories_by_category ?? summary.data?.by_category;
+  const chips = CATEGORY_ORDER.filter((c) => (byCategory?.[c] ?? 0) > 0);
+  const open = summary.data?.story_count ?? summary.data?.open_count ?? 0;
   const noRisks = summary.isSuccess && open === 0;
 
   return (
@@ -113,7 +117,7 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
               {chips.map((c) => (
                 <button key={c} type="button" className={`chip${category === c ? ' on' : ''}`} aria-pressed={category === c} onClick={() => setCategory(c)}>
                   {CATEGORIES[c].name}
-                  {mode === 'register' && <small>{fmtInt(summary.data?.by_category[c] ?? 0)}</small>}
+                  {mode === 'register' && <small>{fmtInt(byCategory?.[c] ?? 0)}</small>}
                 </button>
               ))}
             </div>

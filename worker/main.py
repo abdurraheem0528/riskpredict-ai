@@ -31,6 +31,7 @@ import threading
 import time
 from uuid import UUID
 
+from api.core import engine as engine_iface
 from api.core.config import Settings
 from api.core.db import Database
 from api.core.providers import CONNECTION_COLUMNS
@@ -83,6 +84,8 @@ class Worker:
                 "SELECT source, last_run_at FROM feeds.source_health WHERE last_run_at IS NOT NULL").fetchall()}  # fmt: skip
             workspaces = [r["workspace_id"] for r in conn.execute("SELECT workspace_id FROM biz.worker_workspace_ids()").fetchall()]
         latest = max(health.values(), default=None)
+        eng = engine_iface.load()
+        version = getattr(eng, "ENGINE_VERSION", None)
         stats = {"workspaces": len(workspaces), "done": 0, "scored": 0, "skipped": 0}
         for ws in workspaces:
             if self.stop.is_set() or budget.spent:
@@ -90,9 +93,15 @@ class Worker:
                 break
             with self.db.workspace_tx(ws) as conn:
                 state = conn.execute("SELECT feeds_seen_at FROM biz.worker_state").fetchone()
+                # Risks written by an older engine are re-scored on the next run, so a new
+                # ENGINE_VERSION cleans the workspace up without waiting for new feed rows.
+                stale = version is not None and conn.execute(
+                    "SELECT EXISTS (SELECT 1 FROM biz.risks WHERE status IN ('open', 'acknowledged', 'mitigating')"
+                    " AND engine_version IS DISTINCT FROM %s) AS stale", (version,)
+                ).fetchone()["stale"]  # fmt: skip
             seen = state["feeds_seen_at"] if state else None
             moved = latest is not None and (seen is None or latest > seen)
-            result = self.workspace_pass(ws, score=moved, budget=budget)
+            result = self.workspace_pass(ws, score=moved or stale, budget=budget)
             stats["done"] += 1
             if not result.exists:
                 continue

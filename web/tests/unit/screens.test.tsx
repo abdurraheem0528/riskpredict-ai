@@ -57,6 +57,8 @@ describe('screens', () => {
     expect(first).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('.figxl')).toHaveTextContent('81');
     expect(screen.getByText('6 open risks')).toBeInTheDocument();
+    // one story that reaches two entities is one row, naming the first and counting the rest
+    expect(screen.getByText('Yantian to Rotterdam and 1 more')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open risk' })).toHaveAttribute('href', `/risks/${risks[0].id}`);
     expect(document.querySelectorAll('.b.pri')).toHaveLength(1);
   });
@@ -89,6 +91,15 @@ describe('screens', () => {
     expect(await screen.findByRole('heading', { name: r.title })).toBeInTheDocument();
     expect(screen.getByText(/Order four weeks/)).toBeInTheDocument();
     expect(screen.getByText('Transit calls at Bab el-Mandeb down week on week')).toBeInTheDocument();
+    expect(screen.getByText('The same story also reaches')).toBeInTheDocument();
+    expect(screen.getByText('Lumen Display Co')).toBeInTheDocument();
+    // the numbers sit in a collapsed section, not in the explanation
+    const how = screen.getByText('How this was scored').closest('details')!;
+    expect(how).not.toHaveAttribute('open');
+    await userEvent.click(screen.getByText('How this was scored'));
+    expect(how).toHaveAttribute('open');
+    expect(within(how).getByText(/noisy-OR of 2 items/)).toBeInTheDocument();
+    expect(within(how).getByText('chokepoint: Bab el-Mandeb')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Acknowledge' }));
     await screen.findByText('Marked acknowledged');
     expect(patched).toBe('acknowledged');
@@ -110,6 +121,7 @@ describe('screens', () => {
     boot(`/sources/${PENDING}/confirm`);
     expect(await screen.findByText('6 of 7 columns matched. One needs your choice.')).toBeInTheDocument();
     expect(screen.getByText('Needs you')).toBeInTheDocument();
+    expect(screen.getByText('currency from the header: USD')).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText('Read Buyer as'), 'notes');
     expect(await screen.findByText(/All 7 columns are matched/)).toBeInTheDocument();
     const side = screen.getByRole('region', { name: 'What happens when you confirm' });
@@ -117,6 +129,7 @@ describe('screens', () => {
     await userEvent.click(within(side).getByRole('button', { name: 'Start monitoring' }));
     await screen.findByText(/Monitoring started/);
     expect(box.body?.columns).toContainEqual({ column: 'Buyer', field: 'notes' });
+    expect(box.body?.columns).toContainEqual({ column: 'Annual spend (USD)', field: 'annual_spend', currency: 'USD' });
     expect(JSON.stringify(box.body)).not.toContain('confidence');
   });
 
@@ -135,6 +148,9 @@ describe('screens', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Run what-if' }));
     expect(await screen.findByText('Who feels it first')).toBeInTheDocument();
     expect(screen.getByText('Yantian to Rotterdam')).toBeInTheDocument();
+    // the level names the index shown (73 → High), and the change is its own figure
+    expect(document.querySelector('.lvl')).toHaveTextContent(/^High$/);
+    expect(screen.getByText('+11 from today')).toBeInTheDocument();
     expect(box.sent?.inputs.shocks[0]).toMatchObject({ type: 'event', chokepoints: ['bab_el_mandeb'] });
   });
 

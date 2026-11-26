@@ -57,6 +57,7 @@ So each fixture below is marked by where it came from:
 | `currents_search_doc.json` | documented | the `/search` 200 example in `currentsapi.services/json/swagger.json` |
 | `newsdata_latest_shape.json` | constructed | field names and types from `newsdata.io/openapi.json` (`ArticleListExample`) and `/documentation/response-object`, including the plan-gated "ONLY AVAILABLE IN PAID PLANS" strings |
 | `otx_pulses_shape.json` | constructed | `/api/v1/pulses/subscribed` envelope (`count`, `next`, `results`) and pulse fields from `otx.alienvault.com/api` and the OTX-Python-SDK notebook |
+| `engine_sample_feeds.json` | constructed | the 11-supplier sheet of the first live end-to-end test (fictional companies) and a recorded set of feed rows in the exact shape the feed jobs store (`feeds.events` + newest `feeds.event_tags`, `feeds.anomalies`), modelled on the story types that test matched; titles are paraphrased story types, not quotes. Used by `tests/engine_sample.py` / `tests/test_engine_sample.py` for the engine 1.1.0 → 1.2.0 before/after |
 | `ofac_enhanced_shape.xml` | constructed | element layout from `sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ENHANCED_XML.xsd`; fictional names. The full-list parser is **also** tested on the real `ofac_delta_trimmed.xml`, which uses the same enhanced layout |
 
 Tiingo's FX prices endpoint is tested with an inline row in

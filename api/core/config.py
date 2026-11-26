@@ -58,6 +58,12 @@ def parse_pairs(value: str) -> dict[str, str]:
     return out
 
 
+# Groq's free-plan models (Llama was retired for free accounts). Used when the variables
+# are unset; set GROQ_MAPPING_MODEL / GROQ_ADVICE_MODEL to override.
+DEFAULT_GROQ_MAPPING_MODEL = "openai/gpt-oss-120b"
+DEFAULT_GROQ_ADVICE_MODEL = "openai/gpt-oss-20b"
+
+
 def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
@@ -134,8 +140,8 @@ class Settings:
             composio_auth_configs=parse_pairs(_env("COMPOSIO_AUTH_CONFIGS")),
             composio_trigger_slugs=parse_pairs(_env("COMPOSIO_TRIGGER_SLUGS")),
             groq_api_key=_env("GROQ_API_KEY"),
-            groq_mapping_model=_env("GROQ_MAPPING_MODEL"),
-            groq_advice_model=_env("GROQ_ADVICE_MODEL"),
+            groq_mapping_model=_env("GROQ_MAPPING_MODEL") or DEFAULT_GROQ_MAPPING_MODEL,
+            groq_advice_model=_env("GROQ_ADVICE_MODEL") or DEFAULT_GROQ_ADVICE_MODEL,
             expected_schema_version=_env("EXPECTED_SCHEMA_VERSION", "050_serverless_state"),
             db_max_connections=_int("DB_MAX_CONNECTIONS", 5),
             inline_budget_seconds=_int("INLINE_BUDGET_SECONDS", 240),

@@ -1152,8 +1152,9 @@ export interface components {
         /**
          * @description Where a column's values go. Normalisation (same rules as `jobs/codes.py`):
          *     `country`/`countries` accept names, alpha-2 or alpha-3 → alpha-3; `port`/`ports`
-         *     accept UN/LOCODE with or without space; `currency` ISO 4217 or common symbols
-         *     are *not* guessed (only codes); `hs_code` digits only (2/4/6, dots removed);
+         *     accept UN/LOCODE with or without space; `currency` ISO 4217 codes only (symbols
+         *     are *not* guessed in values); `spend_currency` may also come from the
+         *     `annual_spend` column's header (`MappingSpec.columns[].currency`); `hs_code` digits only (2/4/6, dots removed);
          *     `software` purl or CPE 2.3; `annual_spend`/`revenue_share` numbers
          *     (`revenue_share` 0–1 or a percentage like "12%"); `criticality` low/medium/high/critical
          *     (case-insensitive; also 1–4); `kind` one of EntityKind (case-insensitive,
@@ -1190,6 +1191,8 @@ export interface components {
                 field: components["schemas"]["MappingField"];
                 /** @description Separator characters for multi-value fields */
                 split?: string;
+                /** @description `annual_spend` only: the spend currency for this column, read from its header (`Annual spend (USD)`, `Spend in EUR`, `Spend €`). Used when no `spend_currency` column has a value; without it, the server reads the header itself */
+                currency?: string;
                 /** @description Suggestions only: the model's confidence */
                 confidence?: number;
                 /** @description Suggestions only: one-line reason */
@@ -1307,8 +1310,26 @@ export interface components {
             last_seen_at: string;
             /** Format: date-time */
             status_changed_at: string;
+            /**
+             * @description One feed item (a news report, a hazard, a listing) that reaches several entities is one
+             *     *story*: the engine gives each of their risks the same key (`factors.story`,
+             *     risk-engine.md §5.9). Counts and lists that should not repeat a story use it.
+             */
+            story: {
+                /** @description `<category>|<evidence key of the strongest item>`, or `risk:<id>` for a risk scored before engine 1.2.0 */
+                key: string;
+                /** @description Open, acknowledged or mitigating risks in this story (1 when only this one) */
+                risk_count: number;
+                /** @description The entities the story reaches, highest score first */
+                entities: {
+                    /** Format: uuid */
+                    id: string;
+                    name: string;
+                }[];
+            };
         };
         RiskDetail: components["schemas"]["Risk"] & {
+            /** @description One plain sentence (engine 1.2.0); the numbers are in `factors.explain` */
             explanation: string;
             factors: components["schemas"]["RiskFactors"];
             advice: null | {
@@ -1341,6 +1362,8 @@ export interface components {
                 /** @enum {string} */
                 method: "noisy_or";
                 value: number;
+                /** @description Present when a market-only risk was capped (risk-engine.md §5.9): the likelihood before the cap */
+                capped_from?: number;
                 items: {
                     evidence_key: string;
                     signal: number;
@@ -1358,6 +1381,48 @@ export interface components {
                 category_multiplier: number;
             };
             engine_version: string;
+            /** @description Engine 1.2.0+: the story key (`Risk.story.key`) */
+            story?: string;
+            /**
+             * @description Engine 1.2.0+: the numbers behind the score, for the collapsed "How this was scored"
+             *     section. Absent on risks not re-scored since then.
+             */
+            explain?: {
+                matched: {
+                    match_type: string;
+                    match_value: string;
+                    /** @example country: China (CHN) */
+                    label: string;
+                    /** @description The text in the item that matched (tagged place or company, listed name) */
+                    matched_text: string | null;
+                    /** @description Chokepoints only: `port TWKHH`, `country VNM` or `position` when the chokepoint was inferred, not declared on a route */
+                    inferred_from: string | null;
+                    /** @description A commodity or HS-chapter match of the same item that strengthened this match */
+                    supported_by: null | {
+                        match_type: string;
+                        /** @example HS 85 */
+                        match_value: string;
+                        matched_text: string | null;
+                        confidence: number;
+                    };
+                };
+                strongest: {
+                    evidence_key: string;
+                    title: string;
+                    source: string;
+                    /** Format: date-time */
+                    published_at: string | null;
+                };
+                item_count: number;
+                /** @description In order; the last is the score */
+                steps: {
+                    /** @example Likelihood */
+                    label: string;
+                    /** @example noisy-OR of 2 items: 1 − (1 − 0.351) × (1 − 0.330) = 0.565 */
+                    formula: string;
+                    value: number;
+                }[];
+            };
         };
         Evidence: {
             /** @example event:usgs:us6000abcd */
@@ -1406,10 +1471,20 @@ export interface components {
             baseline?: number | null;
             score?: number | null;
             unit?: string | null;
+            /** @description Chokepoint evidence of a supplier, site or port: what the chokepoint was inferred from (see `RiskFactors.explain`) */
+            inferred_from?: string | null;
+            /** @description The commodity match that strengthened this item's match, as in `RiskFactors.explain` */
+            supported_by?: Record<string, never> | null;
         };
         RiskSummary: {
             /** @description open + acknowledged + mitigating */
             open_count: number;
+            /** @description Distinct stories among those risks (`Risk.story.key`): what the Overview counts */
+            story_count: number;
+            /** @description RiskCategory → distinct open stories (all categories present, 0 if none) */
+            stories_by_category: {
+                [key: string]: number;
+            };
             /** @description RiskCategory → open count (all categories present, 0 if none) */
             by_category: {
                 [key: string]: number;
@@ -1472,6 +1547,8 @@ export interface components {
                     place_key: string;
                     label?: string | null;
                     risk_count: number;
+                    /** @description Distinct stories at this place; `top_risk_ids` lists one risk per story */
+                    story_count: number;
                     max_score: number;
                     top_categories: components["schemas"]["RiskCategory"][];
                     top_risk_ids: string[];
@@ -1651,7 +1728,13 @@ export interface components {
         ScenarioSide: {
             risk_count: number;
             max_score: number | null;
-            /** @description 100 × (1 − Π(1 − score_i/100)) */
+            /**
+             * @description The risk index (engine 1.2.0, risk-engine.md §12): per entity, its worst score in each
+             *     category combined across categories, `E = 100 × (1 − Π_c (1 − worst_c/100))`; the
+             *     index is the criticality-weighted mean of `E` over all the side's entities (0 for an
+             *     entity no risk touches). It does not grow with the number of risks, and it is on
+             *     the same 0–100 scale (and level bands) as a risk score.
+             */
             portfolio_score: number;
             by_category: {
                 [key: string]: number;
@@ -2952,6 +3035,12 @@ export interface operations {
                 /** @description last_seen_at on or after */
                 since?: string;
                 sort?: "-score" | "-last_seen_at" | "-first_seen_at" | "-likelihood" | "-impact";
+                /**
+                 * @description `story`: one item per story (`Risk.story.key`): the highest-scored matching risk of
+                 *     each, with `story.entities` listing every entity the story reaches. Without it, every
+                 *     risk is listed.
+                 */
+                group?: "story";
             };
             header: {
                 /** @description The workspace to act on; the caller must be a member. */

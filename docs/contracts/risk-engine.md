@@ -126,7 +126,7 @@ and no full scans of `feeds.series`.
 | `fingerprint` | `"<entity_id>\|<category>\|<driver>"`; driver is `<match_type>:<match_value>` of the strongest evidence, except geo matches, which use `geo_radius:near` so that several quakes near one site are one risk |
 | `category` | §4 |
 | `title` | template, e.g. `"Earthquake near Osaka plant"`, `"Sanctions designation may match Acme Trading LLC"`, `"Exploited vulnerability in Microsoft Exchange"` (≤ 300 chars) |
-| `explanation` | deterministic text: what matched, on which key, and the factors (no AI) |
+| `explanation` | deterministic text (no AI): one plain sentence saying what reached the entity and through what, e.g. "3 recent news reports about sanctions involving China mention chips like those Pearl Delta Power Supplies supplies (HS 8504)." The numbers are in `factors.explain` (engine 1.2.0) |
 | `likelihood`, `impact` | §5, §6 |
 | `factors` | `RiskFactors`, below |
 | `countries`, `ports`, `lat`, `lon` | for the map: the entity's position if it has one, else the matched country/port |
@@ -142,9 +142,23 @@ and no full scans of `feeds.series`.
                             "match_confidence": 0.88, "contribution": 0.58}]},
   "impact": {"value": 0.68, "criticality": "high", "criticality_weight": 0.75,
              "exposure_share": 0.12, "exposure_norm": 0.48, "category_multiplier": 0.9},
-  "engine_version": "1.0.0"
+  "engine_version": "1.2.0",
+  "story": "natural_hazard|event:usgs:us6000abcd",
+  "explain": {"matched": {"match_type": "geo_radius", "match_value": "12 km", "label": "distance: 12 km",
+                          "matched_text": null, "inferred_from": null, "supported_by": null},
+              "strongest": {"evidence_key": "event:usgs:us6000abcd", "title": "M 6.1 …", "source": "usgs",
+                            "published_at": "2026-11-20T03:12:00Z"},
+              "item_count": 1,
+              "steps": [{"label": "Strongest signal", "formula": "signal 0.710 × recency 0.930 × match 0.880 = 0.581", "value": 0.581},
+                        {"label": "Likelihood", "formula": "noisy-OR of 1 item: 1 − (1 − 0.581) = 0.581", "value": 0.581},
+                        {"label": "Impact", "formula": "0.9 (natural hazard) × …", "value": 0.68},
+                        {"label": "Score", "formula": "100 × 0.581 × 0.680 = 39.5", "value": 39.5}]}
 }
 ```
+
+`story` and `explain` are new in engine 1.2.0 (§5.9); `likelihood.capped_from` appears only on
+a capped market-only risk. A risk written by an older engine has neither until it is
+re-scored, which the worker does on its next run (§9).
 
 `evidence_key` is `event:<source>:<raw_id>` or
 `anomaly:<series>|<key>|<ts as RFC 3339 UTC>|<method>`.
@@ -204,11 +218,11 @@ evidence has the same OFAC `attrs.entity_id`.
 
 | `kind` | Keys |
 |---|---|
-| `supplier` | position (radius), countries, ports, name (sanctions + company news), hs_codes/commodities, currencies |
-| `site` | position, countries, ports |
-| `customer` | countries, name (sanctions), currencies |
+| `supplier` | position (radius), countries, ports, name (sanctions + company news), hs_codes/commodities (support only, §5.9), currencies (market moves only, §5.9), chokepoints (inferred, §5.9) |
+| `site` | position, countries, ports, chokepoints (inferred, §5.9) |
+| `customer` | countries, name (sanctions), currencies (market moves only, §5.9) |
 | `route` | ports (ordered origin → destination), countries, `attrs.chokepoints` (ids, §5.3) |
-| `port` | ports, position, countries |
+| `port` | ports, position, countries, chokepoints (inferred, §5.9) |
 | `currency` | currencies |
 | `commodity` | hs_codes, commodities |
 | `software` | software (purl / CPE) |
@@ -224,9 +238,9 @@ country match is used.
 | `geo_radius` | haversine distance `d` ≤ `R`. `R` (km): earthquake `clamp(50 × 2^(M−5), 25, 400)` with `M = attrs.magnitude` (100 if missing); tropical cyclone 300; tsunami 300; drought 400; flood 100; volcano 100; wildfire 50; other hazard 100; `port.disruption` 50 | `1 − d/R` (0.05 at the edge at least) |
 | `port` | exact UN/LOCODE in `event.ports` | 1.0 |
 | `country` | alpha-3 in `event.countries`, or (tagged news) in `tag.entities.countries` | site 0.8, supplier 0.6, customer 0.5, route/port 0.5; × 0.6 when it came from a news tag |
-| `chokepoint` | the route lists the chokepoint, and the event is within its radius, or a tagged place's text equals one of its aliases (casefold) | geo: `1 − d/R`; text: 0.6 × place confidence |
+| `chokepoint` | the route lists the chokepoint (or, for a supplier, site or port, it is inferred, §5.9), and the event is within its radius, or a tagged place's text equals one of its aliases (casefold) | geo: `1 − d/R`; text: 0.6 × place confidence; × 0.5 when inferred |
 | `currency` | an `fx.rate` anomaly on the entity's currency against the workspace `base_currency`. With base EUR this is the stored pair `EUR/<CCY>`; otherwise the engine builds the cross rate from the two EUR pairs and runs `jobs.analyse.anomalies.detect` on it in memory (cross anomalies are not stored in `feeds`). Without a `base_currency`, `EUR/<CCY>` is used | direct 1.0, cross 0.9 |
-| `commodity` | the HS code's chapter (first 2 digits) is in the engine's chapter → keyword table, or `entity.commodities` contains (casefold) a `tag.entities.commodities[].text` or `event.commodities` value | 0.6 × tag confidence (chapter); 0.8 × tag confidence (exact text) |
+| `commodity` | the HS code's chapter (first 2 digits) is in the engine's chapter → keyword table, or `entity.commodities` contains (casefold) a `tag.entities.commodities[].text` or `event.commodities` value. Support only (§5.9): never a risk on its own for an entity with a place | 0.6 × tag confidence (chapter); 0.8 × tag confidence (exact text) |
 | `software` | purl `pkg:<type>/<namespace>/<name>@v` → `<OSV ecosystem>:<name>`, with pypi→`PyPI` (PEP 503-normalised name), npm→`npm`, maven→`Maven` (`group:artifact`), golang→`Go`, cargo→`crates.io`, nuget→`NuGet`, gem→`RubyGems`, composer→`Packagist`; exact match with `event.software`. CPE `cpe:2.3:a:<vendor>:<product>:…` → `<vendor>:<product>`, compared casefold with `_` and spaces removed against KEV's `vendorProject:product` | OSV 1.0; KEV 0.9. Versions are not compared (the feeds hold no affected ranges) |
 | `sanctions_name` | suppliers and customers only. Normalise both names (NFKD, strip accents, casefold, `&`→`and`, drop punctuation, drop legal-form tokens: ltd, limited, llc, inc, corp, corporation, co, company, gmbh, ag, sa, sas, srl, spa, bv, nv, plc, jsc, pjsc, ooo, oao, zao, llp, lp, pte, pvt, kk, as, ab, oy), then `sim = rapidfuzz.fuzz.token_sort_ratio(a, b) / 100` against `attrs.name` (and `attrs.aliases`) of `sanction.designation`/`sanction.update` events, and against `name` and `aliases` of every `feeds.sanctions_entries` row (§5.8). Match if `sim ≥ 0.92` | `0.7 + 0.3 × (sim − 0.92)/0.08`; then +0.1 if the countries overlap, −0.2 if both have countries and they are disjoint; clamp to 0–1, and drop if below 0.5 |
 | `company_name` | suppliers and customers only: same normaliser, `sim ≥ 0.95` against `tag.entities.companies[].text` of tagged news; or a `gdelt.articles` anomaly whose key equals `watch_terms_for` output for this entity | 0.7 × the company's tag confidence; anomaly 0.8 |
@@ -381,6 +395,56 @@ threshold, confidence and country adjustment), as if each row were an event:
   index built from them is reused while the same rows are in use. Both caches give
   results identical to a fresh read.
 
+### 5.9 Anchors, market moves, inferred chokepoints and stories (engine 1.2.0)
+
+The first live end-to-end test (11 suppliers, 77 risks, top score 64) showed matching
+that was too broad: a news story about chip export rules and China became a High
+*sanctions* risk for a Malaysian supplier because the story mentioned chips (HS chapter
+85), and the same story was a separate risk for every supplier in that chapter.
+
+* **Anchors and support.** A `commodity` (HS chapter or text) or `currency` match is
+  *support*. For an entity with a place (supplier, customer, site, route, port) it never
+  creates a risk on its own. It only strengthens an *anchor* match of the **same item**
+  to the same entity: country, port, position (`geo_radius`), chokepoint, company name or
+  sanctions name. Then `c = 1 − (1 − c_anchor)(1 − w × c_support)` with
+  `w = support_weight = 0.5`, and the evidence snapshot keeps `supported_by`.
+  A `commodity` or `currency` entity has no other key: for it that match is the anchor.
+* **Market-wide moves.** An `fx.rate` anomaly, or an event whose type starts with
+  `market.` (a commodity price move from a markets feed; no connector emits one yet), is
+  global for that currency or commodity, so it may create a risk on its own. If *every*
+  item of a risk is such a move, the risk is capped below High: its likelihood is lowered
+  (rounded down to 3 places) until `100 × L × I ≤ market_only_score_cap = 50`, and
+  `factors.likelihood.capped_from` keeps the value before the cap.
+* **Inferred chokepoints.** A supplier, site or port with no `attrs.chokepoints` gets
+  chokepoints inferred (declared ones always win; routes are never inferred):
+  * from the **main sea lanes** of its first port's country (from the LOCODE's first two
+    letters), or of its first country when it has no port, in
+    `engine/data/sea_lanes.json`: East Asia (CHN, TWN, HKG, MAC, KOR, PRK, JPN) → Taiwan
+    Strait, Singapore Strait, Malacca, Bab el-Mandeb, Suez, Panama; Southeast Asia (VNM,
+    THA, KHM, PHL, MYS, SGP, IDN, BRN) → the same without the Taiwan Strait; South Asia
+    (IND, PAK, BGD, LKA, MDV, MMR) → Bab el-Mandeb, Suez; Persian Gulf (ARE, QAT, KWT,
+    BHR, IRQ, IRN) → Hormuz, Bab el-Mandeb, Suez; west coast of South America (CHL, PER,
+    ECU) → Panama. These are the passages on the usual lanes from that region to Europe
+    and the Americas. The table is coarse on purpose and lists nothing for Europe, North
+    America or any country with coasts on two oceans (USA, CAN, MEX, COL, SAU, EGY, TUR,
+    RUS, ZAF, …): without port coordinates the engine cannot tell the coast, so it does
+    not guess;
+  * and from its **position**: any chokepoint whose radius holds the entity's `lat`/`lon`.
+
+  An inferred chokepoint matches like a declared one (radius, tagged place name, scenario
+  shock) at `inferred_chokepoint_factor = 0.5` of the confidence, and the evidence
+  snapshot and `factors.explain.matched` carry `inferred_from` (`port TWKHH`,
+  `country VNM` or `position`), so the dashboard says "inferred from the port".
+* **Stories.** `factors.story = "<category>|<evidence key of the strongest item>"`. One
+  news report (or hazard, or listing) that reaches several entities gives each of their
+  risks the same key. Risks stay one per entity (the fingerprint is unchanged), and the
+  API groups them: `Risk.story`, `GET /v1/risks?group=story`, `RiskSummary.story_count`
+  and `stories_by_category`, and `story_count` on the map's risk places.
+
+All of these constants live in `EngineConfig` (`engine/config.py`, the "anchoring"
+block): `support_match_types`, `support_weight`, `market_event_prefix`,
+`market_only_score_cap`, `inferred_chokepoint_factor`.
+
 ## 6. Impact
 
 ```
@@ -428,8 +492,11 @@ That is when there is no advice yet, the score moved into another 20-point band
    and dates, and L, I and score as given numbers. Nothing else from the workspace.
    The system prompt says: plain text, at most 120 words, 2–3 concrete mitigation
    steps, no new numbers or probabilities, no links, and do not restate the score.
-2. The worker calls Groq (`GROQ_ADVICE_MODEL`), then validates the reply: ≤ 1,200
-   characters, no URLs, and no digits other than those in the input.
+2. The worker calls Groq (`GROQ_ADVICE_MODEL`, default `openai/gpt-oss-20b`; a reasoning
+   model, called with `reasoning_effort = "low"`, `include_reasoning = false` and a
+   1,000-token completion budget so the reasoning cannot use up the answer), then
+   validates the reply: ≤ 1,200 characters, no URLs, and no digits other than those in
+   the input. An empty reply is a fallback with reason `empty reply (finish_reason=…)`.
 3. If it passes, the worker sets `advice`, `advice_source = 'groq'`,
    `advice_model` and `advice_generated_at`.
 4. If it fails, or Groq is unavailable or rate-limited, the worker stores
@@ -444,6 +511,9 @@ Groq output never changes `likelihood`, `impact`, `score`, `status` or the evide
   every 10 minutes, only while it is awake anyway (no long-lived DB connections, so
   Neon can scale to zero).
 * After a source sync changed entities, and on demand from the API.
+* When a workspace has an open, acknowledged or mitigating risk whose `engine_version`
+  differs from the running engine's: a new `ENGINE_VERSION` re-scores every workspace on
+  the worker's next run, without waiting for new feed rows.
 * Per workspace, as listed by `biz.worker_workspace_ids()`. Each workspace runs in its
   own transaction: `set_config('app.workspace_id', …, true)`, then `run_workspace`,
   then commit. Advice and watch terms use `RunResult.assessments` / `.entities` (§2).
@@ -482,7 +552,20 @@ the inputs applied. It writes nothing; the API stores the result in `biz.scenari
   changes the other suppliers' spend shares.
 * `changes` lists fingerprints whose score differs (by at least 0.1), largest absolute
   delta first, at most 200, with `risk_id` when a stored risk has that fingerprint.
-  `portfolio_score = 100 × (1 − Π(1 − score_i/100))` over each side's assessments.
+* `portfolio_score` is the **risk index** (engine 1.2.0), computed for each side over that
+  side's entities (the scenario side after `entity_overrides`):
+
+  ```
+  per entity e:  worst_c(e) = max score of e's risks in category c (0 if none)
+                 E(e)       = 100 × (1 − Π_c (1 − worst_c(e) / 100))
+  index         = Σ_e w(e) · E(e) / Σ_e w(e)        w = criticality weight (§6; NULL 0.5)
+  ```
+
+  Several risks of one kind do not stack (the worst counts), different kinds do; every
+  entity counts, so a scenario that adds exposure anywhere raises the index, and it
+  reaches 100 only if every entity is at 100. With one entity it equals that entity's
+  combined score. Engine 1.1.0 used `100 × (1 − Π(1 − score_i/100))` over all risks,
+  which saturated at 100 with many risks (77 risks → "100 → 100").
 
 ## 13. Write details (engine 1.0.0)
 

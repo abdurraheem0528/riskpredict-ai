@@ -62,6 +62,13 @@ test.describe('active workspace', () => {
     await expect(page.getByText('What to do')).toBeVisible();
     await mapSettled(page);
     await shot(page, '6-risk', info.project.name);
+    // the numbers: a collapsed section under the evidence
+    const how = page.getByText('How this was scored');
+    await how.scrollIntoViewIfNeeded();
+    await how.click();
+    await expect(page.getByText(/noisy-OR of 2 items/)).toBeVisible();
+    await page.getByText('Score', { exact: true }).scrollIntoViewIfNeeded();
+    await shot(page, '6-risk-how-scored', info.project.name);
   });
 
   test('scenario', async ({ page }, info) => {

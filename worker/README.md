@@ -59,15 +59,20 @@ still due, `biz.worker_state.score_pending`) and the next worker run finishes it
    * **Scoring** when entities changed, when the feeds moved on since this workspace was
      last scored (`max(feeds.source_health.last_run_at)` against
      `biz.worker_state.feeds_seen_at`, kept in the database because every run is a fresh
-     process), or when a request left `score_pending`: `engine.run_workspace` in one
+     process), when a request left `score_pending`, or when an open risk was scored by an
+     older `ENGINE_VERSION` (so a new engine cleans up every workspace on the next run):
+     `engine.run_workspace` in one
      transaction (it takes the engine's per-workspace lock, so two passes over one workspace
      queue). `RunResult.changes` → alerts (`risk_new`, `risk_escalated`, `sanctions_match`)
      and events `risk.*` / `alert.created`; opted-in watch terms go to `feeds.watch_terms`;
      then `feeds.updated`.
    * **Advice** when `engine.needs_new_advice` says so: `engine.advice_messages` → Groq
-     (`GROQ_ADVICE_MODEL`), accepted only if ≤ 1,200 characters, without links and without
-     digits that were not in the prompt; otherwise `engine.template_advice`. At most
-     `ADVICE_PER_RUN` (20) Groq calls per run.
+     (`GROQ_ADVICE_MODEL`, default `openai/gpt-oss-20b`, low reasoning effort), accepted only
+     if ≤ 1,200 characters, without links and without digits that were not in the prompt;
+     otherwise `engine.template_advice`. At most `ADVICE_PER_RUN` (20) Groq calls per run;
+     the calls follow Groq's rate-limit headers (waiting for the per-minute token reset, and
+     stopping near the day's request limit). The reason for a fallback is logged as a short
+     code only.
 2. **The re-read:** every active source is read again from its tool *without* touching the
    database; only a changed content hash leads to a sync and a re-score (the fallback for
    missed Drive / Composio notifications).

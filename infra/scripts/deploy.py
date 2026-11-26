@@ -76,6 +76,9 @@ OPTIONAL = (
     "COMPOSIO_API_KEY", "COMPOSIO_WEBHOOK_SECRET", "COMPOSIO_AUTH_CONFIGS", "COMPOSIO_TRIGGER_SLUGS",
     "GROQ_MAPPING_MODEL", "GROQ_ADVICE_MODEL",
 )  # fmt: skip
+# Used when the GitHub variables are unset: Groq's free-plan models (Llama was retired for
+# free accounts). The same defaults are in api/core/config.py.
+GROQ_MODEL_DEFAULTS = {"GROQ_MAPPING_MODEL": "openai/gpt-oss-120b", "GROQ_ADVICE_MODEL": "openai/gpt-oss-20b"}
 SECRET_KEYS = {"DATABASE_URL_APP", "GROQ_API_KEY", *GENERATED, "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_PICKER_API_KEY",
                "COMPOSIO_API_KEY", "COMPOSIO_WEBHOOK_SECRET"}  # fmt: skip
 # What `python -m worker --once` needs from the Vercel project (nothing else is passed on).
@@ -540,6 +543,8 @@ def cmd_vercel_up(args) -> None:
     for k in OPTIONAL:
         if env(k):
             desired[k] = env(k)
+        elif k in GROQ_MODEL_DEFAULTS:
+            desired[k] = GROQ_MODEL_DEFAULTS[k]  # never leave a retired model id on Vercel
     if new_password:
         desired["DATABASE_URL_APP"] = mask(app_url(owner_dsn, new_password))
     if current.get("PUBLIC_API_URL"):

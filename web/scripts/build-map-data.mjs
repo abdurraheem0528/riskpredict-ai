@@ -4,9 +4,13 @@
 //
 //   Natural Earth 1:50m admin-0 countries (public domain) → countries.geojson, centroids.json ([lon, lat, name])
 //   NGA World Port Index, Pub 150 (US Government work, public domain) → ports.json
+//   UNECE UN/LOCODE code list (free to use) → the ports' display names in ports.json
 //
 // Usage: node scripts/build-map-data.mjs [--wpi path/to/UpdatedPub150.csv] [--ne path/to/ne_50m_admin_0_countries.geojson]
-// Without the flags it downloads both from the URLs below. Needs `npx` (mapshaper 0.6).
+//                                        [--locode path/to/code-list.csv]
+//        node scripts/build-map-data.mjs --port-names-only [--locode path/to/code-list.csv]
+// Without the flags it downloads them from the URLs below. Needs `npx` (mapshaper 0.6).
+// --port-names-only rewrites just the UN/LOCODE names in the committed ports.json.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,6 +22,10 @@ const NE_URL =
 // Mirror of msi.nga.mil's UpdatedPub150.csv (the NGA link has no stable machine URL).
 const WPI_URL =
   'https://raw.githubusercontent.com/CienciaDeDatosEspacial/dataSets/main/WORLD/UpdatedPub150.csv';
+
+// The UN/LOCODE code list as CSV (UNECE's release, republished unchanged by the Frictionless
+// Data "datasets" project).
+const LOCODE_URL = 'https://raw.githubusercontent.com/datasets/un-locode/main/data/code-list.csv';
 
 const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'map');
 const tmp = mkdtempSync(join(tmpdir(), 'rp-map-'));
@@ -68,6 +76,42 @@ function parseCsv(text) {
 
 const round = (n, d) => Math.round(n * 10 ** d) / 10 ** d;
 
+// --- port display names ------------------------------------------------------------------
+// ports.json is UN/LOCODE → [lon, lat, WPI name] or [lon, lat, WPI name, UN/LOCODE name]: the
+// fourth element only when the UN/LOCODE name differs. The raw WPI name stays for matching;
+// the dashboard shows cleanPortName(UN/LOCODE name ?? WPI name) (src/map/geo.ts).
+async function addPortNames(ports) {
+  const path = arg('--locode') ?? (await fetchTo(LOCODE_URL, join(tmp, 'code-list.csv')));
+  const [head, ...lines] = parseCsv(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''));
+  const [iChange, iCountry, iLocation, iName] = ['Change', 'Country', 'Location', 'Name'].map((c) => {
+    const i = head.indexOf(c);
+    if (i < 0) throw new Error(`UN/LOCODE column missing: ${c}`);
+    return i;
+  });
+  const names = {};
+  for (const r of lines) {
+    if ((r[iChange] ?? '').trim() === 'X') continue; // marked for deletion
+    const code = `${r[iCountry] ?? ''}${r[iLocation] ?? ''}`.trim();
+    if (/^[A-Z]{2}[A-Z2-9]{3}$/.test(code) && r[iName]?.trim() && !names[code]) names[code] = r[iName].trim();
+  }
+  let named = 0;
+  for (const [code, p] of Object.entries(ports)) {
+    p.length = 3;
+    if (names[code] && names[code] !== p[2]) {
+      p.push(names[code]);
+      named++;
+    }
+  }
+  console.log(`ports: ${named} UN/LOCODE names that differ from the WPI name`);
+}
+
+if (process.argv.includes('--port-names-only')) {
+  const ports = JSON.parse(readFileSync(join(out, 'ports.json'), 'utf8'));
+  await addPortNames(ports);
+  writeFileSync(join(out, 'ports.json'), JSON.stringify(ports));
+  process.exit(0);
+}
+
 // --- countries -----------------------------------------------------------------------
 const nePath = arg('--ne') ?? (await fetchTo(NE_URL, join(tmp, 'ne.geojson')));
 const ne = JSON.parse(readFileSync(nePath, 'utf8'));
@@ -117,6 +161,7 @@ for (const r of rows) {
   }
   if (!ports[code]) ports[code] = [round(lon, 3), round(lat, 3), r[iName].trim()];
 }
+await addPortNames(ports);
 writeFileSync(join(out, 'ports.json'), JSON.stringify(ports));
 
 for (const f of ['countries.geojson', 'centroids.json', 'ports.json']) {

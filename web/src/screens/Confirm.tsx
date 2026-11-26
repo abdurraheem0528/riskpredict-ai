@@ -20,7 +20,8 @@ import { ErrorState, SheetHead, SkeletonRows } from '../ui/parts';
 import { Grab } from '../ui/Grab';
 
 type Field = S['MappingField'];
-type Choice = { field: Field | ''; split?: string; touched: boolean };
+// `currency`: an annual_spend column's spend currency, read from its header ("Annual spend (USD)").
+type Choice = { field: Field | ''; split?: string; currency?: string; touched: boolean };
 const KIND_LIST: EntityKind[] = ['supplier', 'site', 'customer', 'route', 'port', 'currency', 'commodity', 'software'];
 const SURE = 0.6;
 
@@ -45,7 +46,7 @@ export function Confirm({ id }: { id: string }) {
     const next: Record<string, Choice> = {};
     for (const col of source.data.columns) {
       const m = base.spec.columns.find((c) => c.column === col.name);
-      next[col.name] = { field: m ? m.field : '', split: m?.split, touched: false };
+      next[col.name] = { field: m ? m.field : '', split: m?.split, currency: m?.currency, touched: false };
     }
     setChoices(next);
     setKind((base.spec.entity_kind as EntityKind | null) ?? 'supplier');
@@ -55,6 +56,7 @@ export function Confirm({ id }: { id: string }) {
   const columns = useMemo(() => source.data?.columns ?? [], [source.data]);
   const suggestion = mapping.data?.suggested ?? null;
   const conf = (name: string) => suggestion?.spec.columns.find((c) => c.column === name)?.confidence ?? null;
+  const headerCurrency = (name: string) => base?.spec.columns.find((c) => c.column === name)?.currency ?? suggestion?.spec.columns.find((c) => c.column === name)?.currency;
   const needs = (name: string) => {
     const c = choices[name];
     if (!c || c.field === '') return true;
@@ -68,9 +70,14 @@ export function Confirm({ id }: { id: string }) {
 
   const spec = useMemo<S['MappingSpec'] | null>(() => {
     const cols = columns
-      .map((c) => ({ column: c.name, field: choices[c.name]?.field, split: choices[c.name]?.split }))
-      .filter((c): c is { column: string; field: Field; split: string | undefined } => !!c.field)
-      .map((c) => (c.split ? { column: c.column, field: c.field, split: c.split } : { column: c.column, field: c.field }));
+      .map((c) => ({ column: c.name, field: choices[c.name]?.field, split: choices[c.name]?.split, currency: choices[c.name]?.currency }))
+      .filter((c): c is { column: string; field: Field; split: string | undefined; currency: string | undefined } => !!c.field)
+      .map((c) => ({
+        column: c.column,
+        field: c.field,
+        ...(c.split ? { split: c.split } : {}),
+        ...(c.field === 'annual_spend' && c.currency ? { currency: c.currency } : {}),
+      }));
     if (!cols.length) return null;
     return { entity_kind: kindByColumn ? null : kind, columns: cols };
   }, [columns, choices, kind, kindByColumn]);
@@ -124,7 +131,8 @@ export function Confirm({ id }: { id: string }) {
   const editor = canEdit(role);
   const waiting = mapping.isSuccess && !base;
 
-  const setField = (col: string, field: Field | '') => setChoices((c) => ({ ...c, [col]: { ...c[col], field, touched: true } }));
+  const setField = (col: string, field: Field | '') =>
+    setChoices((c) => ({ ...c, [col]: { ...c[col], field, currency: field === 'annual_spend' ? (c[col]?.currency ?? headerCurrency(col)) : undefined, touched: true } }));
 
   const summaryText = !base
     ? 'Reading your column headers and a few sample values.'
@@ -219,6 +227,7 @@ export function Confirm({ id }: { id: string }) {
                           <span className="cf" style={need ? { color: '#0F55CF' } : undefined}>
                             {need ? 'Needs you' : c?.touched ? 'Your choice' : k != null ? `${Math.round(k * 100)}% sure` : mapping.data.confirmed ? 'Confirmed' : 'Your choice'}
                           </span>
+                          {c?.field === 'annual_spend' && c.currency && <span className="cf">currency from the header: {c.currency}</span>}
                         </div>
                       </div>
                     );

@@ -226,6 +226,19 @@ def test_first_run_creates_everything_and_prints_no_secret(d, fake, capsys):
     assert "bundle size: 271.8 MB of Vercel's 500 MB" in out
 
 
+def test_groq_models_default_to_the_free_plan_models_and_follow_the_variables(d, fake, monkeypatch):
+    fv, _ = fake
+    monkeypatch.delenv("GROQ_MAPPING_MODEL", raising=False)
+    monkeypatch.setenv("GROQ_ADVICE_MODEL", "")
+    up(d)
+    env = env_of(fv)
+    assert env["GROQ_MAPPING_MODEL"] == "openai/gpt-oss-120b" and env["GROQ_ADVICE_MODEL"] == "openai/gpt-oss-20b"
+    monkeypatch.setenv("GROQ_ADVICE_MODEL", "openai/gpt-oss-120b")
+    up(d)
+    assert env_of(fv)["GROQ_ADVICE_MODEL"] == "openai/gpt-oss-120b"
+    assert set(d.GROQ_MODEL_DEFAULTS) <= set(d.WORKER_KEYS)  # the worker reads them from Vercel too
+
+
 def test_rerun_keeps_secrets_and_role_and_adds_optional_ones(d, fake, monkeypatch, capsys):
     fv, state = fake
     up(d)
