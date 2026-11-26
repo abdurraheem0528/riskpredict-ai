@@ -1726,16 +1726,38 @@ export interface components {
             entity_id: string;
         };
         ScenarioSide: {
+            /** @description Risks (one per entity and story) on this side */
             risk_count: number;
+            /**
+             * @description Distinct stories on this side (as `Risk.story.key`: the engine's `factors.story`, else
+             *     the risk itself). The headline count. Results stored before it was added lack it
+             *     (show `risk_count` then).
+             */
+            story_count?: number;
             max_score: number | null;
             /**
-             * @description The risk index (engine 1.2.0, risk-engine.md §12): per entity, its worst score in each
-             *     category combined across categories, `E = 100 × (1 − Π_c (1 − worst_c/100))`; the
-             *     index is the criticality-weighted mean of `E` over all the side's entities (0 for an
-             *     entity no risk touches). It does not grow with the number of risks, and it is on
-             *     the same 0–100 scale (and level bands) as a risk score.
+             * @description The risk index (risk-engine.md §12), rounded to 0.1. Per entity, its *exposure*: in
+             *     each category c, its risks' scores sorted high to low, s_1 ≥ s_2 ≥ …, give
+             *     `C_c = 100 × (1 − Π_k (1 − s_k/100)^(2^−(k−1)))` (the highest in full, the next at half
+             *     weight, then a quarter, …); then `E = 100 × (1 − Π_c (1 − C_c/100))`. The index is the
+             *     criticality-weighted mean of `E` over all the side's entities (an entity no risk
+             *     touches counts as 0), so it is never above `most_exposed.exposure`, and a scenario
+             *     that adds or raises any risk (and lowers none) raises it. Results stored before
+             *     `most_exposed` was added used the worst score per category for `C_c`.
              */
             portfolio_score: number;
+            /**
+             * @description The entity with the highest exposure `E` on this side; null when no risk touches any
+             *     entity. The index is never above its `exposure`. Absent in older stored results.
+             */
+            most_exposed?: null | {
+                /** Format: uuid */
+                entity_id: string;
+                entity_name: string;
+                exposure: number;
+                /** @description That entity's risks on this side */
+                risk_count: number;
+            };
             by_category: {
                 [key: string]: number;
             };

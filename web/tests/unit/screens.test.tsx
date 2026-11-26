@@ -151,7 +151,31 @@ describe('screens', () => {
     // the level names the index shown (73 → High), and the change is its own figure
     expect(document.querySelector('.lvl')).toHaveTextContent(/^High$/);
     expect(screen.getByText('+11 from today')).toBeInTheDocument();
+    // headline counts are stories; the index is never above the most exposed entity, shown with it
+    expect(screen.getByText('stories touch you, 4 today · 8 risks')).toBeInTheDocument();
+    expect(screen.getByText('most exposed: Yantian to Rotterdam, 84 today')).toBeInTheDocument();
+    expect(screen.getByText(/inferred from their port/)).toBeInTheDocument();
     expect(box.sent?.inputs.shocks[0]).toMatchObject({ type: 'event', chokepoints: ['bab_el_mandeb'] });
+  });
+
+  it('Scenario: a change under one point is shown with a decimal, and old results fall back to risk counts', async () => {
+    const { scenarioFor } = await import('../fixtures/data');
+    // a result stored before story_count and most_exposed were added
+    const s = scenarioFor('Bab el-Mandeb closes', { shocks: [] });
+    const r = s.results!;
+    const strip = ({ story_count: _s, most_exposed: _m, ...rest }: typeof r.baseline) => rest;
+    const old = { ...s, results: { ...r, baseline: { ...strip(r.baseline), portfolio_score: 62.4 }, scenario: { ...strip(r.scenario), portfolio_score: 62.7 } } };
+    server.use(
+      http.post(`${API}/v1/scenarios`, () => HttpResponse.json(old, { status: 201 })),
+      http.get(`${API}/v1/scenarios/:id`, () => HttpResponse.json(old)),
+    );
+    boot('/scenarios');
+    await screen.findByRole('heading', { name: 'Bab el-Mandeb closes' });
+    await userEvent.click(screen.getByRole('button', { name: 'Run what-if' }));
+    expect(await screen.findByText('+0.3 from today')).toBeInTheDocument();
+    expect(screen.getByText('62.7')).toBeInTheDocument();
+    expect(screen.getByText('risks touch you, 6 today')).toBeInTheDocument();
+    expect(screen.getByText('highest score, 81 today')).toBeInTheDocument();
   });
 
   it('Connect: tools come from the API', async () => {

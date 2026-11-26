@@ -114,7 +114,7 @@ export function Scenario() {
     switch (kind) {
       case 'route':
         return cp
-          ? { title: `${cp.name} closes`, sub: 'Every route you mapped through it is scored as disrupted, at the severity you set.', shock: { type: 'event' as const, category: 'logistics' as const, severity: severity / 100, chokepoints: [cp.id], label: `${cp.name} closes` } }
+          ? { title: `${cp.name} closes`, sub: 'Routes you mapped through it count in full, at the severity you set. Suppliers, sites and ports whose usual sea lane passes it (inferred from their port, country or position) count at half weight.', shock: { type: 'event' as const, category: 'logistics' as const, severity: severity / 100, chokepoints: [cp.id], label: `${cp.name} closes` } }
           : null;
       case 'country':
         return country
@@ -318,25 +318,49 @@ function Results({ result, running }: { result: ScenarioT | null; running: boole
     );
   }
   const { baseline, scenario, changes } = result.results;
-  // The index (0–100, the same scale and bands as a risk score) and its level always
-  // describe the same number: the scenario's. The change is shown next to it.
-  const delta = Math.round(scenario.portfolio_score) - Math.round(baseline.portfolio_score);
+  // The index (0–100) and its level always describe the same number: the scenario's. It is
+  // a weighted mean of each entity's exposure (all its risks combined), so it is never above
+  // the most exposed entity's, which is shown with it. The change is its own figure; when it
+  // is under one point both sides show a decimal, so a real change never reads "no change".
+  const exact = Math.round((scenario.portfolio_score - baseline.portfolio_score) * 10) / 10;
+  const digits = exact !== 0 && Math.abs(exact) < 1 ? 1 : 0;
+  const fig = (n: number) => n.toFixed(digits);
+  // whole points: the difference of the two figures shown, so they always agree
+  const delta = digits ? exact : Math.round(scenario.portfolio_score) - Math.round(baseline.portfolio_score);
   const lvl = levelOf(scenario.portfolio_score);
+  // Headline counts are stories (one feed item reaching one or more entities); older stored
+  // results only have risk counts.
+  const stories = scenario.story_count != null && baseline.story_count != null;
+  const top = scenario.most_exposed;
+  const topToday = baseline.most_exposed;
   return (
     <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 14, borderTop: '1px solid rgba(20,21,24,0.07)' }}>
         <span className="lbl">Risk index</span>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <span className="tnum" style={{ fontSize: 28, lineHeight: '32px', fontWeight: 600, letterSpacing: '-0.02em', color: '#A3A7AE' }}>{Math.round(baseline.portfolio_score)}</span>
+          <span className="tnum" style={{ fontSize: 28, lineHeight: '32px', fontWeight: 600, letterSpacing: '-0.02em', color: '#A3A7AE' }}>{fig(baseline.portfolio_score)}</span>
           <svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="#5F646C" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 7h15M12 2l5 5-5 5" /></svg>
-          <span className="tnum" style={{ fontSize: 40, lineHeight: '44px', fontWeight: 600, letterSpacing: '-0.03em' }}>{Math.round(scenario.portfolio_score)}</span>
+          <span className="tnum" style={{ fontSize: 40, lineHeight: '44px', fontWeight: 600, letterSpacing: '-0.03em' }}>{fig(scenario.portfolio_score)}</span>
           <span className={`lvl l-${lvl}`}>{LEVELS[lvl].name}</span>
-          <span className="t12 tnum">{delta === 0 ? 'no change' : `${signed(delta)} from today`}</span>
+          <span className="t12 tnum">{delta === 0 ? 'no change' : `${signed(delta, digits)} from today`}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <div className="tile"><span className="fig s">{scenario.risk_count}</span><span className="t12">risks touch you, {baseline.risk_count} today</span></div>
-          <div className="tile"><span className="fig s">{scoreText(scenario.max_score)}</span><span className="t12">highest score, {scoreText(baseline.max_score)} today</span></div>
+          {stories ? (
+            <div className="tile"><span className="fig s">{scenario.story_count}</span><span className="t12">{scenario.story_count === 1 ? 'story touches' : 'stories touch'} you, {baseline.story_count} today · {plural(scenario.risk_count, 'risk')}</span></div>
+          ) : (
+            <div className="tile"><span className="fig s">{scenario.risk_count}</span><span className="t12">{scenario.risk_count === 1 ? 'risk touches' : 'risks touch'} you, {baseline.risk_count} today</span></div>
+          )}
+          {top !== undefined ? (
+            <div className="tile"><span className="fig s">{scoreText(top?.exposure ?? null)}</span><span className="t12">most exposed{top ? `: ${top.entity_name}` : ''}, {scoreText(topToday?.exposure ?? null)} today</span></div>
+          ) : (
+            <div className="tile"><span className="fig s">{scoreText(scenario.max_score)}</span><span className="t12">highest score, {scoreText(baseline.max_score)} today</span></div>
+          )}
         </div>
+        {top !== undefined && (
+          <span className="t12">
+            The index averages every entity’s exposure (all its risks combined), weighted by criticality, so it is never above the most exposed one. Highest single risk: {scoreText(scenario.max_score)}.
+          </span>
+        )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <span className="lbl" style={{ marginBottom: 4 }}>Who feels it first</span>
