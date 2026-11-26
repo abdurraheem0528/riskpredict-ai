@@ -362,7 +362,7 @@ def ensure_project(api: Api) -> tuple[dict, bool]:
     proj = find_project(api)
     created = proj is None
     if created:
-        _, proj = api.call("POST", "/v11/projects", {"name": PROJECT_NAME, **PROJECT_SETTINGS})
+        _, proj = api.call("POST", "/v11/projects", {"name": PROJECT_NAME, "framework": "fastapi"})
         info(f"created Vercel project {PROJECT_NAME} ({proj['id']})")
     else:
         info(f"found Vercel project {PROJECT_NAME} ({proj['id']})")
