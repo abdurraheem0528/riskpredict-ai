@@ -214,7 +214,8 @@ def risk_detail(conn, risk_id: UUID) -> dict:
     factors = row["factors"] or {}
     explanation = row["explanation"]
     if legacy.written_by_old_engine(row):  # e.g. resolved before engine 1.2.0: raw-formula text
-        ent = conn.execute("SELECT kind, name, hs_codes FROM biz.entities WHERE id = %s", (row["entity_id"],)).fetchone()
+        ent = conn.execute("SELECT kind, name, hs_codes FROM biz.entities WHERE id = %s",
+                           (row["entity_id"],)).fetchone()  # fmt: skip
         explanation = legacy.explanation(row, evidence, ent) or explanation
     return {
         **ser.risk(row),
@@ -261,8 +262,8 @@ def update_risk(risk_id: UUID, body: RiskPatch, ctx: WsCtx) -> dict:
             audit(conn, ctx.workspace_id, ctx.user_id, "risk.status_changed", "risk", str(risk_id),
                   {"from": cur["status"], "to": body.status})  # fmt: skip
             if body.status == "dismissed":  # its alerts are dealt with too
-                conn.execute("UPDATE biz.alerts SET read_at = now(), read_by = %s WHERE risk_id = %s AND read_at IS NULL",
-                             (ctx.user_id, risk_id))  # fmt: skip
+                conn.execute("UPDATE biz.alerts SET read_at = now(), read_by = %s"
+                             " WHERE risk_id = %s AND read_at IS NULL", (ctx.user_id, risk_id))  # fmt: skip
         out = ser.risk(conn.execute(ser.RISK_SELECT + " WHERE r.id = %s", (risk_id,)).fetchone())
         if changed:
             events.publish(conn, ctx.workspace_id, "risk.updated", {"risk": out, "previous_score": out["score"]})

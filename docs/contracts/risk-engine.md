@@ -500,7 +500,10 @@ That is when there is no advice yet, the score moved into another 20-point band
 3. If it passes, the worker sets `advice`, `advice_source = 'groq'`,
    `advice_model` and `advice_generated_at`.
 4. If it fails, or Groq is unavailable or rate-limited, the worker stores
-   `template_advice(...)` (deterministic per category) with
+   `template_advice(...)` (deterministic per category × entity kind: a supplier or
+   customer is asked, a site, route, port, currency, commodity or software gets advice
+   for that kind of thing, and only software is told to patch; a sanctions risk driven
+   by a list name match gets the compliance-review text) with
    `advice_source = 'template'`.
 
 Groq output never changes `likelihood`, `impact`, `score`, `status` or the evidence.

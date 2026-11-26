@@ -35,7 +35,8 @@ def test_only_a_list_name_match_is_a_possible_sanctions_match():
     assert not sanctions_name_match(news)
     assert _alerts_for(_created(30), news, 60) == []  # below the workspace's threshold: no alert
     [(kind, sev, title, _)] = _alerts_for(_created(65), news, 60)
-    assert (kind, sev, title) == ("risk_new", "warning", "New risk: Sanctions news on AI chips affecting Haiphong Cable & Harness")
+    assert (kind, sev) == ("risk_new", "warning")
+    assert title == "New risk: Sanctions news on AI chips affecting Haiphong Cable & Harness"
     [(kind, *_)] = _alerts_for(NS(change="rescored", new_score=70, old_score=50), news, 60)
     assert kind == "risk_escalated"
     assert not sanctions_name_match(_risk("sanctions_name:x", category="geopolitical"))
