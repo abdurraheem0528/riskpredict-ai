@@ -178,6 +178,31 @@ describe('screens', () => {
     expect(screen.getByText('highest score, 81 today')).toBeInTheDocument();
   });
 
+  it('Alerts: five at first, then all of them page by page; a resolved risk says so', async () => {
+    const { alerts } = await import('../fixtures/data');
+    const make = (i: number) => ({ ...alerts[1], id: `7d1f3c2a-0000-4000-8000-${String(100 + i).padStart(12, '0')}`, title: `Alert ${i}`, read_at: null });
+    const first = [{ ...alerts[0], title: 'Sanctions news on chips', read_at: new Date().toISOString(), risk_status: 'resolved' as const }, ...Array.from({ length: 19 }, (_, i) => make(i + 1))];
+    const second = Array.from({ length: 3 }, (_, i) => make(i + 20));
+    server.use(
+      http.get(`${API}/v1/alerts`, ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        return HttpResponse.json(cursor === 'p2' ? { items: second, next_cursor: null, unread_count: 22 } : { items: first, next_cursor: 'p2', unread_count: 22 });
+      }),
+    );
+    boot('/');
+    await userEvent.click(await screen.findByRole('button', { name: 'Account, 22 unread alerts' }));
+    const menu = screen.getByRole('menu', { name: 'Account' });
+    expect(within(menu).getByText('Alerts · 22 unread')).toBeInTheDocument();
+    expect(within(menu).getByText('Sanctions news on chips')).toBeInTheDocument();
+    expect(within(menu).getByText(/^Resolved · /)).toBeInTheDocument();
+    expect(within(menu).queryByText('Alert 5')).not.toBeInTheDocument();
+    await userEvent.click(within(menu).getByRole('button', { name: 'Show all' }));
+    expect(within(menu).getByText('Alert 19')).toBeInTheDocument();
+    await userEvent.click(within(menu).getByRole('button', { name: 'Load more' }));
+    expect(await within(menu).findByText('Alert 22')).toBeInTheDocument();
+    expect(within(menu).queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+  });
+
   it('Connect: tools come from the API', async () => {
     server.use(http.get(`${API}/v1/connections/providers`, () => HttpResponse.json({ items: [{ id: 'google_sheets', name: 'Google Sheets', kind: 'direct', available: false }] })));
     boot('/connect');

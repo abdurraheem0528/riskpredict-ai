@@ -2565,7 +2565,12 @@ components:
       required: [id, kind, severity, title, body, risk_id, connection_id, created_at, read_at]
       properties:
         id: {type: string, format: uuid}
-        kind: {type: string, enum: [risk_new, risk_escalated, sanctions_match, connection_error, source_sync_failed]}
+        kind:
+          type: string
+          enum: [risk_new, risk_escalated, sanctions_match, connection_error, source_sync_failed]
+          description: |
+            `sanctions_match` ("Possible sanctions match") only for a sanctions-list name match
+            (rule `sanctions_name`); sanctions news about a country is `risk_new`/`risk_escalated`.
         severity: {type: string, enum: [info, warning, critical]}
         title: {type: string}
         body: {type: string}
@@ -2573,6 +2578,12 @@ components:
         connection_id: {type: [string, "null"], format: uuid}
         created_at: {type: string, format: date-time}
         read_at: {type: [string, "null"], format: date-time}
+        risk_status:
+          description: |
+            The current status of the alert's risk; null when it has none (or in the
+            `alert.created` live event). An alert whose risk is resolved or dismissed is marked
+            read (by the worker's next scoring pass, or when a user dismisses the risk).
+          oneOf: [{$ref: "#/components/schemas/RiskStatus"}, {type: "null"}]
 
     # --- live updates -----------------------------------------------------------------------------
     StreamEventName:

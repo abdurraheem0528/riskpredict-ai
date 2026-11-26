@@ -6,6 +6,7 @@ Shared by the API (responses) and the worker (live-update event payloads), so a
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -26,6 +27,15 @@ def ts(value: datetime | None) -> str | None:
 
 def r1(v: float | None) -> float | None:
     return None if v is None else round(float(v), 1)
+
+
+_NEWS_NEWS = re.compile(r"\b([Nn])ews news\b")
+
+
+def title_text(title: str) -> str:
+    """A stored risk or alert title. Engine 1.1.0 wrote "Sanctions news news on …"; risks it
+    no longer rescores (resolved) and alerts keep that text, so it is shown said once."""
+    return _NEWS_NEWS.sub(r"\1ews", title) if title else title
 
 
 def r3(v: float | None) -> float | None:
@@ -249,7 +259,7 @@ def risk(row: dict) -> dict:
         "id": str(row["id"]),
         "entity": {"id": str(row["entity_id"]), "kind": row["entity_kind"], "name": row["entity_name"]},
         "category": row["category"],
-        "title": row["title"],
+        "title": title_text(row["title"]),
         "likelihood": r3(row["likelihood"]),
         "impact": r3(row["impact"]),
         "score": r1(row["score"]),
@@ -310,12 +320,13 @@ def alert(row: dict) -> dict:
         "id": str(row["id"]),
         "kind": row["kind"],
         "severity": row["severity"],
-        "title": row["title"],
+        "title": title_text(row["title"]),
         "body": row["body"],
         "risk_id": str(row["risk_id"]) if row["risk_id"] else None,
         "connection_id": str(row["connection_id"]) if row["connection_id"] else None,
         "created_at": ts(row["created_at"]),
         "read_at": ts(row["read_at"]),
+        "risk_status": row.get("risk_status"),
     }
 
 

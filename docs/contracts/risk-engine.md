@@ -518,9 +518,15 @@ Groq output never changes `likelihood`, `impact`, `score`, `status` or the evide
   own transaction: `set_config('app.workspace_id', …, true)`, then `run_workspace`,
   then commit. Advice and watch terms use `RunResult.assessments` / `.entities` (§2).
 * `RunResult.changes` → alerts. `created` with score ≥ `workspaces.alert_min_score` →
-  `risk_new`. A rescore that crosses the threshold upwards → `risk_escalated`. Any
-  `created` sanctions risk → `sanctions_match` (critical). Each also becomes a live-update
-  `risk.*` / `alert.created` event (see `openapi.yaml`).
+  `risk_new`. A rescore that crosses the threshold upwards → `risk_escalated`. A
+  `created` sanctions risk whose driver is a sanctions-list **name match** (fingerprint
+  `<entity>|sanctions|sanctions_name:…`) → `sanctions_match` (critical, "Possible
+  sanctions match"); sanctions *news* about a country only gets `risk_new` /
+  `risk_escalated` like any risk. Each also becomes a live-update `risk.*` /
+  `alert.created` event (see `openapi.yaml`).
+* After the alerts, every pass marks read the workspace's unread alerts whose risk is now
+  `resolved` or `dismissed`, and `sanctions_match` alerts whose risk is not a name match
+  (raised by the earlier rule). `Alert.risk_status` carries the risk's current status.
 
 ## 10. Tests C must ship
 

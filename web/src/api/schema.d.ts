@@ -1809,7 +1809,11 @@ export interface components {
         Alert: {
             /** Format: uuid */
             id: string;
-            /** @enum {string} */
+            /**
+             * @description `sanctions_match` ("Possible sanctions match") only for a sanctions-list name match
+             *     (rule `sanctions_name`); sanctions news about a country is `risk_new`/`risk_escalated`.
+             * @enum {string}
+             */
             kind: "risk_new" | "risk_escalated" | "sanctions_match" | "connection_error" | "source_sync_failed";
             /** @enum {string} */
             severity: "info" | "warning" | "critical";
@@ -1823,6 +1827,12 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             read_at: string | null;
+            /**
+             * @description The current status of the alert's risk; null when it has none (or in the
+             *     `alert.created` live event). An alert whose risk is resolved or dismissed is marked
+             *     read (by the worker's next scoring pass, or when a user dismisses the risk).
+             */
+            risk_status?: components["schemas"]["RiskStatus"] | null;
         };
         /** @enum {string} */
         StreamEventName: "risk.created" | "risk.updated" | "risk.resolved" | "alert.created" | "source.sync_started" | "source.synced" | "source.sync_failed" | "mapping.suggested" | "connection.updated" | "feeds.updated" | "resync";

@@ -308,8 +308,8 @@ export const preview: S['MappingPreview'] = {
 };
 
 export const alerts: S['Alert'][] = [
-  { id: '7d1f3c2a-0000-4000-8000-0000000000a1', kind: 'sanctions_match', severity: 'critical', title: 'Anatolia Fasteners matches a sanctions entry', body: '', risk_id: risks[0].id, connection_id: null, created_at: iso(3 * H), read_at: null },
-  { id: '7d1f3c2a-0000-4000-8000-0000000000a2', kind: 'risk_escalated', severity: 'warning', title: 'Bab el-Mandeb transits down rose to 74', body: '', risk_id: risks[1].id, connection_id: null, created_at: iso(6 * H), read_at: null },
+  { id: '7d1f3c2a-0000-4000-8000-0000000000a1', kind: 'sanctions_match', severity: 'critical', title: 'Anatolia Fasteners matches a sanctions entry', body: '', risk_id: risks[0].id, connection_id: null, created_at: iso(3 * H), read_at: null, risk_status: 'open' },
+  { id: '7d1f3c2a-0000-4000-8000-0000000000a2', kind: 'risk_escalated', severity: 'warning', title: 'Bab el-Mandeb transits down rose to 74', body: '', risk_id: risks[1].id, connection_id: null, created_at: iso(6 * H), read_at: null, risk_status: 'open' },
 ];
 
 export function scenarioFor(name: string, inputs: S['ScenarioInputs']): S['Scenario'] {
