@@ -53,7 +53,8 @@ export async function mapSettled(page: Page) {
 }
 
 export async function shot(page: Page, name: string, project: string) {
-  await page.screenshot({ path: `screenshots/${project}/${name}.png`, animations: 'disabled' });
+  // SHOT_DIR lets a private run (another port and outDir) keep its screenshots apart.
+  await page.screenshot({ path: `${process.env.SHOT_DIR ?? 'screenshots'}/${project}/${name}.png`, animations: 'disabled' });
 }
 
 export { expect };
