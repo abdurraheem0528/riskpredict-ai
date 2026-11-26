@@ -1,0 +1,39 @@
+Privacy policy
+RiskPredict AI · Last updated 26 November 2026
+
+RiskPredict AI is a non-commercial university project. It matches public global feeds (news, ports, hazards, cyber, sanctions and markets) to the suppliers, sites and routes in the tools you connect, and shows the resulting risks on a map. Its source code is public at github.com/abdurraheem0528/riskpredict-ai.
+
+What we collect
+Your account: your email address and your password, stored only as an argon2id hash.
+Data from tools you connect, and only what you choose:
+Google Sheets: only the spreadsheets you pick in the Google Picker. We ask for the drive.file permission, so we can't see any other file in your Google Drive.
+Airtable (through Composio): only the bases and tables you choose.
+We read their rows to build the suppliers, sites and routes in your workspace.
+Sign-in tokens for those tools: the Google refresh token is encrypted before it is stored. Composio holds the Airtable sign-in.
+How we use it
+Only to show risks, evidence, advice and what-if scenarios in your own workspace. We don't sell data, show ads, build profiles or use your data to train AI models. Each workspace is isolated by database row-level security, and all traffic uses HTTPS.
+
+Google user data
+RiskPredict AI's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. Data from your Google Sheets is used only to provide the features described above. People can't read it unless you ask for support, and it is never transferred for advertising.
+
+Who processes it
+Service	What for
+Neon	The database that stores your account and workspace data
+Vercel	Runs the API
+Cloudflare Pages	Serves the dashboard
+GitHub Actions	Runs the background jobs (feed updates and source syncs)
+Groq	Suggests column mappings: it receives column headers and up to 5 sample values per column. Words the advice text: it receives an entity's name and kind and the risk's description. It never sets a score.
+Composio	Connects Airtable, only if you connect it
+Cookies and tracking
+None. The dashboard sets no cookies and uses no analytics or tracking scripts.
+
+Keeping and deleting data
+Removing a source or connection deletes its rows and the risks built from them.
+Live-update events are kept for 24 hours. Processed webhook records are kept for 30 days.
+You can revoke Google access at any time at myaccount.google.com/permissions.
+To have your account and all workspace data deleted, contact us (below). We delete it within 30 days.
+Contact
+Questions or deletion requests: contact the project owner through the GitHub repository.
+
+Changes
+If this policy changes, the date at the top changes with it.
