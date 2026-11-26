@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Map as MlMap, StyleSpecification } from 'maplibre-gl';
 import { loadGazetteer } from './geo';
 import { addLabelImages, loadMapFonts } from './labels';
+import { SLOTS, slotId } from './slots';
 
 type Lib = typeof import('maplibre-gl');
 type Ctx = { map: MlMap | null; lib: Lib | null; status: 'loading' | 'ready' | 'failed' };
@@ -19,6 +20,8 @@ const style: StyleSpecification = {
     { id: 'sea', type: 'background', paint: { 'background-color': SEA } },
     { id: 'land', type: 'fill', source: 'countries', paint: { 'fill-color': '#FFFFFF', 'fill-antialias': true } },
     { id: 'coast', type: 'line', source: 'countries', paint: { 'line-color': '#CFD5DC', 'line-width': ['interpolate', ['linear'], ['zoom'], 1, 0.5, 5, 1] } },
+    // Empty marker layers that order everything added later (see SLOTS in ./slots).
+    ...SLOTS.map((s) => ({ id: slotId(s), type: 'background' as const, layout: { visibility: 'none' as const } })),
   ],
 };
 

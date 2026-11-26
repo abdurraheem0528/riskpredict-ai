@@ -9,6 +9,7 @@ import { useMap } from './MapRoot';
 import { LEVELS, levelOf } from '../lib/format';
 import { countryName, portName } from './geo';
 import { FONT, FONT_SEMIBOLD, raiseSymbols, useViewportAnchors, type LabelSpec } from './labels';
+import { slotId, type Slot } from './slots';
 
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
 type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -28,6 +29,8 @@ export function useGeoJson(
   layers: LayerDef[],
   opts: Partial<GeoJSONSourceSpecification> = {},
   onClick?: (e: MapLayerMouseEvent) => void,
+  /** The band of the layer stack to add the layers in (./slots); on top when omitted. */
+  slot?: Slot,
 ) {
   const { map } = useMap();
   const optsKey = JSON.stringify(opts);
@@ -42,7 +45,8 @@ export function useGeoJson(
     const spec = JSON.parse(optsKey) as Partial<GeoJSONSourceSpecification>;
     const defs = JSON.parse(layersKey) as LayerDef[];
     map.addSource(id, { type: 'geojson', data: EMPTY, ...spec } as GeoJSONSourceSpecification);
-    for (const l of defs) map.addLayer({ ...l, source: id } as LayerSpecification);
+    const before = slot && map.getLayer(slotId(slot)) ? slotId(slot) : undefined;
+    for (const l of defs) map.addLayer({ ...l, source: id } as LayerSpecification, before);
     if (defs.some((l) => l.type === 'symbol')) raiseSymbols(map);
     const handlers: [string, (e: MapLayerMouseEvent) => void, () => void, () => void][] = [];
     for (const l of defs) {
@@ -65,7 +69,7 @@ export function useGeoJson(
         for (const l of [...defs].reverse()) if (map.getLayer(l.id)) map.removeLayer(l.id);
         if (map.getSource(id)) map.removeSource(id);
       });
-  }, [map, id, optsKey, layersKey]);
+  }, [map, id, optsKey, layersKey, slot]);
 
   useEffect(() => {
     if (!map) return;
@@ -107,7 +111,9 @@ export function Markers({ items }: { items: MarkerItem[] }) {
       el.style.zIndex = String(it.z ?? 0);
       let m = markers.current.get(it.key);
       if (!m) {
-        m = new lib.Marker({ element: el, anchor: it.anchor ?? 'center', offset: it.offset ?? [0, 0] }).setLngLat(it.at).addTo(map);
+        // Hidden, not faded, when the globe turns it away (MapLibre owns the root's opacity:
+        // state classes go on the child node).
+        m = new lib.Marker({ element: el, anchor: it.anchor ?? 'center', offset: it.offset ?? [0, 0], opacityWhenCovered: '0', subpixelPositioning: true }).setLngLat(it.at).addTo(map);
         markers.current.set(it.key, m);
       } else {
         m.setLngLat(it.at);

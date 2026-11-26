@@ -10,6 +10,7 @@ import type { Map as MlMap } from 'maplibre-gl';
 import latin from '@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2?url';
 import latinExt from '@fontsource-variable/inter/files/inter-latin-ext-opsz-normal.woff2?url';
 import { LEVELS, type Level } from '../lib/format';
+import { slotId } from './slots';
 
 export const FONT = 'Inter Map';
 export const FONT_SEMIBOLD = 'Inter Map SemiBold';
@@ -179,7 +180,7 @@ function measure(font: string, text: string): number {
  * Where text may go: the map minus its edges, the top row, and everything floating over
  * it (sheets, corner cards, the legend, map controls), so no label is cut off by them.
  */
-function safeArea(map: MlMap) {
+export function safeArea(map: MlMap) {
   const c = map.getContainer();
   const origin = c.getBoundingClientRect();
   const covers: Box[] = [];
@@ -191,7 +192,7 @@ function safeArea(map: MlMap) {
   return { l: 8, t: 8, r: c.clientWidth - 8, b: c.clientHeight - 8, covers };
 }
 
-function fits(area: ReturnType<typeof safeArea>, b: Box) {
+export function fits(area: ReturnType<typeof safeArea>, b: Box) {
   if (b[0] < area.l || b[2] > area.r || b[1] < area.t || b[3] > area.b) return false;
   return !area.covers.some((c) => b[0] < c[2] && b[2] > c[0] && b[1] < c[3] && b[3] > c[1]);
 }
@@ -261,5 +262,7 @@ export function useViewportAnchors<P extends Record<string, unknown>>(
 /** Labels at the bottom, then callouts, then cluster counts on top (placed first). */
 export function raiseSymbols(map: MlMap) {
   const ids = map.getStyle().layers.map((l) => l.id);
-  for (const suffix of ['-label', '-callout', '-count']) for (const id of ids) if (id.endsWith(suffix)) map.moveLayer(id);
+  // Into the labels band when the style has one (./slots), else on top.
+  const before = map.getLayer(slotId('labels')) ? slotId('labels') : undefined;
+  for (const suffix of ['-label', '-callout', '-count']) for (const id of ids) if (id.endsWith(suffix)) map.moveLayer(id, before);
 }
