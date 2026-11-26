@@ -35,12 +35,15 @@ type Handler = <K extends StreamEventName>(name: K, data: StreamEvents[K]) => vo
  * Everything one poll brought, for a caller that plays live changes (src/live/player.ts).
  * `initial`: the first poll after start (the page was just loaded). `catchUp`: the first
  * poll after the tab was hidden. `resync`: the cursor fell out of retention (refetch all).
+ * `partial`: a later page of the poll failed; these are the events of the pages read before
+ * it (the cursor is already past them), to apply at once, without animation.
  */
 export type StreamBatch = {
   events: { name: StreamEventName; data: unknown }[];
   initial: boolean;
   catchUp: boolean;
   resync: boolean;
+  partial: boolean;
 };
 
 export const POLL_MS = 15_000;
@@ -64,7 +67,8 @@ export class LiveStream {
 
   /**
    * `onEvent` gets each event as it is read. With `onBatch`, each poll's events are passed
-   * to it instead, once the poll has read every page.
+   * to it instead, once the poll has read every page (or, when a later page fails, the
+   * pages read before it, marked `partial`).
    */
   constructor(
     private workspaceId: string,
@@ -127,8 +131,14 @@ export class LiveStream {
     this.clear();
     if (this.status !== 'live') this.set(this.attempt === 0 ? 'connecting' : 'retrying');
     // A tab hidden while this poll runs makes the next one a catch-up too.
-    const batch: StreamBatch = { events: [], initial: this.cursor === null, catchUp: this.wasHidden, resync: false };
+    const batch: StreamBatch = { events: [], initial: this.cursor === null, catchUp: this.wasHidden, resync: false, partial: false };
     this.wasHidden = false;
+    let delivered = false;
+    const deliver = (partial: boolean) => {
+      if (delivered || !this.onBatch || !(batch.events.length || batch.resync)) return;
+      delivered = true;
+      this.onBatch(partial ? { ...batch, partial: true } : batch);
+    };
     try {
       for (let page = 0; page < MAX_PAGES; page++) {
         const query = this.cursor === null ? {} : { after: this.cursor };
@@ -147,7 +157,7 @@ export class LiveStream {
         this.cursor = res.next;
         if (!res.more) break;
       }
-      if (this.onBatch && (batch.events.length || batch.resync)) this.onBatch(batch);
+      deliver(false);
       this.attempt = 0;
       this.set(this.visible() ? 'live' : 'off');
       this.schedule(POLL_MS);
@@ -156,6 +166,9 @@ export class LiveStream {
       this.wasHidden ||= batch.catchUp; // the catch-up has not happened yet
       this.set('retrying');
       this.schedule(backoffMs(this.attempt++));
+      // Pages read before the failure moved the cursor past their events, so the retry will
+      // not see them again: hand them over now, at once (as the per-event path does).
+      deliver(true);
     } finally {
       this.polling = false;
     }

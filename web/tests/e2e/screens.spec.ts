@@ -87,9 +87,12 @@ test.describe('active workspace', () => {
     await shot(page, '5-register-entity', info.project.name);
   });
 
-  test('register to a risk and back', async ({ page }) => {
-    // Leaving a screen removes its map layers while tweens may still run: no console errors
-    // (the fixture fails the test on any).
+  test('register to a risk and back', async ({ page }, info) => {
+    // Going back while the risk screen's map work is still in flight removes its layers under
+    // running tweens and pending writes: no console errors (the fixture fails the test on any).
+    // The code is the same at every width, and three screens on SwiftShader are slow on CI.
+    test.skip(info.project.name !== 'desktop', 'one width is enough');
+    test.slow();
     await page.goto('/register');
     await expect(page.getByText('6 open stories')).toBeVisible();
     await mapSettled(page);
@@ -97,7 +100,6 @@ test.describe('active workspace', () => {
     await row.hover();
     await row.click();
     await expect(page.getByText('What to do')).toBeVisible();
-    await mapSettled(page);
     await page.goBack();
     await expect(page.getByText('6 open stories')).toBeVisible();
     await mapSettled(page);

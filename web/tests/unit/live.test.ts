@@ -79,7 +79,7 @@ describe('live player', () => {
   beforeEach(() => __resetLive());
   afterEach(() => vi.useRealTimers());
 
-  const batch = (events: LiveEvent[], extra: Partial<StreamBatch> = {}): StreamBatch => ({ events, initial: false, catchUp: false, resync: false, ...extra });
+  const batch = (events: LiveEvent[], extra: Partial<StreamBatch> = {}): StreamBatch => ({ events, initial: false, catchUp: false, resync: false, partial: false, ...extra });
   function make() {
     const applied: string[] = [];
     const player = new LivePlayer({
@@ -91,8 +91,8 @@ describe('live player', () => {
     return { player, applied };
   }
 
-  it('applies everything at once on the first poll, on the catch-up after a hidden tab, and on resync', () => {
-    for (const flags of [{ initial: true }, { catchUp: true }]) {
+  it('applies everything at once on the first poll, on the catch-up after a hidden tab, for a poll cut short, and on resync', () => {
+    for (const flags of [{ initial: true }, { catchUp: true }, { partial: true }]) {
       const { player, applied } = make();
       player.handle(batch([created(1, 90), created(2, 80)], flags));
       expect(applied).toEqual(['risk.created:r1', 'risk.created:r2']);

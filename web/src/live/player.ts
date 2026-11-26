@@ -7,7 +7,8 @@
 //   5. then its state is applied (the queries invalidated) and the list animates: count-ups,
 //      FLIP reorder, rows entering and leaving, and the changed row flashing (./bus).
 // With no point for the signal the map steps are skipped. Everything else in the poll, and
-// everything on the first poll, after a resync, on the catch-up after a hidden tab or under
+// everything on the first poll, after a resync, on the catch-up after a hidden tab, in a poll
+// cut short by a failed page (`partial`) or under
 // reduced motion, is applied at once. A hidden tab mid-sequence lands every step at once
 // (motion.ts `later` and `tween` do).
 import type { QueryClient } from '@tanstack/react-query';
@@ -59,7 +60,8 @@ export class LivePlayer {
       this.deps.apply('resync', {});
       return;
     }
-    const animate = !batch.initial && !batch.catchUp && !motionOff();
+    // A partial poll (a later page failed) is applied at once, like a catch-up.
+    const animate = !batch.initial && !batch.catchUp && !batch.partial && !motionOff();
     const { sequences, instant } = planBatch(batch.events as LiveEvent[], animate);
     const riskInstant = instant.filter((e) => e.name.startsWith('risk.'));
     const otherInstant = instant.filter((e) => !e.name.startsWith('risk.'));

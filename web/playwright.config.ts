@@ -12,9 +12,9 @@ export default defineConfig({
   fullyParallel: true,
   workers: process.env.CI ? 2 : 3,
   retries: process.env.CI ? 1 : 0,
-  timeout: 60_000,
-  // The globe draws slowly on SwiftShader (no GPU on CI): the first frame of a screen can
-  // take about 5 s at device scale 2.
+  // The globe and its atmosphere draw in software on CI (SwiftShader, no GPU): a screen that
+  // took about 20 s there on the flat map takes up to about 55 s, so the limits leave room.
+  timeout: 120_000,
   expect: { timeout: 15_000 },
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
@@ -37,7 +37,7 @@ export default defineConfig({
     ...(['desktop', 'phone'] as const).map((n) => ({
       name: `${n}-dark`,
       testMatch: 'screens.spec.ts',
-      grepInvert: /security headers|sources is the connect screen|register to a risk and back/,
+      grepInvert: /security headers|sources is the connect screen/,
       use: {
         ...(n === 'desktop'
           ? { viewport: { width: 1360, height: 900 }, deviceScaleFactor: 2 }
