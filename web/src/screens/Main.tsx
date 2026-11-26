@@ -3,11 +3,12 @@
 // risk. The map shows the business's entities, its routes and the places risks sit.
 import { useEffect, useMemo, useState } from 'react';
 import type { FeatureCollection, Point } from 'geojson';
-import { useMapEntities, useRisk, useRiskSummary, useRisks, useFeedHealth, type Risk, type RiskSort } from '../api/queries';
+import { prefetchRiskDetail, useMapEntities, useRisk, useRiskSummary, useRisks, useFeedHealth, type Risk, type RiskSort } from '../api/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../app/Session';
 import { useWorkspaceState } from '../app/TopBar';
 import { Link, navigate, useLocation } from '../lib/router';
-import { CATEGORIES, CATEGORY_ORDER, KINDS, fmtDay, fmtInt, levelOf, outOf5, plural, type RiskCategory } from '../lib/format';
+import { CATEGORIES, CATEGORY_ORDER, KINDS, fmtInt, levelOf, outOf5, plural, type RiskCategory } from '../lib/format';
 import { placeLabel } from '../map/geo';
 import { useMap } from '../map/MapRoot';
 import { fitTo, moveTo, sheetPadding, useIdleRotation, useOpeningMove, type LonLat } from '../map/camera';
@@ -59,6 +60,8 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
 
   const items = useMemo(() => risks.data?.pages.flatMap((p) => p.items) ?? [], [risks.data]);
   // After a live update: rows slide to their new place, enter, leave, and the changed one flashes.
+  // A register row under the pointer loads its risk, so the title can morph into its header.
+  const qc = useQueryClient();
   const motion = useListMotion(risks.data ? items : undefined, (r) => r.id, (r) => [r.id, r.story.key]);
   const selected = mode === 'overview' ? (items.find((r) => r.id === picked) ?? items[0] ?? null) : null;
   const detail = useRisk(ws, selected?.id ?? null);
@@ -159,7 +162,7 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
         <Grab />
         <div className="sec" style={{ paddingTop: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span className="lbl">{mode === 'overview' ? `Highest open score · ${fmtDay(new Date())}` : 'Risk register'}</span>
+            <span className="lbl">{mode === 'overview' ? 'Highest open score' : 'Risk register'}</span>
             <LiveDot status={stream} scoredAt={summary.data ? summary.data.last_scored_at : undefined} />
           </div>
           {summary.isPending ? (
@@ -238,7 +241,7 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
                     <Icon name="chev" size={14} stroke={2} className="chev" />
                   </button>
                 ) : (
-                  <Link key={r.id} to={`/risks/${r.id}`} className={`it${hl(r.entity.id)}`} {...rowHover(r.entity.id)} {...motion.row(r.id)} data-lvl={levelOf(r.score)}>
+                  <Link key={r.id} to={`/risks/${r.id}`} className={`it${hl(r.entity.id)}`} {...rowHover(r.entity.id)} {...motion.row(r.id)} data-lvl={levelOf(r.score)} onPointerEnter={() => prefetchRiskDetail(qc, ws, r.id)} onFocusCapture={() => prefetchRiskDetail(qc, ws, r.id)}>
                     <CountPill score={r.score} />
                     <span style={{ minWidth: 0 }}><b data-vt-title={r.id}>{r.title}</b><span className="pl">{CATEGORIES[r.category].name} · {RiskPlace(r)}</span></span>
                     <Icon name="chev" size={14} stroke={2} className="chev" />

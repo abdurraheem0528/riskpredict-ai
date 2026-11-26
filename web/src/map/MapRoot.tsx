@@ -173,7 +173,10 @@ export function MapRoot({ children, veil = false }: { children?: ReactNode; veil
           setCtx({ map: m, lib, status: 'ready' });
         }, () => undefined);
         m.on('idle', () => el.setAttribute('data-map', 'idle'));
-        m.on('movestart', () => el.setAttribute('data-map', 'moving'));
+        // Idle rotation moves every frame and never lets the map idle: it does not count as moving.
+        m.on('movestart', (e) => {
+          if (!(e as { rpSpin?: boolean }).rpSpin) el.setAttribute('data-map', 'moving');
+        });
 
         // Zoom bands for the HTML markers (pills and site labels, chokepoints, city labels).
         let zkey = '';
