@@ -55,10 +55,13 @@ export function useWorkspaceState() {
   return { ready, broken, sources, connections };
 }
 
+/** The Register count is of stories (RiskSummary.story_count), not entity × story risks. */
+const storiesText = (n: number) => `${fmtInt(n)} open ${n === 1 ? 'story' : 'stories'}`;
+
 function NavLinks({ section, ready, count, broken, item, onPick }: { section: Section; ready: boolean; count: number | null; broken: boolean; item: 'navl' | 'mi'; onPick?: () => void }) {
   const links: { id: Section; label: string; to: string; extra?: ReactNode; off?: boolean }[] = [
     { id: 'overview', label: 'Overview', to: '/' },
-    { id: 'register', label: 'Register', to: '/register', off: !ready, extra: ready && count != null && count > 0 ? <small>{fmtInt(count)}</small> : null },
+    { id: 'register', label: 'Register', to: '/register', off: !ready, extra: ready && count != null && count > 0 ? <small title={storiesText(count)}>{fmtInt(count)}</small> : null },
     { id: 'scenarios', label: 'Scenarios', to: '/scenarios', off: !ready },
     { id: 'sources', label: 'Sources', to: '/connect', extra: broken ? <span className="rdot" role="img" aria-label="needs attention" /> : null },
   ];
@@ -125,7 +128,7 @@ function NavMenu({ open, onToggle, onClose, label, count, children }: { open: bo
       <div className="navm" ref={ref}>
         <button type="button" className="cap glass navsum" aria-expanded={open} aria-haspopup="true" onClick={onToggle}>
           {label}
-          {count != null && count > 0 && <small className="t12 tnum" style={{ fontWeight: 500 }}>{fmtInt(count)}</small>}
+          {count != null && count > 0 && <small className="t12 tnum" style={{ fontWeight: 500 }} title={storiesText(count)}>{fmtInt(count)}</small>}
           <Icon name="expand" size={14} stroke={1.75} style={{ color: '#5F646C' }} />
         </button>
         {open && (

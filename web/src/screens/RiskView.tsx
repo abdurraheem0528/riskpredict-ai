@@ -13,7 +13,7 @@ import { useDismiss } from '../app/TopBar';
 import { navigate } from '../lib/router';
 import { CATEGORIES, KINDS, LEVELS, levelOf, ago, fmtDate, feedName, outOf5, plural } from '../lib/format';
 import { placeOf, countryName, portName } from '../map/geo';
-import { useMap, fitTo, sheetPadding } from '../map/MapRoot';
+import { useMap, fitTo, sheetPadding, reducedMotion } from '../map/MapRoot';
 import { DotsLayer, EntitiesLayer, RiskPlacesLayer } from '../map/layers';
 import { usePlaced, useGazetteer } from '../map/data';
 import { Icon } from '../ui/Icon';
@@ -320,7 +320,7 @@ function HowScored({ explain }: { explain: NonNullable<RiskDetail['factors']['ex
   const m = explain.matched;
   const via = m.inferred_from ? inferredText(m.inferred_from) : null;
   return (
-    <details className="how">
+    <details className="how" onToggle={(e) => e.currentTarget.open && revealInSheet(e.currentTarget)}>
       <summary>
         <span className="lbl">How this was scored</span>
         <Icon name="chev" size={14} stroke={2} className="chev" />
@@ -342,6 +342,25 @@ function HowScored({ explain }: { explain: NonNullable<RiskDetail['factors']['ex
       ))}
     </details>
   );
+}
+
+/**
+ * Scrolls the sheet body so an opened section is in view above the sticky action bar:
+ * all of it when it fits, else its top. Only the sheet scrolls, never the page.
+ */
+export function revealInSheet(el: HTMLElement) {
+  const box = el.closest('.sbody');
+  if (!box) return;
+  // After layout, so the opened content has its height.
+  requestAnimationFrame(() => {
+    const b = box.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const fade = 28; // the action bar's fade (.sfoot::before) plus a little air
+    let dy = 0;
+    if (r.bottom > b.bottom - fade) dy = r.bottom - (b.bottom - fade);
+    if (r.top - dy < b.top + 8) dy = r.top - (b.top + 8);
+    if (dy > 0) box.scrollBy({ top: dy, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  });
 }
 
 function inferredText(via: string) {

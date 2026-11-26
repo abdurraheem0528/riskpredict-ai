@@ -117,11 +117,11 @@ export function JumpTo({ onClose }: { onClose: () => void }) {
                   r.go();
                 }}
               >
-                <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
-                  {r.hint && <small style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.hint}</small>}
+                <span className="mt">
+                  <span title={r.label}>{r.label}</span>
+                  {r.hint && <small title={r.hint}>{r.hint}</small>}
                 </span>
-                <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flex: 'none' }}>
                   {r.pill != null && <span className={`pill sm l-${levelOf(r.pill)}`}>{scoreText(r.pill)}</span>}
                   {i === sel && <span className="kbd">↵</span>}
                 </span>

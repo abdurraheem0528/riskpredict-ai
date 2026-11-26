@@ -41,8 +41,11 @@ guessing.
 | Output directory | `dist` |
 | Environment variable | `VITE_API_URL=https://<api host>` |
 
-`public/_redirects` sends every path to `index.html` (client-side routes) and
-`public/_headers` sets security headers and long caching for hashed assets. Set the API's
+`public/_redirects` sends `/sources` to `/connect` and every other path to `index.html`
+(client-side routes). `public/_headers` sets security headers (a Content-Security-Policy,
+HSTS) and long caching for hashed assets; the build writes `dist/_headers` with the origin of
+`VITE_API_URL` in the policy's `connect-src`, and `vite preview` (the e2e server) serves
+the same headers, so Playwright runs every screen under the production policy. Set the API's
 `WEB_ORIGIN` to the Pages URL so CORS and the Google/Composio redirects come back here.
 
 ## How it fits together

@@ -6,7 +6,7 @@ import { server } from '../setup';
 import { App, makeQueryClient } from '../../src/App';
 import { __resetAuth } from '../../src/api/auth';
 import { handlers } from '../fixtures/handlers';
-import { API, PENDING, WS, risks } from '../fixtures/data';
+import { API, PENDING, WS, entities, risks, summary } from '../fixtures/data';
 
 function boot(path: string, signedIn = true) {
   localStorage.clear();
@@ -56,11 +56,29 @@ describe('screens', () => {
     const first = await screen.findByRole('button', { name: /Name matches a sanctions entry/ });
     expect(first).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('.figxl')).toHaveTextContent('81');
-    expect(screen.getByText('6 open risks')).toBeInTheDocument();
+    // the headline counts stories (story_count); risks only when they differ
+    expect(screen.getByText('6 open stories')).toBeInTheDocument();
     // one story that reaches two entities is one row, naming the first and counting the rest
     expect(screen.getByText('Yantian to Rotterdam and 1 more')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open risk' })).toHaveAttribute('href', `/risks/${risks[0].id}`);
     expect(document.querySelectorAll('.b.pri')).toHaveLength(1);
+  });
+
+  it('Main: open stories first, then the entity × story risks', async () => {
+    server.use(http.get(`${API}/v1/risks/summary`, () => HttpResponse.json({ ...summary, story_count: 41, open_count: 66 })));
+    boot('/');
+    expect(await screen.findByText('41 open stories')).toBeInTheDocument();
+    expect(screen.getByText('66 risks')).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByTitle('41 open stories')).toHaveTextContent('41');
+  });
+
+  it('Register: filtered to one entity, it names the entity', async () => {
+    const e = entities.find((x) => x.name === 'Lumen Display Co')!;
+    boot(`/register?entity=${e.id}`);
+    expect(await screen.findByTitle('Lumen Display Co')).toHaveTextContent('Lumen Display Co');
+    expect(screen.queryByText('One entity')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Show all' })).toHaveAttribute('href', '/register');
   });
 
   it('Main: an empty register says so', async () => {
@@ -152,6 +170,19 @@ describe('screens', () => {
     expect(document.querySelector('.lvl')).toHaveTextContent(/^High$/);
     expect(screen.getByText('+11 from today')).toBeInTheDocument();
     expect(box.sent?.inputs.shocks[0]).toMatchObject({ type: 'event', chokepoints: ['bab_el_mandeb'] });
+  });
+
+  it('Sources: /sources opens Connect; no step count once a source is live', async () => {
+    boot('/sources');
+    expect(await screen.findByRole('heading', { name: 'Connect a source' })).toBeInTheDocument();
+    expect(await screen.findByText('Connected · live')).toBeInTheDocument();
+    expect(screen.queryByText('Step 1 of 3')).not.toBeInTheDocument();
+  });
+
+  it('Connect: the step count shows during the first connect flow', async () => {
+    server.use(...handlers('new'));
+    boot('/connect');
+    expect(await screen.findByText('Step 1 of 3')).toBeInTheDocument();
   });
 
   it('Connect: tools come from the API', async () => {
