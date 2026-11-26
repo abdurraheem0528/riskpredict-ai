@@ -2030,6 +2030,7 @@ components:
             method: {type: string, enum: [noisy_or]}
             value: {type: number}
             capped_from: {type: number, description: "Present when a market-only risk was capped (risk-engine.md §5.9): the likelihood before the cap"}
+            decay: {type: number, description: "Engine 1.3.0+: each further item (strongest first) counts this times the one before (risk-engine.md §5.6); absent means 1"}
             items:
               type: array
               items:
@@ -2041,6 +2042,7 @@ components:
                   recency: {type: number}
                   match_confidence: {type: number}
                   contribution: {type: number}
+                  weight: {type: number, description: "Engine 1.3.0+: decay^(rank−1), the share of this item's contribution that counts"}
         impact:
           type: object
           required: [value, criticality, criticality_weight, exposure_share, exposure_norm, category_multiplier]
@@ -2154,6 +2156,7 @@ components:
         unit: {type: [string, "null"]}
         inferred_from: {type: [string, "null"], description: "Chokepoint evidence of a supplier, site or port: what the chokepoint was inferred from (see `RiskFactors.explain`)"}
         supported_by: {type: [object, "null"], description: "The commodity match that strengthened this item's match, as in `RiskFactors.explain`"}
+        central: {type: [string, "null"], enum: [title, first_place, null], description: "Engine 1.3.0+, country matches of news: why the country counts as central to the article (risk-engine.md §5.10)"}
     RiskSummary:
       type: object
       required: [open_count, story_count, by_category, stories_by_category, by_status, max_score, top, last_scored_at, feeds_as_of]

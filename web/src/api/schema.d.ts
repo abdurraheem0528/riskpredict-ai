@@ -1364,12 +1364,16 @@ export interface components {
                 value: number;
                 /** @description Present when a market-only risk was capped (risk-engine.md §5.9): the likelihood before the cap */
                 capped_from?: number;
+                /** @description Engine 1.3.0+: each further item (strongest first) counts this times the one before (risk-engine.md §5.6); absent means 1 */
+                decay?: number;
                 items: {
                     evidence_key: string;
                     signal: number;
                     recency: number;
                     match_confidence: number;
                     contribution: number;
+                    /** @description Engine 1.3.0+: decay^(rank−1), the share of this item's contribution that counts */
+                    weight?: number;
                 }[];
             };
             impact: {
@@ -1475,6 +1479,11 @@ export interface components {
             inferred_from?: string | null;
             /** @description The commodity match that strengthened this item's match, as in `RiskFactors.explain` */
             supported_by?: Record<string, never> | null;
+            /**
+             * @description Engine 1.3.0+, country matches of news: why the country counts as central to the article (risk-engine.md §5.10)
+             * @enum {string|null}
+             */
+            central?: "title" | "first_place" | null;
         };
         RiskSummary: {
             /** @description open + acknowledged + mitigating */
