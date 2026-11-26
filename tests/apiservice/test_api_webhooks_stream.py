@@ -215,3 +215,23 @@ def test_stream_delivers_worker_events_and_resumes(live_server, settings):
     assert [m.event for m in replay] == ["resync"]
     _, replay = hub.subscribe(me["workspace_id"], "123-1")  # an id from before a restart
     assert [m.event for m in replay] == ["resync"] and replay[0].data == {}
+
+
+def test_internal_endpoints_loopback_only_in_one_container(settings, owner_db, fake_http):
+    """INTERNAL_LOOPBACK_ONLY (Render: API and worker share a container with a public port)."""
+    import dataclasses
+
+    from fastapi.testclient import TestClient
+
+    from api.main import create_app
+
+    loopback_only = dataclasses.replace(settings, internal_loopback_only=True)
+    ok = {"Authorization": f"Bearer {settings.internal_token}"}
+    app = create_app(loopback_only)  # one app per client: each opens and closes its own pool
+    with TestClient(app, base_url="https://api.example.test", client=("203.0.113.7", 5000)) as outside:
+        assert outside.get("/internal/work?wait=0", headers=ok).status_code == 404
+        assert outside.post("/internal/events", json={"events": []}, headers=ok).status_code == 404
+        assert outside.get("/healthz").status_code == 200
+    with TestClient(create_app(loopback_only), base_url="http://127.0.0.1:10000", client=("127.0.0.1", 5000)) as inside:
+        assert inside.get("/internal/work?wait=0", headers=ok).json() == {"items": []}
+        assert inside.get("/internal/work?wait=0").status_code == 401  # the token is still required

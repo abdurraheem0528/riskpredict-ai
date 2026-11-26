@@ -1,9 +1,16 @@
 # worker
 
-Background worker (runs on Northflank): source syncs, Drive watch renewal, risk-engine
-runs per workspace ([`docs/contracts/risk-engine.md`](../docs/contracts/risk-engine.md)),
-Groq advice wording, alerts, and SSE events pushed to the API. Connects as an `rp_app`
-login. One process, no Redis, no web server.
+Background worker: source syncs, Drive watch renewal, risk-engine runs per workspace
+([`docs/contracts/risk-engine.md`](../docs/contracts/risk-engine.md)), Groq advice wording,
+alerts, and SSE events pushed to the API. Connects as an `rp_app` login. One process, no
+Redis, no web server.
+
+**Where it runs:** on Render, **inside the API's container** (one free web service;
+Render's background workers are paid). `infra/render/start.sh` starts `python -m worker`
+in the background with `API_INTERNAL_URL=http://127.0.0.1:$PORT` and execs uvicorn; if
+either process stops, the container exits and Render restarts it. With `docker compose`
+it is still its own container (`worker/Dockerfile`, `API_INTERNAL_URL=http://api:8000`).
+See [`infra/README.md`](../infra/README.md).
 
 ```bash
 pip install -r worker/requirements.txt

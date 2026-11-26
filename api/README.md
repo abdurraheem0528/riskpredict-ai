@@ -1,6 +1,7 @@
 # api
 
-FastAPI service for business data (runs on Northflank). Implements
+FastAPI service for business data (on Render, in one container with the worker:
+[`infra/README.md`](../infra/README.md)). Implements
 [`docs/contracts/openapi.yaml`](../docs/contracts/openapi.yaml) against the `biz` schema
 as an `rp_app` login ([`docs/database-roles.md`](../docs/database-roles.md)).
 
@@ -57,7 +58,10 @@ uvicorn api.main:app --port 8000 --no-access-log
 * **Neon (10).** Pool `min_size=0`, idle connections closed after 60 s, no LISTEN/NOTIFY.
   `/v1/health` reads nothing; the schema version is read once at startup. SSE is fed from
   memory by the worker's `POST /internal/events`; the worker's long poll
-  (`GET /internal/work`) waits in memory too.
+  (`GET /internal/work`) waits in memory too. `GET /healthz` (outside the `/v1` contract)
+  is the platform and keep-awake check: no database, no settings, just `{"status":"ok"}`.
+  With `INTERNAL_LOOPBACK_ONLY=true` (the Render image) `/internal/*` answers 404 to
+  anyone but `127.0.0.1`/`::1`, because API and worker share one public port there.
 * **Logs (12).** Method, route template, status and time only. Uvicorn's access log is off
   because URLs can carry the stream ticket or the OAuth code.
 

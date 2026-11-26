@@ -229,6 +229,11 @@ def test_health_needs_no_auth_and_no_database_query(client):
     assert r.json()["schema_version"] >= "007_biz_lookups"
 
 
+def test_healthz_is_minimal_and_needs_no_auth(client):
+    r = client.get("/healthz")
+    assert r.status_code == 200 and r.json() == {"status": "ok"}
+
+
 def test_workspace_delete_removes_everything(client, owner_db):
     from test_api_isolation import seed_workspace
 

@@ -1,4 +1,4 @@
-# Worker service (Northflank). No web framework: it talks to the API over HTTP.
+# Worker (inside the API container on Render; its own container with docker compose). No web framework: it talks to the API over HTTP.
 cryptography==50.0.2
 psycopg[binary,pool]==3.3.9
 psycopg-pool==3.3.3

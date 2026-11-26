@@ -81,6 +81,8 @@ class Settings:
     web_origin: str = ""
     public_api_url: str = ""
     api_internal_url: str = ""
+    # API and worker in one container (Render): /internal/* answers loopback callers only.
+    internal_loopback_only: bool = False
     google_client_id: str = ""
     google_client_secret: str = ""
     google_picker_api_key: str = ""
@@ -121,6 +123,7 @@ class Settings:
             web_origin=_env("WEB_ORIGIN").rstrip("/"),
             public_api_url=_env("PUBLIC_API_URL").rstrip("/"),
             api_internal_url=_env("API_INTERNAL_URL").rstrip("/"),
+            internal_loopback_only=_env("INTERNAL_LOOPBACK_ONLY").lower() in ("1", "true", "yes"),
             google_client_id=_env("GOOGLE_OAUTH_CLIENT_ID"),
             google_client_secret=_env("GOOGLE_OAUTH_CLIENT_SECRET"),
             google_picker_api_key=_env("GOOGLE_PICKER_API_KEY"),
