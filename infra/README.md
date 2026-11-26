@@ -63,8 +63,14 @@ with db-roles, so they never overlap.
 
 `RENDER_API_KEY` is no longer used and can be deleted.
 
-Optional repository **variables** (not secrets): `VERCEL_TEAM_ID` (only to deploy into a
-Vercel team instead of your personal account), `GROQ_MAPPING_MODEL`, `GROQ_ADVICE_MODEL`
+Deploy creates its own Vercel project, `riskpredict-api`, deployed only from Actions. A
+project you may have imported from GitHub in the Vercel dashboard (e.g. `riskpredict-ai`,
+which builds every push as a preview) is not used by anything here; you can delete it or
+disconnect its Git repository so it does not use your Hobby build minutes.
+
+Optional repository **variables** (not secrets): `VERCEL_TEAM_ID` (only to use a Vercel
+team other than the token's default one; a Hobby account's default team is its own,
+"<name>'s projects", and that is what Deploy uses), `GROQ_MAPPING_MODEL`, `GROQ_ADVICE_MODEL`
 (Groq model ids; without them column mapping is manual and advice uses the engine's
 templates).
 

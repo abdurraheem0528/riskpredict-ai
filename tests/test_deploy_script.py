@@ -117,6 +117,8 @@ class FakeVercel:
         p = path.split("?")[0]
         self.calls.append((method, p))
         by_name = {v["name"]: v for v in self.projects.values()}
+        if method == "GET" and p == "/v2/user":
+            return 200, {"user": {"id": "user_me", "defaultTeamId": "team_me"}}
         if method == "GET" and (m := re.fullmatch(r"/v9/projects/([\w-]+)", p)):
             proj = self.projects.get(m.group(1)) or by_name.get(m.group(1))
             return (200, proj) if proj else (404, None)
@@ -325,6 +327,12 @@ def test_worker_run_passes_only_the_worker_keys_masked(d, fake, monkeypatch, cap
     assert "JWT_SIGNING_KEY" not in child and "VERCEL_TOKEN" not in child and "WEB_ORIGIN" not in child
     for v in (stored["DATABASE_URL_APP"], stored["TOKEN_ENCRYPTION_KEYS"], "cmp-secret", stored["GROQ_API_KEY"]):
         assert f"::add-mask::{v}" in out and out.count(v) == 1
+
+
+def test_calls_are_scoped_to_the_default_team_unless_one_is_set(d, fake, monkeypatch):
+    assert d.vercel().query == {"teamId": "team_me"}  # the Hobby account's own team
+    monkeypatch.setenv("VERCEL_TEAM_ID", "team_other")
+    assert d.vercel().query == {"teamId": "team_other"}
 
 
 def test_worker_run_skips_cleanly_before_the_first_deploy(d, fake, monkeypatch, capsys):

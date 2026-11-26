@@ -14,8 +14,8 @@ and no secret value is ever printed, written to $GITHUB_OUTPUT or to a file.
     python infra/scripts/deploy.py worker-run                   # python -m worker --once, env from Vercel
 
 Environment (only what each command needs):
-    VERCEL_TOKEN (and VERCEL_TEAM_ID only if the token sees a team you want instead of
-    your personal account), CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+    VERCEL_TOKEN (and VERCEL_TEAM_ID only to use a team other than the token's default
+    one), CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
     DATABASE_URL_OWNER, GROQ_API_KEY, the optional Google / Composio secrets.
 
 **Where the API's secrets live: only in the Vercel project's environment.** Deploy
@@ -328,8 +328,17 @@ def wait_healthy(url: str, timeout: float = 4 * 60) -> dict:
 
 
 def vercel() -> Api:
+    """The Vercel API, scoped to VERCEL_TEAM_ID or else the token's default team (Hobby
+    accounts are a personal team, e.g. "<name>'s projects"), so every call and the CLI
+    work in one place."""
+    api = Api(VERCEL_API, env("VERCEL_TOKEN", required=True), "Vercel")
     team = env("VERCEL_TEAM_ID")
-    return Api(VERCEL_API, env("VERCEL_TOKEN", required=True), "Vercel", {"teamId": team} if team else None)
+    if not team:
+        _, me = api.call("GET", "/v2/user")
+        team = str(((me or {}).get("user") or {}).get("defaultTeamId") or "")
+    if team:
+        api.query = {"teamId": team}
+    return api
 
 
 def find_project(api: Api) -> dict | None:
