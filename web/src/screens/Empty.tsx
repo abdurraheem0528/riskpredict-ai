@@ -1,14 +1,13 @@
 // design/project/Empty.dc.html — a new workspace. The grey dots are real feed events
 // (GET /v1/map/events), and the legend's feed count comes from GET /v1/feeds/health.
-import { useMemo } from 'react';
 import { useFeedHealth, useMapEvents, useProviders, type Source } from '../api/queries';
 import { useSession, canEdit } from '../app/Session';
 import { navigate } from '../lib/router';
 import { feedSummary } from '../lib/feeds';
 import { fmtInt } from '../lib/format';
-import { SignalsLayer, Pulses } from '../map/layers';
+import { FeedDots } from '../live/FeedDots';
 import { FeedStatus } from '../ui/parts';
-import { usePlaced, topSignals } from '../map/data';
+import { usePlaced } from '../map/data';
 
 export function Empty({ pending, hasConnection }: { pending: Source | null; hasConnection: boolean }) {
   const { workspace, role } = useSession();
@@ -16,7 +15,6 @@ export function Empty({ pending, hasConnection }: { pending: Source | null; hasC
   const health = useFeedHealth();
   const providers = useProviders();
   const placed = usePlaced(events.data);
-  const pulses = useMemo(() => topSignals(placed?.fc ?? null), [placed]);
   const feeds = feedSummary(health.data);
   const tools = (providers.data?.items ?? []).filter((p) => p.available).map((p) => p.name);
   const step = pending ? 2 : 1;
@@ -30,8 +28,7 @@ export function Empty({ pending, hasConnection }: { pending: Source | null; hasC
 
   return (
     <>
-      <SignalsLayer data={placed?.fc ?? null} />
-      <Pulses points={pulses} />
+      <FeedDots data={placed?.fc ?? null} />
       <section className="card glass" aria-label="Set up your workspace">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span className="lbl">{workspace.name} · new workspace</span>

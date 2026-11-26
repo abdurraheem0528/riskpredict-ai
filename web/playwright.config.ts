@@ -16,6 +16,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'off',
+    // Screenshots stay stable: no rotation, flow, ripples or count-ups. tests/e2e/live.spec.ts
+    // turns motion back on to check the live sequence.
+    reducedMotion: 'reduce',
     launchOptions: {
       ...(chromium ? { executablePath: chromium } : {}),
       // WebGL in headless Chromium without a GPU

@@ -1,1 +1,88 @@
-/* Live motion: ripple, caption, pulse, live dot, row enter/leave/flash, sparkline, view transitions (part D). Tokens only. */
+/* Live motion (src/live): the map effects of a matched risk, the live dot, the list's
+   enter / leave / flash, the sparkline and the View Transitions between the list and a risk.
+   Tokens only (styles.css). A hidden tab pauses every animation (html.rp-hidden). */
+
+/* --- map effects: HTML markers; MapLibre owns the root's opacity, so animation is on the child --- */
+.rp-fx { pointer-events: none; }
+.rp-ripple, .rp-pulse { position: relative; display: block; width: 0; height: 0; }
+.rp-ripple i, .rp-pulse i { position: absolute; left: 0; top: 0; box-sizing: border-box; border-radius: 50%; transform: translate(-50%, -50%); }
+.rp-ripple i { border: 1px solid var(--ink); animation: rp-ripple 1.2s var(--ease) both; }
+.rp-ripple i + i { animation-delay: 250ms; }
+@keyframes rp-ripple {
+  from { width: 4px; height: 4px; opacity: 0; }
+  10% { opacity: 0.45; }
+  to { width: 44px; height: 44px; opacity: 0; }
+}
+.rp-pulse i { border: 1.5px solid var(--c, var(--med-fill)); animation: rp-pulse 900ms var(--ease) both; }
+@keyframes rp-pulse {
+  from { width: 10px; height: 10px; opacity: 0.9; }
+  to { width: 36px; height: 36px; opacity: 0; }
+}
+
+/* the caption beside a signal: glass, 28 px high */
+.rp-cap {
+  display: flex; align-items: center; gap: 6px; height: 28px; max-width: 280px; padding: 0 10px; box-sizing: border-box;
+  border-radius: 14px; background: var(--glass); color: var(--ink);
+  -webkit-backdrop-filter: saturate(180%) blur(16px); backdrop-filter: saturate(180%) blur(16px);
+  box-shadow: var(--sh-sm), var(--glass-hi);
+  font: 400 12px/16px var(--font); white-space: nowrap;
+  animation: rp-cap-in var(--d2) var(--ease) both;
+}
+.rp-cap b { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rp-cap span { flex: none; color: var(--tx2); }
+.rp-cap.out { animation: rp-cap-out var(--d3) var(--ease) forwards; }
+@keyframes rp-cap-in { from { opacity: 0; translate: 0 3px; } }
+@keyframes rp-cap-out { to { opacity: 0; } }
+
+/* --- the live dot: breathes while scores are live; still when hidden, stale or reduced --- */
+.rp-live { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--live-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rp-live > i { width: 8px; height: 8px; border-radius: 4px; background: var(--live); flex: none; animation: rp-breathe 2.4s ease-in-out infinite; }
+.rp-live.still { color: var(--tx2); }
+.rp-live.still > i { animation: none; }
+.rp-live.off { color: var(--tx2); }
+.rp-live.off > i { animation: none; background: var(--off); }
+@keyframes rp-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.7); opacity: 0.45; } }
+
+/* --- the list: rows enter, leave and flash; FLIP sets transform inline --- */
+.rp-rows { position: relative; }
+.rp-enter { animation: rp-enter var(--d3) var(--ease) both; }
+@keyframes rp-enter { from { opacity: 0; translate: -10px 0; } }
+.rp-leave { animation: rp-leave 220ms var(--ease) forwards; pointer-events: none; }
+@keyframes rp-leave { to { opacity: 0; translate: 0 6px; } }
+[data-lvl='low'] { --fl: var(--low-tint); }
+[data-lvl='med'] { --fl: var(--med-tint); }
+[data-lvl='high'] { --fl: var(--high-tint); }
+[data-lvl='crit'] { --fl: var(--crit-tint); }
+/* only the middle is given: it starts from and returns to the row's own background */
+.rp-flash { animation: rp-flash 1.4s var(--ease); }
+@keyframes rp-flash { 10%, 40% { background-color: var(--fl); } }
+
+/* --- sparkline on the top-story card --- */
+.rp-spark { flex: none; display: block; overflow: visible; --c: var(--med-fill); }
+.rp-spark[data-lvl='low'] { --c: var(--low-fill); }
+.rp-spark[data-lvl='high'] { --c: var(--high-fill); }
+.rp-spark[data-lvl='crit'] { --c: var(--crit-fill); }
+.rp-spark .ln { fill: none; stroke: var(--c); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.rp-spark .ar { fill: var(--c); fill-opacity: 0.12; stroke: none; }
+.rp-spark .bl { stroke: var(--rule); stroke-width: 1; }
+.rp-spark .dt { fill: var(--c); stroke: var(--solid); stroke-width: 1.5; }
+
+/* --- View Transitions: list ↔ risk. The page itself is not captured, so the live map keeps
+   drawing underneath; only the sheet and the risk's title are (names set from JS). --- */
+:root { view-transition-name: none; }
+::view-transition-group(risk-title),
+::view-transition-old(risk-title),
+::view-transition-new(risk-title) { animation-duration: var(--d3); animation-timing-function: var(--ease); }
+::view-transition-old(risk-title), ::view-transition-new(risk-title) { height: 100%; object-fit: none; object-position: left top; }
+::view-transition-group(rp-sheet) { animation-duration: var(--d2); animation-timing-function: var(--ease); }
+::view-transition-old(rp-sheet) { animation: rp-vt-out var(--d1) var(--ease) both; }
+::view-transition-new(rp-sheet) { animation: rp-vt-in var(--d2) var(--ease) both; }
+:root[data-vt-dir='back']::view-transition-new(rp-sheet) { animation-name: rp-vt-in-back; }
+@keyframes rp-vt-out { to { opacity: 0; } }
+@keyframes rp-vt-in { from { opacity: 0; transform: translateX(12px); } }
+@keyframes rp-vt-in-back { from { opacity: 0; transform: translateX(-12px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-live > i, .rp-ripple i, .rp-pulse i, .rp-cap, .rp-enter, .rp-leave, .rp-flash { animation: none !important; }
+  .rp-ripple, .rp-pulse { display: none; }
+}

@@ -1,9 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getAuthStatus, refresh, subscribeAuth } from '../api/auth';
 import { getWorkspaceId, setWorkspaceId, subscribeWorkspace } from '../api/workspace';
 import { applyStreamEvent, useMe, type S } from '../api/queries';
-import { LiveStream, type StreamStatus } from '../api/stream';
+import { LiveStream, type StreamEventName, type StreamEvents, type StreamStatus } from '../api/stream';
+import { useMap } from '../map/MapRoot';
+import { LivePlayer } from '../live/player';
+import type { FxMap } from '../live/effects';
 
 type Ctx = {
   user: S['User'];
@@ -63,13 +66,26 @@ export function SessionProvider({
     if (chosen && chosen.workspace.id !== wsId) setWorkspaceId(chosen.workspace.id);
   }, [chosen, wsId]);
 
+  // The live sequence draws on the map (ripples, lines, pulses) when there is one.
+  const { map, lib } = useMap();
+  const fx = useRef<FxMap | null>(null);
+  useEffect(() => {
+    fx.current = map && lib ? { map, lib } : null;
+  }, [map, lib]);
+
   const activeId = chosen?.workspace.id ?? null;
   useEffect(() => {
     if (!activeId) return;
-    // Polls GET /v1/events while the tab is visible; a resync refetches everything.
-    const s = new LiveStream(activeId, (name, data) => applyStreamEvent(qc, activeId, name, data), setStream);
+    // Polls GET /v1/events while the tab is visible; a resync refetches everything. Each
+    // poll's events go to the player, which applies them at once or after their sequence.
+    const apply = <K extends StreamEventName>(name: K, data: StreamEvents[K]) => applyStreamEvent(qc, activeId, name, data);
+    const player = new LivePlayer({ qc, ws: activeId, getMap: () => fx.current, apply });
+    const s = new LiveStream(activeId, apply, setStream, document, (b) => player.handle(b));
     s.start();
-    return () => s.stop();
+    return () => {
+      s.stop();
+      player.stop();
+    };
   }, [activeId, qc]);
 
   if (me.isPending) return <>{loading}</>;

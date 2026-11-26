@@ -12,8 +12,15 @@ import { useSession, canEdit } from '../app/Session';
 import { navigate, useLocation } from '../lib/router';
 import { CATEGORIES, LEVELS, levelOf, ago, plural, signed, scoreText, type RiskCategory } from '../lib/format';
 import { countryName, placeOf } from '../map/geo';
-import { useMap, fitTo, sheetPadding } from '../map/MapRoot';
-import { DotsLayer, EntitiesLayer } from '../map/layers';
+import { useMap } from '../map/MapRoot';
+import { sheetPadding, useFit, boxOfPoints, type LonLat } from '../map/camera';
+import { DotsLayer } from '../map/layers';
+import { EntityMap } from '../map/EntityLayers';
+import { Chokepoints } from '../map/Chokepoints';
+import { MapControls } from '../map/MapControls';
+import { Legend } from '../map/Legend';
+import { slotId } from '../map/slots';
+import { usePalette } from '../lib/theme';
 import { usePlaced, useGazetteer } from '../map/data';
 import { Icon } from '../ui/Icon';
 import { ErrorState, SkeletonRows } from '../ui/parts';
@@ -145,7 +152,6 @@ export function Scenario() {
   const res = result?.results ?? null;
   const affectedIds = useMemo(() => new Set(res?.changes.map((c) => c.entity_id) ?? []), [res]);
   const affected = useMemo(() => (placed ? { ...placed.fc, features: placed.fc.features.filter((f) => affectedIds.has(f.properties._id)) } : null), [placed, affectedIds]);
-  const others = useMemo(() => (placed ? { ...placed.fc, features: placed.fc.features.filter((f) => !affectedIds.has(f.properties._id)) } : null), [placed, affectedIds]);
   const shockAt = useMemo<[number, number] | null>(() => {
     if (!ready) return null;
     if (kind === 'route') return cp?.at ?? null;
@@ -158,14 +164,12 @@ export function Scenario() {
     [shockAt],
   );
   const { map } = useMap();
-  useEffect(() => {
-    if (!map) return;
-    const pts = [...(shockAt ? [shockAt] : []), ...((affected?.features ?? []).map((f) => f.geometry.coordinates as [number, number]))];
-    if (!pts.length) return;
-    let w = 180, s = 90, e = -180, n = -90;
-    for (const [x, y] of pts) { w = Math.min(w, x); e = Math.max(e, x); s = Math.min(s, y); n = Math.max(n, y); }
-    fitTo(map, [[w, s], [e, n]], sheetPadding('right', 400), 4);
-  }, [map, shockAt, affected]);
+  const P = usePalette();
+  const box = useMemo(
+    () => boxOfPoints([...(shockAt ? [shockAt] : []), ...((affected?.features ?? []).map((f) => f.geometry.coordinates as LonLat))]),
+    [shockAt, affected],
+  );
+  useFit(map, box, () => sheetPadding('right', 400), 4);
 
   const editor = canEdit(role);
   const loadingLists = entities.isPending || disruptions.isPending;
@@ -175,9 +179,10 @@ export function Scenario() {
   return (
     <>
       <CountryShade iso={kind === 'country' ? country : null} />
-      <EntitiesLayer id="sc-others" data={others} muted />
-      <EntitiesLayer id="sc-affected" data={affected} labels="names" />
-      <DotsLayer id="sc-shock" data={shockFc} color="#DD6248" radius={6} />
+      {/* who it reaches stays bright; pills, heat and tint would show today's scores, not the what-if's */}
+      <EntityMap data={placed?.fc ?? null} dimmed={res ? affectedIds : null} pills={0} heat={false} tint={false} />
+      <Chokepoints />
+      <DotsLayer id="sc-shock" data={shockFc} color={P.high} radius={6} />
 
       <aside className="sheet right split glass" aria-label="What if">
         <Grab />
@@ -185,7 +190,7 @@ export function Scenario() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span className="lbl">What if</span>
           <h1 className="h2">{spec?.title ?? 'Pick an event'}</h1>
-          <span style={{ fontSize: 14, lineHeight: '20px', color: '#5F646C' }}>{spec?.sub ?? 'Choose what happens, then run it against your entities.'}</span>
+          <span className="t14">{spec?.sub ?? 'Choose what happens, then run it against your entities.'}</span>
         </div>
 
         <div className="opts" role="radiogroup" aria-label="Event">
@@ -297,11 +302,8 @@ export function Scenario() {
         </div>
       </aside>
 
-      <div className="legend left glass">
-        <span className="k"><span className="sw" style={{ background: '#DD6248' }} />Where it happens</span>
-        <span className="k"><span className="sw" style={{ background: '#141518' }} />Affected</span>
-        <span className="k"><span className="sw" style={{ background: '#A3A7AE' }} />Not affected</span>
-      </div>
+      <MapControls fit={box} fitLabel="Fit this what-if" side="right" sheet={400} />
+      <Legend side="right" sheet={400} marks={['shock', 'lane', 'choke']} />
     </>
   );
 }
@@ -335,11 +337,11 @@ function Results({ result, running }: { result: ScenarioT | null; running: boole
   const topToday = baseline.most_exposed;
   return (
     <>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 14, borderTop: '1px solid rgba(20,21,24,0.07)' }}>
+      <div className="ruled" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span className="lbl">Risk index</span>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <span className="tnum" style={{ fontSize: 28, lineHeight: '32px', fontWeight: 600, letterSpacing: '-0.02em', color: '#A3A7AE' }}>{fig(baseline.portfolio_score)}</span>
-          <svg width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="#5F646C" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 7h15M12 2l5 5-5 5" /></svg>
+          <span className="tnum tx-off" style={{ fontSize: 28, lineHeight: '32px', fontWeight: 600, letterSpacing: '-0.02em' }}>{fig(baseline.portfolio_score)}</span>
+          <svg className="t13" width="20" height="14" viewBox="0 0 20 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 7h15M12 2l5 5-5 5" /></svg>
           <span className="tnum" style={{ fontSize: 40, lineHeight: '44px', fontWeight: 600, letterSpacing: '-0.03em' }}>{fig(scenario.portfolio_score)}</span>
           <span className={`lvl l-${lvl}`}>{LEVELS[lvl].name}</span>
           <span className="t12 tnum">{delta === 0 ? 'no change' : `${signed(delta, digits)} from today`}</span>
@@ -368,7 +370,7 @@ function Results({ result, running }: { result: ScenarioT | null; running: boole
         {changes.slice(0, 3).map((c) => (
           <div className="rw" key={c.fingerprint}>
             <span style={{ fontSize: 14, lineHeight: '20px', fontWeight: 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.entity_name}</span>
-            <span className="tnum" style={{ fontSize: 13, lineHeight: '18px', fontWeight: 500, color: c.delta > 0 ? LEVELS[levelOf(c.scenario_score ?? 0)].text : '#5F646C', whiteSpace: 'nowrap' }}>
+            <span className={`tnum ${c.delta > 0 ? `tx-${levelOf(c.scenario_score ?? 0)}` : 't13'}`} style={{ fontSize: 13, lineHeight: '18px', fontWeight: 500, whiteSpace: 'nowrap' }}>
               {c.baseline_score == null ? `new, ${scoreText(c.scenario_score)}` : `${scoreText(c.baseline_score)} → ${scoreText(c.scenario_score)}`}
             </span>
           </div>
@@ -399,16 +401,19 @@ function SavedList({ items, current }: { items: S['ScenarioSummary'][]; current:
 /** Tint one country on the base map (uses the style's own `countries` source). */
 function CountryShade({ iso }: { iso: string | null }) {
   const { map } = useMap();
+  const P = usePalette();
   useEffect(() => {
     if (!map) return;
     const id = 'shock-country';
     try {
-      if (!map.getLayer(id)) map.addLayer({ id, type: 'fill', source: 'countries', paint: { 'fill-color': '#DD6248', 'fill-opacity': 0.12 }, filter: ['==', ['get', 'iso'], ''] }, 'coast');
+      if (!map.getLayer(id)) map.addLayer({ id, type: 'fill', source: 'countries', paint: { 'fill-color': P.high, 'fill-opacity': 0.12 * P.tintK }, filter: ['==', ['get', 'iso'], ''] }, map.getLayer(slotId('tint')) ? slotId('tint') : undefined);
+      map.setPaintProperty(id, 'fill-color', P.high);
+      map.setPaintProperty(id, 'fill-opacity', 0.12 * P.tintK);
       map.setFilter(id, ['==', ['get', 'iso'], iso ?? '']);
     } catch {
       /* style not ready */
     }
-  }, [map, iso]);
+  }, [map, iso, P]);
   useEffect(() => () => {
     try {
       if (map?.getLayer('shock-country')) map.removeLayer('shock-country');

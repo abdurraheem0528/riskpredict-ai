@@ -160,6 +160,15 @@ export function useRisk(ws: string, id: string | null) {
   });
 }
 
+/** The risk's detail, fresh from the API (the live sequence reads its evidence), into the same cache entry. */
+export function fetchRiskDetail(qc: QueryClient, ws: string, id: string): Promise<RiskDetail> {
+  return qc.fetchQuery({
+    queryKey: [ws, 'risk', id],
+    staleTime: 0,
+    queryFn: () => unwrap(api.GET('/v1/risks/{risk_id}', { params: { header: wsh(ws), path: { risk_id: id } } })),
+  });
+}
+
 export function useSeries(series: string | null, key: string | null) {
   return useQuery({
     queryKey: ['series', series, key],

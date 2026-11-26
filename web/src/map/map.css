@@ -1,1 +1,103 @@
 /* Map look: pills, markers, sites, chokepoints, legend, globe/flat toggle (part B). Tokens only: every colour is a var() from styles.css. */
+
+/* --- the map and the projection crossfade --- */
+.mapbox { background: var(--space); transition: background-color var(--d3) var(--ease); }
+.mapsnap { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; opacity: 0; visibility: hidden; }
+.mapsnap.on { opacity: 1; visibility: visible; }
+.mapsnap.on.out { opacity: 0; transition: opacity var(--d2) var(--ease); }
+.mapbox.zx .mk > * { opacity: 0 !important; transition: none !important; }
+
+/* --- HTML markers. MapLibre owns a marker root's opacity, so state classes go on the child. --- */
+.mk { pointer-events: none; }
+
+/* glass pill at a dot: the score in its level pill, then the city */
+.mpill {
+  display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 3px; box-sizing: border-box;
+  border: 0; border-radius: 15px; background: var(--glass); color: var(--ink);
+  -webkit-backdrop-filter: saturate(180%) blur(16px); backdrop-filter: saturate(180%) blur(16px);
+  box-shadow: var(--sh-sm), var(--glass-hi);
+  font: 600 13px/18px var(--font); white-space: nowrap; max-width: 220px; cursor: pointer;
+  opacity: 0; transform: scale(0.96); pointer-events: none;
+  transition: opacity var(--d2) var(--ease), transform var(--d2) var(--ease), box-shadow var(--d2) var(--ease);
+}
+.mpill.show { opacity: 1; transform: none; pointer-events: auto; }
+.mapbox:not(.zp) .mpill.show:not(.force) { opacity: 0; transform: scale(0.96); pointer-events: none; }
+.mpill.on { box-shadow: 0 0 0 2px var(--accent), var(--sh-sm); }
+.mpill .pn {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 24px; padding: 0 6px; box-sizing: border-box;
+  border-radius: 12px; font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; flex: none;
+}
+.mpill .pc { overflow: hidden; text-overflow: ellipsis; }
+
+/* sites: a 10 px rounded ink square with a land outline; the label from the pill zoom */
+.msite { position: relative; display: block; width: 10px; height: 10px; pointer-events: auto; }
+.msite i { position: absolute; inset: 0; border-radius: 2px; background: var(--ink); box-shadow: 0 0 0 1.5px var(--land); }
+.msite .slab {
+  position: absolute; left: 50%; top: 13px; transform: translateX(-50%);
+  font: 600 12px/16px var(--font); color: var(--ink); white-space: nowrap; pointer-events: none;
+  text-shadow: 0 0 2px var(--halo), 0 0 2px var(--halo), 0 0 4px var(--halo);
+  transition: opacity var(--d2) var(--ease);
+}
+.mapbox:not(.zp) .msite .slab { opacity: 0; }
+
+/* chokepoints: a diamond; watched or disrupted ones get a slow ring and a label */
+.mcp { position: relative; display: block; width: 8px; height: 8px; transition: opacity var(--d3) var(--ease); }
+.mapbox:not(.zd) .mcp { opacity: 0; }
+.mcp .dia { position: absolute; inset: 0; border-radius: 1px; background: var(--signal); transform: rotate(45deg); box-shadow: 0 0 0 1.5px var(--land); }
+.mcp.cp-on .dia { background: var(--med-fill); }
+.mcp.cp-hi .dia { background: var(--high-fill); }
+.mcp .ring {
+  position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; box-sizing: border-box;
+  border-radius: 50%; border: 1.5px solid var(--med-fill); opacity: 0; animation: rp-cp-ring 2.4s var(--ease) infinite;
+}
+.mcp.cp-hi .ring { border-color: var(--high-fill); }
+@keyframes rp-cp-ring { 0% { transform: scale(0.45); opacity: 0.75; } 100% { transform: scale(1.9); opacity: 0; } }
+.rp-hidden .mcp .ring { animation-play-state: paused; }
+.mcp .clab {
+  position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+  font: 600 11px/14px var(--font); color: var(--med-text); white-space: nowrap;
+  text-shadow: 0 0 2px var(--sea), 0 0 2px var(--sea), 0 0 4px var(--sea);
+  transition: opacity var(--d2) var(--ease);
+}
+.mcp.cp-hi .clab { color: var(--high-text); }
+.mapbox:not(.zp) .mcp .clab { opacity: 0; }
+
+/* --- map controls: one capsule at the bottom right --- */
+.mctl {
+  position: absolute; right: 20px; bottom: 20px; z-index: 3; display: flex; align-items: center; gap: 2px;
+  height: 48px; padding: 0 2px; box-sizing: border-box; border-radius: var(--r-cap);
+}
+.mseg { display: flex; gap: 2px; }
+.msb {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px; padding: 0 12px;
+  box-sizing: border-box; border: 0; border-radius: 22px; background: transparent; color: var(--tx2);
+  font: 500 13px/18px var(--font); cursor: pointer;
+  transition: background-color var(--d1) var(--ease), color var(--d1) var(--ease), box-shadow var(--d1) var(--ease);
+}
+.msb.ic { width: 44px; padding: 0; color: var(--ink); }
+.msb:hover { color: var(--ink); background: var(--hover); }
+.msb[aria-pressed='true'] { background: var(--seg-on); color: var(--ink); box-shadow: var(--seg-on-sh); }
+.msb:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; }
+.mvr { width: 1px; height: 20px; margin: 0 4px; background: var(--sep); flex: none; }
+
+/* --- legend: small, bottom left of the free map area --- */
+.legend.mlegend { right: auto; bottom: 20px; height: 48px; gap: 14px; padding: 0 16px 0 10px; border-radius: var(--r-cap); overflow: hidden; }
+.mlegend .mlv { display: inline-flex; gap: 4px; flex: none; }
+.mlegend .mlp { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 12px; font: 600 11px/14px var(--font); }
+.mlegend .k { flex: none; }
+.mlegend .sw { flex: none; display: inline-block; }
+.mlegend .sw.lane { width: 16px; height: 2px; border-radius: 1px; background: var(--lane); opacity: 0.7; }
+.mlegend .sw.choke { width: 6px; height: 6px; margin: 0 1px; border-radius: 1px; background: var(--signal); transform: rotate(45deg); }
+.mlegend .sw.site { width: 8px; height: 8px; border-radius: 2px; background: var(--ink); }
+.mlegend .sw.sig { width: 6px; height: 6px; border-radius: 3px; background: var(--signal); }
+.mlegend .sw.shock { width: 10px; height: 10px; border-radius: 5px; background: var(--high-fill); box-shadow: 0 0 0 1.5px var(--dot-stroke); }
+.mlegend > .fill, .mlegend > .feedst { min-width: 0; }
+
+@media (max-width: 1240px) { .mlegend .mk-choke, .mlegend .mk-site { display: none; } }
+@media (max-width: 1060px) { .mlegend .mlv, .mlegend .mk-lane, .mlegend .mvr2 { display: none; } }
+@media (max-width: 760px) { .mctl, .legend.mlegend { display: none !important; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mcp .ring { animation: none; display: none; }
+  .mpill, .mcp, .msite .slab { transition: none; }
+}

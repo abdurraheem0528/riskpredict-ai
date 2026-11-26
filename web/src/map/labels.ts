@@ -11,6 +11,7 @@ import latin from '@fontsource-variable/inter/files/inter-latin-opsz-normal.woff
 import latinExt from '@fontsource-variable/inter/files/inter-latin-ext-opsz-normal.woff2?url';
 import { LEVELS, type Level } from '../lib/format';
 import { slotId } from './slots';
+import { palette } from '../lib/theme';
 
 export const FONT = 'Inter Map';
 export const FONT_SEMIBOLD = 'Inter Map SemiBold';
@@ -77,12 +78,20 @@ export const CALLOUT = { h: 34, pillX: 5, pillW: 36, textLeft: 14, labelLeft: 49
  * Stretchable images: a white capsule for cluster counts, and a callout per risk level
  * (white capsule with the level's tinted score pill), plain and selected.
  */
-export function addLabelImages(map: MlMap) {
+export function addLabelImages(map: MlMap, redraw = false) {
   if (typeof document === 'undefined') return;
+  // Drawn in the theme's colours; `redraw` repaints them after a theme change.
+  const P = palette();
+  const cs = getComputedStyle(document.documentElement);
+  const tint = (lvl: Level) => cs.getPropertyValue(`--${lvl}-tint`).trim() || LEVELS[lvl].tint;
+  const shadow = 'rgba(0,0,0,0.16)';
   const add = (id: string, draw: () => { data: ImageData; stretchX: [number, number][]; stretchY: [number, number][]; content: [number, number, number, number] } | null) => {
-    if (map.hasImage(id)) return;
+    const has = map.hasImage(id);
+    if (has && !redraw) return;
     const img = draw();
-    if (img) map.addImage(id, img.data, { pixelRatio: S, stretchX: img.stretchX, stretchY: img.stretchY, content: img.content });
+    if (!img) return;
+    if (has) map.updateImage(id, img.data);
+    else map.addImage(id, img.data, { pixelRatio: S, stretchX: img.stretchX, stretchY: img.stretchY, content: img.content });
   };
 
   add('rp-bubble', () => {
@@ -90,14 +99,14 @@ export function addLabelImages(map: MlMap) {
     const cv = canvas(d + 2 * m, d + 2 * m);
     if (!cv) return null;
     const { c, g } = cv;
-    g.shadowColor = 'rgba(20,21,24,0.14)';
+    g.shadowColor = shadow;
     g.shadowBlur = 4;
     g.shadowOffsetY = 1;
     capsule(g, m, m, d, d);
-    g.fillStyle = '#FFFFFF';
+    g.fillStyle = P.land;
     g.fill();
     g.shadowColor = 'transparent';
-    g.strokeStyle = 'rgba(20,21,24,0.08)';
+    g.strokeStyle = P.border;
     g.lineWidth = 1;
     capsule(g, m + 0.5, m + 0.5, d - 1, d - 1);
     g.stroke();
@@ -117,21 +126,21 @@ export function addLabelImages(map: MlMap) {
         const cv = canvas(w + 2 * M, h + 2 * M);
         if (!cv) return null;
         const { c, g } = cv;
-        g.shadowColor = 'rgba(20,21,24,0.14)';
+        g.shadowColor = shadow;
         g.shadowBlur = 6;
         g.shadowOffsetY = 2;
         capsule(g, M, M, w, h);
-        g.fillStyle = '#FFFFFF';
+        g.fillStyle = P.land;
         g.fill();
         g.shadowColor = 'transparent';
         if (on) {
-          g.strokeStyle = '#1766F0';
+          g.strokeStyle = P.accent;
           g.lineWidth = 2;
           capsule(g, M + 1, M + 1, w - 2, h - 2);
           g.stroke();
         }
         capsule(g, M + pillX, M + 4, pillW, h - 8);
-        g.fillStyle = LEVELS[lvl].tint;
+        g.fillStyle = tint(lvl);
         g.fill();
         return {
           data: g.getImageData(0, 0, c.width, c.height),
@@ -185,7 +194,7 @@ export function safeArea(map: MlMap) {
   const origin = c.getBoundingClientRect();
   const covers: Box[] = [];
   const app = c.closest('.app') ?? document;
-  for (const el of app.querySelectorAll('.sheet, .side, .legend, .ctrl, .card, .top > *')) {
+  for (const el of app.querySelectorAll('.sheet, .side, .legend, .ctrl, .mctl, .card, .top > *')) {
     const r = el.getBoundingClientRect();
     if (r.width && r.height) covers.push([r.left - origin.left - 6, r.top - origin.top - 6, r.right - origin.left + 6, r.bottom - origin.top + 6]);
   }
@@ -213,15 +222,20 @@ export function useViewportAnchors<P extends Record<string, unknown>>(
   useEffect(() => {
     if (!map) return;
     let raf = 0;
-    const bump = () => {
+    let idle: ReturnType<typeof setTimeout> | null = null;
+    const bump = (e?: unknown) => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setTick((t) => t + 1));
+      if (idle) clearTimeout(idle);
+      // Idle rotation moves the map every frame: recompute once it pauses, not per frame.
+      if ((e as { rpSpin?: boolean } | undefined)?.rpSpin) idle = setTimeout(() => bump(), 600);
+      else raf = requestAnimationFrame(() => setTick((t) => t + 1));
     };
     map.on('moveend', bump);
     map.on('resize', bump);
     window.addEventListener('rp:layout', bump);
     return () => {
       cancelAnimationFrame(raf);
+      if (idle) clearTimeout(idle);
       map.off('moveend', bump);
       map.off('resize', bump);
       window.removeEventListener('rp:layout', bump);
