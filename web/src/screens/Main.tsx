@@ -3,7 +3,7 @@
 // risk. The map shows the business's entities, its routes and the places risks sit.
 import { useEffect, useMemo, useState } from 'react';
 import type { FeatureCollection, Point } from 'geojson';
-import { prefetchRiskDetail, useDisruptions, useMapEntities, useRisk, useRiskSummary, useRisks, useFeedHealth, type Risk, type RiskSort } from '../api/queries';
+import { prefetchRiskDetail, useDisruptions, useMapEntities, useMapEvents, useRisk, useRiskSummary, useRisks, useFeedHealth, type Risk, type RiskSort } from '../api/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../app/Session';
 import { useWorkspaceState } from '../app/TopBar';
@@ -26,6 +26,7 @@ import { CountPill, CountUp } from '../live/CountUp';
 import { LiveDot } from '../live/LiveDot';
 import { Sparkline } from '../live/Sparkline';
 import { useListMotion } from '../live/presence';
+import { FeedDots } from '../live/FeedDots';
 import { Grab } from '../ui/Grab';
 
 const LEGEND: Partial<Record<RiskCategory, string>> = {
@@ -69,6 +70,9 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
   const detail = useRisk(ws, selected?.id ?? null);
 
   const placedEntities = usePlaced(entities.data);
+  // Feed signals that matched nothing of yours: quiet grey dots that fade with age.
+  const events = useMapEvents();
+  const placedEvents = usePlaced(events.data);
 
   // The one entity the register is filtered to: its name, and its point on the map.
   const focusFeature = entityFilter ? (entities.data?.features.find((f) => f.id === entityFilter) ?? null) : null;
@@ -160,6 +164,7 @@ export function Main({ mode }: { mode: 'overview' | 'register' }) {
 
   return (
     <>
+      <FeedDots data={placedEvents?.fc ?? null} />
       <LanesLayer lanes={lanes} selected={focus.selected} />
       <EntityMap data={placedEntities?.fc ?? null} dimmed={dimmed} onPick={pickEntity} />
       <Chokepoints laneCounts={lanes?.counts} />

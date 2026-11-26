@@ -46,7 +46,7 @@ export function Empty({ pending, hasConnection }: { pending: Source | null; hasC
           <div className="st">
             <span className={`stn${step === 1 ? ' on' : ''}`}>1</span>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 15, lineHeight: '20px', fontWeight: step === 1 ? 600 : 500, color: step === 1 ? undefined : '#5F646C', letterSpacing: '-0.006em' }}>
+              <span className={step === 1 ? undefined : 'muted'} style={{ fontSize: 15, lineHeight: '20px', fontWeight: step === 1 ? 600 : 500, letterSpacing: '-0.006em' }}>
                 {hasConnection ? 'Source connected' : 'Connect a source'}
               </span>
               <span className="t13">{tools.length ? tools.join(' or ') : providers.isPending ? ' ' : 'No tools are set up on this server yet'}</span>
@@ -55,14 +55,14 @@ export function Empty({ pending, hasConnection }: { pending: Source | null; hasC
           <div className="st">
             <span className={`stn${step === 2 ? ' on' : ''}`}>2</span>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 15, lineHeight: '20px', fontWeight: step === 2 ? 600 : 500, color: step === 2 ? undefined : '#5F646C' }}>Check how we read it</span>
+              <span className={step === 2 ? undefined : 'muted'} style={{ fontSize: 15, lineHeight: '20px', fontWeight: step === 2 ? 600 : 500 }}>Check how we read it</span>
               <span className="t13">{pending ? pending.name : 'About two minutes'}</span>
             </div>
           </div>
           <div className="st">
             <span className="stn">3</span>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 15, lineHeight: '20px', fontWeight: 500, color: '#5F646C' }}>See your map</span>
+              <span className="muted" style={{ fontSize: 15, lineHeight: '20px', fontWeight: 500 }}>See your map</span>
               <span className="t13">Risks appear the moment something matches</span>
             </div>
           </div>
@@ -77,7 +77,7 @@ export function Empty({ pending, hasConnection }: { pending: Source | null; hasC
         <span className="t12" style={{ textAlign: 'center', marginTop: -8 }}>Read-only access. No row becomes part of your map until you confirm how we read it.</span>
       </section>
       <div className="legend left glass">
-        <span className="k"><span className="sw" style={{ background: '#7D838B' }} />Global signals</span>
+        <span className="k"><span className="sw signal" />Global signals</span>
         <span className="vr" />
         <FeedStatus health={health.data} pending={health.isPending} failed={health.isError} />
         {health.isSuccess && feeds.names.length > 0 && <span className="fill">{feeds.names.join(' · ')}</span>}

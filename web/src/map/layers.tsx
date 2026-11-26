@@ -6,8 +6,7 @@ import { createPortal } from 'react-dom';
 import type { FeatureCollection, Point } from 'geojson';
 import type { ExpressionSpecification, GeoJSONSource, GeoJSONSourceSpecification, LayerSpecification, Marker, MapLayerMouseEvent } from 'maplibre-gl';
 import { useMap } from './MapRoot';
-import { LEVELS, levelOf } from '../lib/format';
-import { countryName, portName } from './geo';
+import { levelOf } from '../lib/format';
 import { FONT, FONT_SEMIBOLD, raiseSymbols, useViewportAnchors, type LabelSpec } from './labels';
 import { slotId, type Slot } from './slots';
 import { usePalette } from '../lib/theme';
@@ -189,37 +188,6 @@ export function Markers({ items }: { items: MarkerItem[] }) {
 
 // --- the layers the screens use -------------------------------------------------------
 
-/** Global feed signals: quiet grey dots, clustered where dense (Empty, Main). */
-export function SignalsLayer({ data, faint = false }: { data: FeatureCollection<Point> | null; faint?: boolean }) {
-  const op = faint ? 0.55 : 1;
-  useGeoJson(
-    'signals',
-    data,
-    [
-      { id: 'signals-cluster', type: 'circle', filter: ['has', 'point_count'], paint: { 'circle-color': '#7D838B', 'circle-opacity': 0.22 * op, 'circle-radius': ['step', ['get', 'point_count'], 6, 10, 9, 50, 12, 200, 15] } },
-      { id: 'signals-cluster-core', type: 'circle', filter: ['has', 'point_count'], paint: { 'circle-color': '#7D838B', 'circle-opacity': op, 'circle-radius': 3.5 } },
-      { id: 'signals-dot', type: 'circle', filter: ['!', ['has', 'point_count']], paint: { 'circle-color': '#7D838B', 'circle-opacity': op, 'circle-radius': ['interpolate', ['linear'], ['coalesce', ['get', 'severity'], 0], 0, 2.5, 1, 3.5] } },
-    ],
-    { cluster: true, clusterRadius: 28, clusterMaxZoom: 6 },
-  );
-  return null;
-}
-
-/** Soft pulsing rings on the strongest signals (CSS; still under reduced motion). */
-export function Pulses({ points, color = '#7D838B' }: { points: { key: string; at: [number, number] }[]; color?: string }) {
-  const items = useMemo(
-    () =>
-      points.map((p, i) => ({
-        key: `pulse:${p.key}`,
-        at: p.at,
-        z: -1,
-        node: <span className={`halo d${(i % 3) + 1}`} style={{ background: color }} aria-hidden="true" />,
-      })),
-    [points, color],
-  );
-  return <Markers items={items} />;
-}
-
 type EntityProps = { kind: string; name: string; _id: string; max_score?: number | null; open_risk_count?: number };
 
 /** Entity names: small grey text with a white halo (the designs' `.lab`). */
@@ -392,107 +360,36 @@ type PlaceProps = {
   top_risk_ids?: string[];
 };
 
-/** Score pill + place name in a white capsule (Main.dc.html), drawn as one symbol. */
-const CALLOUT_LABEL: LabelSpec = {
-  font: `600 13px "${FONT_SEMIBOLD}"`,
-  text: (p) => (p._co ? `${p._score}\u2002\u2002\u2002${p._label}` : null),
-  extra: 26,
-  anchors: [
-    ['left', [2, 0]],
-    ['right', [-1.85, 0]],
-    ['bottom', [0, -1.77]],
-    ['top', [0, 1.77]],
-  ],
-  box: (a, w) => (a === 'left' ? [12, -17, 12 + w, 17] : a === 'right' ? [-12 - w, -17, -12, 17] : a === 'bottom' ? [-w / 2, -48, w / 2, -14] : [-w / 2, 14, w / 2, 48]),
-};
-
-const placeName = (p: PlaceProps) =>
-  p.label ?? (p.place_type === 'country' ? countryName(p.place_key) : p.place_type === 'port' ? portName(p.place_key) : placeCount(p));
-const placeCount = (p: PlaceProps) => {
-  const n = p.story_count ?? p.risk_count; // one story reaching several entities here counts once
-  return `${n} ${n === 1 ? 'risk' : 'risks'}`;
-};
-
 /**
- * Risk hotspots: red halos whose strength follows the level (System-Color), with a callout
- * on the strongest few. Callouts are symbols: they give way to cluster counts and to each
- * other, flip side to stay on the map, and hide when there is no room.
+ * The place a risk sits (Risk): a soft halo in its level's fill, with a dot. On the
+ * Overview the scored entity dots, heat and tint (EntityLayers) show risks instead.
  */
-export function RiskPlacesLayer({
-  data,
-  callouts = 0,
-  selected = null,
-  onPick,
-}: {
-  data: FeatureCollection<Point, PlaceProps> | null;
-  callouts?: number;
-  selected?: string | null;
-  onPick?: (riskId: string) => void;
-}) {
-  const { map } = useMap();
+export function RiskPlacesLayer({ data, onPick }: { data: FeatureCollection<Point, PlaceProps> | null; onPick?: (riskId: string) => void }) {
   const P = usePalette();
   const colored = useMemo(() => {
     if (!data) return null;
-    const top = new Set([...data.features].sort((a, b) => b.properties.max_score - a.properties.max_score).slice(0, callouts).map((f) => f.properties._id));
+    const fill = { low: P.low, med: P.med, high: P.high, crit: P.crit };
     return {
       ...data,
-      features: data.features.map((f) => {
-        const p = f.properties;
-        const ids = p.top_risk_ids ?? [];
-        const lvl = levelOf(p.max_score);
-        const score = String(Math.round(p.max_score));
-        return {
-          ...f,
-          properties: {
-            ...p,
-            _fill: LEVELS[lvl].fill,
-            _co: top.has(p._id),
-            _lvl: lvl,
-            _tc: LEVELS[lvl].text,
-            _score: score.length === 1 ? `\u2009${score}\u2009` : score,
-            _label: placeName(p),
-            _on: !!selected && ids.includes(selected),
-            _top: ids[0] ?? '',
-          },
-        };
-      }),
+      features: data.features.map((f) => ({
+        ...f,
+        properties: { ...f.properties, _fill: fill[levelOf(f.properties.max_score)], _top: f.properties.top_risk_ids?.[0] ?? '' },
+      })),
     };
-  }, [data, callouts, selected]);
-  const anchored = useViewportAnchors(map, callouts ? colored : null, CALLOUT_LABEL);
+  }, [data, P]);
   useGeoJson(
     'riskplaces',
-    callouts ? anchored : colored,
+    colored,
     [
       { id: 'riskplaces-halo', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-opacity': 0.2, 'circle-radius': ['interpolate', ['linear'], ['get', 'max_score'], 0, 12, 100, 18] } },
       { id: 'riskplaces-dot', type: 'circle', paint: { 'circle-color': ['get', '_fill'], 'circle-radius': 4.5, 'circle-stroke-color': P.dotStroke, 'circle-stroke-width': 2 }, metadata: { click: true } },
-      ...(callouts
-        ? [
-            {
-              id: 'riskplaces-callout',
-              type: 'symbol',
-              filter: ['all', ['==', ['get', '_co'], true], visible],
-              layout: {
-                'icon-image': ['concat', 'rp-callout-', ['get', '_lvl'], ['case', ['get', '_on'], '-on', '']],
-                'icon-text-fit': 'both',
-                'text-field': ['format', ['get', '_score'], { 'font-scale': 12 / 13, 'text-color': ['get', '_tc'] }, '\u2002\u2002\u2002', {}, ['get', '_label'], {}],
-                'text-font': [FONT_SEMIBOLD],
-                'text-size': 13,
-                'text-max-width': 100,
-                'text-variable-anchor-offset': ['get', '_vao'],
-                'text-padding': 4,
-                'symbol-sort-key': ['case', ['get', '_on'], -1000, ['-', ['get', 'max_score']]],
-              },
-              paint: { 'text-color': P.ink },
-              metadata: { click: true },
-            } as LayerDef,
-          ]
-        : []),
     ],
     {},
     (e) => {
       const id = e.features?.[0]?.properties?._top;
       if (id && onPick) onPick(String(id));
     },
+    'dots',
   );
   return null;
 }

@@ -74,6 +74,7 @@ export function LanesLayer({ lanes, selected }: { lanes: Lanes | null; selected?
   useEffect(() => {
     if (!map || !hasLanes) return;
     try {
+      if (!map.getLayer('lanes-flow')) return;
       map.setLayoutProperty('lanes-flow', 'visibility', rm ? 'none' : 'visible');
     } catch {
       return;
@@ -87,6 +88,8 @@ export function LanesLayer({ lanes, selected }: { lanes: Lanes | null; selected?
       acc -= n * DASH_STEP_MS;
       i = (i + n) % DASH.length;
       try {
+        // A missing layer is reported as a logged `error` event, not thrown: check first.
+        if (!map.getLayer('lanes-flow')) return true; // being re-added: try the next step
         map.setPaintProperty('lanes-flow', 'line-dasharray', DASH[i]);
       } catch {
         return false; // the map was removed
@@ -101,7 +104,7 @@ export function LanesLayer({ lanes, selected }: { lanes: Lanes | null; selected?
     if (!map) return;
     const set = (o: number) => {
       try {
-        map.setPaintProperty('lanes-sel', 'line-opacity', o);
+        if (map.getLayer('lanes-sel')) map.setPaintProperty('lanes-sel', 'line-opacity', o);
       } catch {
         /* not added yet, or the map was removed */
       }

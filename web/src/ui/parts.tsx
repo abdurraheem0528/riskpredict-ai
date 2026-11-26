@@ -3,8 +3,6 @@ import { feedSummary } from '../lib/feeds';
 import { Icon } from './Icon';
 import { errorText } from '../api/errors';
 import { LEVELS, levelOf, scoreText } from '../lib/format';
-import { useMap, fitTo, WORLD, sheetPadding } from '../map/MapRoot';
-import type { StreamStatus } from '../api/stream';
 
 export function ScorePill({ score, small = false }: { score: number; small?: boolean }) {
   return <span className={`pill${small ? ' sm' : ''} l-${levelOf(score)}`}>{scoreText(score)}</span>;
@@ -43,23 +41,12 @@ export function ErrorState({ error, retry, title = 'This did not load' }: { erro
   );
 }
 
-export function LiveDot({ status }: { status: StreamStatus }) {
-  const map = { live: ['Live', '#1A9E5A'], connecting: ['Connecting', '#A3A7AE'], retrying: ['Reconnecting', '#A3A7AE'], off: ['Offline', '#A3A7AE'] } as const;
-  const [label, color] = map[status];
-  return (
-    <span className="t12" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ width: 6, height: 6, borderRadius: 3, background: color }} aria-hidden="true" />
-      {label}
-    </span>
-  );
-}
-
 /** A small line chart with an optional reference line (System-Data: no grid on small charts). */
 export function Spark({
   values,
   width = 200,
   height = 56,
-  color = '#141518',
+  color = 'var(--ink)',
   area = false,
   ref60 = true,
   label,
@@ -83,31 +70,10 @@ export function Spark({
   const line = pts.map((v, i) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} preserveAspectRatio="none" role="img" aria-label={label}>
-      {ref60 && lo <= 60 && hi >= 60 && <line x1="0" y1={y(60)} x2={width} y2={y(60)} stroke="#C9CCD1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
-      {area && <polygon points={`${line} ${width},${height} 0,${height}`} fill={color} fillOpacity={0.1} />}
-      <polyline points={line} fill="none" stroke={color} strokeWidth={1.75} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      {ref60 && lo <= 60 && hi >= 60 && <line x1="0" y1={y(60)} x2={width} y2={y(60)} style={{ stroke: 'var(--sep)' }} strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
+      {area && <polygon points={`${line} ${width},${height} 0,${height}`} style={{ fill: color }} fillOpacity={0.1} />}
+      <polyline points={line} fill="none" style={{ stroke: color }} strokeWidth={1.75} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-/** Zoom in, zoom out, fit (System-Nav: map controls, 44 per button, hidden on phones). */
-export function MapControls({ fit, fitLabel = 'Fit everything', low = false }: { fit?: [[number, number], [number, number]] | null; fitLabel?: string; low?: boolean }) {
-  const { map } = useMap();
-  if (!map) return null;
-  return (
-    <div className={`ctrl glass${low ? ' low' : ''}`}>
-      <button type="button" className="mb" aria-label="Zoom in" title="Zoom in" onClick={() => map.zoomIn()}>
-        <Icon name="add" size={18} stroke={1.75} />
-      </button>
-      <hr />
-      <button type="button" className="mb" aria-label="Zoom out" title="Zoom out" onClick={() => map.zoomOut()}>
-        <Icon name="minus" size={18} stroke={1.75} />
-      </button>
-      <hr />
-      <button type="button" className="mb" aria-label={fitLabel} title={fitLabel} onClick={() => fitTo(map, fit ?? WORLD, sheetPadding('left', 344), fit ? 5 : 3)}>
-        <Icon name="fit" size={18} />
-      </button>
-    </div>
   );
 }
 
@@ -153,7 +119,7 @@ export function FeedStatus({ health, pending, failed }: { health: Parameters<typ
       tabIndex={down ? 0 : undefined}
       aria-describedby={down ? tipId : undefined}
     >
-      <span className={`sdot${!f.total ? '' : down ? ' warn' : ' live'}`} aria-hidden="true" />
+      <span className={`sdot${f.tone === 'none' ? '' : ` ${f.tone}`}`} aria-hidden="true" />
       {f.text}
       {down && (
         <span role="tooltip" id={tipId} className="tip">

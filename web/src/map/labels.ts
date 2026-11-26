@@ -9,7 +9,6 @@ import type { Feature, FeatureCollection, Point } from 'geojson';
 import type { Map as MlMap } from 'maplibre-gl';
 import latin from '@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2?url';
 import latinExt from '@fontsource-variable/inter/files/inter-latin-ext-opsz-normal.woff2?url';
-import { LEVELS, type Level } from '../lib/format';
 import { slotId } from './slots';
 import { palette } from '../lib/theme';
 
@@ -70,20 +69,11 @@ function capsule(g: CanvasRenderingContext2D, x: number, y: number, w: number, h
   g.closePath();
 }
 
-const M = 5; // room for the shadow around a capsule
-/** Callout geometry (logical px, inside the shadow margin). */
-export const CALLOUT = { h: 34, pillX: 5, pillW: 36, textLeft: 14, labelLeft: 49, right: 12 };
-
-/**
- * Stretchable images: a white capsule for cluster counts, and a callout per risk level
- * (white capsule with the level's tinted score pill), plain and selected.
- */
+/** A stretchable capsule for cluster counts, in the land colour of the theme. */
 export function addLabelImages(map: MlMap, redraw = false) {
   if (typeof document === 'undefined') return;
   // Drawn in the theme's colours; `redraw` repaints them after a theme change.
   const P = palette();
-  const cs = getComputedStyle(document.documentElement);
-  const tint = (lvl: Level) => cs.getPropertyValue(`--${lvl}-tint`).trim() || LEVELS[lvl].tint;
   const shadow = 'rgba(0,0,0,0.16)';
   const add = (id: string, draw: () => { data: ImageData; stretchX: [number, number][]; stretchY: [number, number][]; content: [number, number, number, number] } | null) => {
     const has = map.hasImage(id);
@@ -117,40 +107,6 @@ export function addLabelImages(map: MlMap, redraw = false) {
       content: [(m + 8) * S, (m + 7) * S, (m + 20) * S, (m + 21) * S],
     };
   });
-
-  for (const lvl of Object.keys(LEVELS) as Level[]) {
-    for (const on of [false, true]) {
-      add(`rp-callout-${lvl}${on ? '-on' : ''}`, () => {
-        const { h, pillX, pillW, textLeft, labelLeft, right } = CALLOUT;
-        const w = labelLeft + 20 + right;
-        const cv = canvas(w + 2 * M, h + 2 * M);
-        if (!cv) return null;
-        const { c, g } = cv;
-        g.shadowColor = shadow;
-        g.shadowBlur = 6;
-        g.shadowOffsetY = 2;
-        capsule(g, M, M, w, h);
-        g.fillStyle = P.land;
-        g.fill();
-        g.shadowColor = 'transparent';
-        if (on) {
-          g.strokeStyle = P.accent;
-          g.lineWidth = 2;
-          capsule(g, M + 1, M + 1, w - 2, h - 2);
-          g.stroke();
-        }
-        capsule(g, M + pillX, M + 4, pillW, h - 8);
-        g.fillStyle = tint(lvl);
-        g.fill();
-        return {
-          data: g.getImageData(0, 0, c.width, c.height),
-          stretchX: [[(M + labelLeft) * S, (M + w - right) * S]],
-          stretchY: [[(M + h / 2 - 1) * S, (M + h / 2 + 1) * S]],
-          content: [(M + textLeft) * S, (M + 9.5) * S, (M + w - right) * S, (M + h - 9.5) * S],
-        };
-      });
-    }
-  }
 }
 
 // --- anchors that keep text inside the viewport ------------------------------------------

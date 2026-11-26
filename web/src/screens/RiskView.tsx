@@ -11,7 +11,7 @@ import { useSession, canEdit } from '../app/Session';
 import { useToast } from '../app/Toast';
 import { useDismiss } from '../app/TopBar';
 import { navigate } from '../lib/router';
-import { CATEGORIES, KINDS, LEVELS, levelOf, ago, fmtDate, feedName, outOf5, plural } from '../lib/format';
+import { CATEGORIES, KINDS, levelOf, ago, fmtDate, feedName, outOf5, plural } from '../lib/format';
 import { placeOf, countryName, portName } from '../map/geo';
 import { useMap, reducedMotion } from '../map/MapRoot';
 import { sheetPadding, useFit, boxOfPoints, type LonLat } from '../map/camera';
@@ -210,7 +210,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
         </div>
         {history.length > 1 && first ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-            <Spark values={history} area color={LEVELS[levelOf(r.score)].fill} label={`Score moved from ${Math.round(first.score)} to ${Math.round(r.score)} since ${fmtDate(first.recorded_at)}`} />
+            <Spark values={history} area color={`var(--${levelOf(r.score)}-fill)`} label={`Score moved from ${Math.round(first.score)} to ${Math.round(r.score)} since ${fmtDate(first.recorded_at)}`} />
             <div style={{ display: 'flex', justifyContent: 'space-between' }} className="t12 tnum">
               <span>{Math.round(first.score)} on {fmtDate(first.recorded_at)}</span>
               <span>{Math.round(r.score)} now</span>

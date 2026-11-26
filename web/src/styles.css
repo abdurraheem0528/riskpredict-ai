@@ -505,14 +505,6 @@ button.cap:hover { box-shadow: var(--sh), var(--glass-hi), inset 0 0 0 48px var(
 /* A hidden tab: every CSS animation holds still (src/lib/motion.ts toggles the class). */
 html.rp-hidden *, html.rp-hidden *::before, html.rp-hidden *::after { animation-play-state: paused !important; }
 
-/* pulsing rings on Empty (Pulses in map/layers.tsx). Still in use until the live-motion
-   part replaces them with quiet feed dots; remove these rules with that component. */
-.halo { display: block; width: 20px; height: 20px; border-radius: 10px; opacity: 0; animation: halo 3s ease-out infinite; pointer-events: none; }
-.halo.d2 { animation-delay: 1s; }
-.halo.d3 { animation-delay: 2s; }
-@keyframes halo { 0% { transform: scale(0.4); opacity: 0.6; } 100% { transform: scale(2); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .halo { animation: none !important; opacity: 0.2; transform: scale(1.4); } }
-
 /* A sheet whose body scrolls and ends above a fixed footer (Risk, Scenario, Confirm). */
 .sheet.split { overflow: hidden; padding: 0; gap: 0; }
 .sbody { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 16px; padding: 16px 24px 20px; scrollbar-width: thin; }

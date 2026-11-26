@@ -16,6 +16,9 @@ const keyOf = (source: string, id: string | number, state: string) => `${source}
 
 function write(map: MlMap, source: string, id: string | number, state: string, v: number) {
   try {
+    // MapLibre reports a missing source as an `error` event (logged), not by throwing: a
+    // tween still running as a screen unmounts its layers must not write.
+    if (!map.getSource(source)) return;
     map.setFeatureState({ source, id }, { [state]: v });
   } catch {
     /* source removed */
