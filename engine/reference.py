@@ -101,6 +101,26 @@ def hs_chapter_keywords() -> dict[str, tuple[str, ...]]:
     return {ch: tuple(k.casefold() for k in kws) for ch, kws in raw.items()}
 
 
+@lru_cache(maxsize=1)
+def hs_heading_keywords() -> dict[str, tuple[str, ...]]:
+    """4-digit HS heading → keywords (engine 1.3.0: what an entity with a 4+ digit code matches on)."""
+    raw = json.loads((DATA / "hs_chapters.json").read_text(encoding="utf-8"))["headings"]
+    if any(len(h) != 4 or not h.isdigit() for h in raw):
+        raise ValueError("hs_chapters.json: a heading is not 4 digits")
+    return {h: tuple(k.casefold() for k in kws) for h, kws in raw.items()}
+
+
+def hs_keywords(hs_codes) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """``(HS value, keywords)`` an entity's codes are matched on: the 4-digit heading of every
+    code with 4+ digits, and the chapter only for a code given as 2 digits alone."""
+    heads, chaps = hs_heading_keywords(), hs_chapter_keywords()
+    out: dict[str, tuple[str, ...]] = {}
+    for h in hs_codes:
+        key = h[:4] if len(h) >= 4 else h[:2]
+        out.setdefault(key, (heads if len(key) == 4 else chaps).get(key, ()))
+    return tuple(sorted(out.items()))
+
+
 def keyword_in(text: str, keyword: str) -> bool:
     """``keyword`` occurs in ``text`` as whole word(s), casefold."""
     return re.search(rf"(?<![\w]){re.escape(keyword)}(?![\w])", text.casefold()) is not None

@@ -127,6 +127,38 @@ def test_noisy_or():
     assert S.noisy_or([0.9] * 10, 0.99) == 0.99
 
 
+def test_weighted_likelihood_1_3_0():
+    """L = min(0.99, 1 − Π (1 − 0.5^(k−1) × p_k)), strongest first (risk-engine.md §5.6)."""
+    assert CFG.likelihood_decay == 0.5
+    assert S.likelihood([], CFG) == 0.0
+    assert S.likelihood([0.5], CFG) == 0.5  # one item: exactly as the plain noisy-OR
+    assert S.likelihood([0.81], CFG) == S.noisy_or([0.81], 0.99)
+    assert S.likelihood([0.5, 0.5], CFG) == round(1 - 0.5 * 0.75, 3)
+    assert S.likelihood([0.1, 0.3, 0.2], CFG) == round(1 - 0.7 * 0.9 * 0.975, 3)  # order of input does not matter
+    # the live case: seven weak country matches no longer read as "92% likely"
+    assert S.noisy_or([0.3] * 7, 0.99) == 0.918
+    assert S.likelihood([0.3] * 7, CFG) == 0.487
+    # however many weak items, L stays below twice the strongest contribution
+    for p in (0.05, 0.1, 0.2, 0.3, 0.4):
+        assert S.likelihood([p] * 50, CFG) < 2 * p
+    assert S.likelihood([1.0], CFG) == 0.99 and S.likelihood([0.99, 0.99], CFG) == 0.99  # capped
+    assert S.item_weights(4, CFG) == [1.0, 0.5, 0.25, 0.125]
+    plain = replace(CFG, likelihood_decay=1.0)
+    assert S.likelihood([0.3, 0.2, 0.1], plain) == S.noisy_or([0.3, 0.2, 0.1], 0.99)
+
+
+def test_likelihood_factors_carry_the_weights():
+    site = ent("plant", "site", lat=0.0, lon=0.0)
+    [a] = assess([site], snap([quake(f"q{i}", 0.0, 0.01 * i, severity=0.5, age_h=i) for i in range(3)]),
+                 base_currency=None)  # fmt: skip
+    lf = a.factors["likelihood"]
+    assert lf["method"] == "noisy_or" and lf["decay"] == 0.5
+    assert [i["weight"] for i in lf["items"]] == [1.0, 0.5, 0.25]
+    step = next(s for s in a.factors["explain"]["steps"] if s["label"] == "Likelihood")
+    assert step["formula"].startswith("noisy-OR of 3 items, each further item counting 0.5× the one before: 1 − (1 − ")
+    assert "(1 − 0.5 × " in step["formula"] and "(1 − 0.25 × " in step["formula"]
+
+
 def test_contribution_is_rounded_product():
     assert S.contribution(0.71, 0.93, 0.88) == round(0.71 * 0.93 * 0.88, 3)
 
@@ -146,7 +178,7 @@ def test_likelihood_uses_exactly_the_kept_evidence():
     quakes = [quake(f"q{i:02}", 0.0, 0.01 * i, severity=0.2, age_h=i) for i in range(60)]
     [a] = assess([site], snap(quakes), base_currency=None, config=replace(CFG, max_evidence=50))
     assert len(a.evidence) == 50
-    assert a.likelihood == S.noisy_or([e.contribution for e in a.evidence], 0.99)
+    assert a.likelihood == S.likelihood([e.contribution for e in a.evidence], CFG)
     assert [e.contribution for e in a.evidence] == sorted((e.contribution for e in a.evidence), reverse=True)
     assert a.factors["likelihood"]["items"][0]["evidence_key"] == a.evidence[0].evidence_key
 
@@ -234,7 +266,10 @@ def test_score_property_matches_the_generated_column():
 def test_default_config_matches_the_contract():
     """Spot-check that DEFAULT_CONFIG holds the numbers written in risk-engine.md."""
     assert CFG.min_score == 5.0 and CFG.max_evidence == 50 and CFG.likelihood_cap == 0.99
-    assert "min(0.99, 1 − Π (1 − p_i))" in SPEC
+    # §5.6 (engine 1.3.0: each further item weighted down)
+    assert CFG.likelihood_decay == 0.5
+    assert "min(0.99, 1 − Π_k (1 − w_k × p_k)),   w_k = decay^(k − 1),   decay = 0.5" in SPEC
+    assert CFG.sanctions_target_window == 5 and "`sanctions_target_window = 5`" in SPEC
     assert dict(CFG.criticality_weights) == {"low": 0.25, "medium": 0.5, "high": 0.75, "critical": 1.0}
     assert "{low: 0.25, medium: 0.5, high: 0.75, critical: 1.0, NULL: 0.5}" in SPEC
     for cat, m in CFG.category_multipliers.items():

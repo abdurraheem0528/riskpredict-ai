@@ -20,15 +20,15 @@ from datetime import datetime
 from typing import Any, Iterable, Mapping, Sequence
 from uuid import UUID
 
-from engine import names, scoring as S, software as sw, texts
+from engine import names, relevance as rel, scoring as S, software as sw, texts
 from engine.config import DEFAULT_CONFIG, EngineConfig
 from engine.geo import EARTH_RADIUS_KM, geo_confidence, haversine_km, radius_km
 from engine.models import Anomaly, Assessment, Entity, Evidence, FeedEvent, FeedSnapshot
 from engine.reference import (
-    chokepoint_by_alias, chokepoint_id, chokepoints, hs_chapter_keywords, keyword_in, lane_for_country,
+    chokepoint_by_alias, chokepoint_id, chokepoints, hs_keywords, keyword_in, lane_for_country,
 )
 
-ENGINE_VERSION = "1.2.0"
+ENGINE_VERSION = "1.3.0"
 
 # §5.1: which keys each entity kind is matched on. Routes declare their chokepoints;
 # suppliers, sites and ports get them inferred from their port or position (§5.9).
@@ -162,7 +162,8 @@ class _Index:
         self.by_cpe: dict[str, list[Entity]] = defaultdict(list)
         self.by_currency: dict[str, list[Entity]] = defaultdict(list)
         self.by_term: dict[str, list[Entity]] = defaultdict(list)
-        self.commodity: list[tuple[Entity, set[str], set[str]]] = []
+        # (entity, (HS value, keywords) per 4-digit heading or 2-digit-only chapter, own products casefold)
+        self.commodity: list[tuple[Entity, tuple[tuple[str, tuple[str, ...]], ...], set[str]]] = []
         self.named = names.NameIndex(config.legal_forms, config.name_min_length)
         self.positioned: list[Entity] = []
         for e in entities:
@@ -181,7 +182,7 @@ class _Index:
                 for c in e.currencies:
                     self.by_currency[c].append(e)
             if has_key(e, "commodity") and (e.hs_codes or e.commodities):
-                self.commodity.append((e, {h[:2] for h in e.hs_codes}, {c.casefold() for c in e.commodities}))
+                self.commodity.append((e, hs_keywords(e.hs_codes), {c.casefold() for c in e.commodities}))
             if has_key(e, "name"):
                 self.named.add(e.name, e)
                 term = watch_term(e, config)
@@ -244,6 +245,7 @@ class _Assessor:
         self.best: dict[tuple[UUID, str], _Item] = {}
         # Support-only matches (commodity / currency, §5.9), applied after every anchor is in.
         self.support: dict[tuple[UUID, str], _Item] = {}
+        self.sector_cache: dict[UUID, frozenset[str]] = {}  # entity → cyber sector cues (§5.10)
 
     # --- offering a match -----------------------------------------------------------------
 
@@ -380,23 +382,46 @@ class _Assessor:
                 cid = chokepoint_id(raw)
                 for e, via in idx.by_choke.get(cid or "", ()):
                     yield e, _choke_match(cid, via, 1.0, cfg)
-        # countries (position beats country for hazards/logistics with a positioned event)
+        # countries (position beats country for hazards/logistics with a positioned event). A news
+        # item's country counts only when it is central to the item (§5.10): named in the title or
+        # its tag, or the first place located in the article; never a passing mention.
         if news:
-            countries = dict.fromkeys([*ev.countries, *self._tag_countries(ev)])
+            countries = rel.central_countries(ev.title, self._tag_countries(ev), ev.countries) if idx.by_country else {}
             factor = cfg.news_country_factor
         else:
-            countries, factor = dict.fromkeys(ev.countries), 1.0
-        for code in countries:
+            countries, factor = dict.fromkeys(ev.countries, None), 1.0
+        for code, why in countries.items():
             for e in idx.by_country.get(code, ()):
                 if cat in GEO_CATEGORIES and ev.has_position and e.has_position and has_key(e, "geo"):
                     continue
+                if news and not self._news_country_counts(ev, cat, code, e):
+                    continue
                 c = cfg.country_confidence.get(e.kind)
                 if c:
-                    yield e, _Match("country", code, c * factor, f"country:{code}")
+                    yield e, _Match("country", code, c * factor, f"country:{code}",
+                                    detail={"central": why} if why else {})  # fmt: skip
         if news:
             yield from self._chokepoint_text(ev)
             yield from self._companies(ev)
             yield from self._commodities(ev)
+
+    def _news_country_counts(self, ev: FeedEvent, cat: str, code: str, entity: Entity) -> bool:
+        """§5.10: a central country is enough, except for sanctions (the country must be what the
+        measure is directed at) and cyber (a national-scale incident, or the entity's sector)."""
+        if cat == "sanctions":
+            return code in rel.sanction_targets(ev.title, self.cfg.sanctions_target_window)
+        if cat == "cyber":
+            return rel.national_scale(ev.title) or rel.sector_hit(ev.title, self._sector_cues(entity))
+        return True
+
+    def _sector_cues(self, entity: Entity) -> frozenset[str]:
+        cues = self.sector_cache.get(entity.id)
+        if cues is None:
+            notes = entity.attrs.get("notes") if isinstance(entity.attrs, Mapping) else None
+            keywords = [k for _, kws in hs_keywords(entity.hs_codes) for k in kws]
+            cues = rel.sector_cues(entity.commodities, keywords, notes if isinstance(notes, str) else None)
+            self.sector_cache[entity.id] = cues
+        return cues
 
     @staticmethod
     def _tag_countries(ev: FeedEvent) -> list[str]:
@@ -442,7 +467,7 @@ class _Assessor:
     def _commodities(self, ev: FeedEvent) -> Iterable[tuple[Entity, _Match]]:
         if not self.idx.commodity:
             return
-        cfg, chapters = self.cfg, hs_chapter_keywords()
+        cfg = self.cfg
         found = [(c["text"], _conf(c)) for c in _tag_list(ev, "commodities")]
         found += [(t, 1.0) for t in ev.commodities]
         for e, hs, texts_ in self.idx.commodity:
@@ -452,10 +477,11 @@ class _Assessor:
                     yield e, _Match("commodity", t, cfg.commodity_text_factor * conf, f"commodity:{t}",
                                     detail={"matched_text": text})  # fmt: skip
                     continue
-                for ch in sorted(hs):
-                    if any(keyword_in(t, kw) for kw in chapters.get(ch, ())):
-                        yield e, _Match("commodity", f"HS {ch}", cfg.commodity_chapter_factor * conf,
-                                        f"commodity:HS {ch}", detail={"matched_text": text})  # fmt: skip
+                # the entity's own 4-digit heading; its chapter only for a 2-digit code (§5.3)
+                for code, kws in hs:
+                    if any(keyword_in(t, kw) for kw in kws):
+                        yield e, _Match("commodity", f"HS {code}", cfg.commodity_chapter_factor * conf,
+                                        f"commodity:HS {code}", detail={"matched_text": text})  # fmt: skip
 
     def _sanctions(self, events: list[tuple[FeedEvent, float]]) -> None:
         """Fuzzy name screening of suppliers and customers against every sanctions row present
@@ -574,7 +600,7 @@ class _Assessor:
         for fp in sorted(groups):
             items = sorted(groups[fp], key=lambda i: (-i.p, i.key))[: cfg.max_evidence]
             entity, category = items[0].entity, items[0].category
-            likelihood = S.noisy_or((i.p for i in items), cfg.likelihood_cap)
+            likelihood = S.likelihood([i.p for i in items], cfg)
             impact, ifac = S.impact(entity, category, shares.get(entity.id), cfg)
             raw = cfg.category_multipliers[category] * (
                 ifac["criticality_weight"] if ifac["exposure_norm"] is None
@@ -620,10 +646,11 @@ class _Assessor:
         lfac: dict[str, Any] = {
             "method": "noisy_or",
             "value": likelihood,
+            "decay": self.cfg.likelihood_decay,  # 1.3.0: the k-th strongest item counts decay^(k-1) of itself
             "items": [
                 {"evidence_key": i.key, "signal": i.signal, "recency": i.recency,
-                 "match_confidence": i.confidence, "contribution": i.p}
-                for i in items
+                 "match_confidence": i.confidence, "contribution": i.p, "weight": w}
+                for i, w in zip(items, S.item_weights(len(items), self.cfg))
             ],  # fmt: skip
         }
         if uncapped is not None:

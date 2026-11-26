@@ -278,11 +278,12 @@ def _choke_name(cid: str) -> str:
     return c.name if c else cid
 
 
-def _hs_like(entity: Entity, chapter_value: str) -> str | None:
-    """``HS 8542`` for support on chapter ``HS 85`` when the entity lists 8542; else the chapter."""
-    ch = chapter_value.removeprefix("HS ").strip()
-    codes = [h for h in entity.hs_codes if h.startswith(ch)]
-    return f"HS {codes[0]}" if codes else (chapter_value if chapter_value.startswith("HS ") else None)
+def _product(entity: Entity) -> str | None:
+    """The entity's own product as written in its sheet, in running text ("printed circuit boards")."""
+    p = next((c.strip() for c in entity.commodities if c.strip()), None)
+    if p and p[:1].isupper() and (len(p) == 1 or p[1:2].islower()):
+        p = p[:1].lower() + p[1:]
+    return p
 
 
 def _lane(item, name: str) -> str:
@@ -302,10 +303,17 @@ def _support_clause(entity: Entity, item) -> str | None:
     if not sup:
         return None
     text = sup.get("matched_text") or sup.get("match_value") or ""
-    if sup.get("match_value", "").startswith("HS "):
-        hs = _hs_like(entity, sup["match_value"])
-        return f"{text} like those {entity.name} supplies ({hs})" if hs else f"{text}, which {entity.name} supplies"
-    return f"{text}, which {entity.name} supplies"
+    hs = sup.get("match_value", "")
+    if not hs.startswith("HS "):
+        return f"{text}, which {entity.name} supplies"  # the entity's own product name
+    # Matched on the entity's HS heading (or a 2-digit chapter): name the entity's own product
+    # and never claim the article is about it when it names another one (1.3.0).
+    product = _product(entity)
+    if product is None:
+        return f"{text}, which is in the product group ({hs}) that {entity.name} supplies"
+    if text.casefold() == product.casefold():
+        return f"{product}, which {entity.name} supplies ({hs})"
+    return f"{text}, which is in the same product group ({hs}) as the {product} {entity.name} supplies"
 
 
 def _news_sentence(category: str, entity: Entity, items, top) -> str:
@@ -318,8 +326,21 @@ def _news_sentence(category: str, entity: Entity, items, top) -> str:
     if mt == "country":
         where = country_name(mv)
         sup = _support_clause(entity, top)
+        # 1.3.0: a sanctions country match means the measure is aimed at the country (§5.10).
+        aimed = category == "sanctions" and topic == "sanctions"
+        lead = f"{reports} {'describes' if n == 1 else 'describe'} sanctions aimed at {where}" if aimed else None
         if sup:
-            return f"{reports}{about} involving {where} {verb} {sup}."
+            k = sum(1 for i in items if i.detail.get("supported_by"))
+            if lead and (n == 1 or k >= n):
+                return f"{lead}, and {'it mentions' if n == 1 else 'they mention'} {sup}."
+            if lead:
+                return f"{lead}, and {'one' if k == 1 else k} {'mentions' if k == 1 else 'mention'} {sup}."
+            if n == 1 or k >= n:
+                return f"{reports}{about} involving {where} {verb} {sup}."
+            return (f"{reports}{about} involve {where}, and {'one' if k == 1 else k} "
+                    f"{'mentions' if k == 1 else 'mention'} {sup}.")  # fmt: skip
+        if lead:
+            return f"{lead}, where {name} is based."
         return f"{reports}{about} {verb} {where}, where {name} is based."
     if mt == "company_name":
         return f"{reports}{about} {verb} {name} by name."
@@ -468,11 +489,18 @@ def how_scored(category: str, entity: Entity, items, likelihood: float, impact_f
         "value": top.p,
     })
     ps = [i.p for i in items]
-    terms = " × ".join(f"(1 − {_f3(p)})" for p in ps[:5]) + (f" × … ({len(ps) - 5} more)" if len(ps) > 5 else "")
+    d = config.likelihood_decay
+
+    def term(k: int, p: float) -> str:
+        w = d**k
+        return f"(1 − {_f3(p)})" if w == 1 else f"(1 − {w:g} × {_f3(p)})"
+
+    terms = " × ".join(term(k, p) for k, p in enumerate(ps[:5])) + (f" × … ({len(ps) - 5} more)" if len(ps) > 5 else "")
     raw_l = uncapped if uncapped is not None else likelihood
+    weighted = f", each further item counting {d:g}× the one before" if len(ps) > 1 and d != 1 else ""
     steps.append({
         "label": "Likelihood",
-        "formula": f"noisy-OR of {_plural(len(ps), 'item')}: 1 − {terms} = {_f3(raw_l)}"
+        "formula": f"noisy-OR of {_plural(len(ps), 'item')}{weighted}: 1 − {terms} = {_f3(raw_l)}"
                    + (f", capped at {config.likelihood_cap}" if uncapped is None and raw_l >= config.likelihood_cap else ""),
         "value": raw_l,
     })  # fmt: skip

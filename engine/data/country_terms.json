@@ -1,0 +1,561 @@
+{
+  "_about": "How a news title names a country (risk-engine.md §5.10, engine 1.3.0). The ISO 3166-1 English short, common and official names come from pycountry at run time; this file adds everyday aliases (as in jobs/analyse/data/countries.tsv), the adjective / demonym ('Chinese firms') and the capital used as a stand-in for the government ('Beijing protests'). Aliases written in capitals (US, UK, UAE) match only in capitals, so the word 'us' is not the United States. 'exclude' lists phrases that contain a country word but do not mean the country ('South China Sea', 'Indian Ocean'); they compete in the same longest-match-first pass, so 'Papua New Guinea' still names the country. Written for this project from general knowledge; codes and country names are factual data.",
+  "countries": {
+    "ARE": {
+      "aliases": [
+        "UAE",
+        "U.A.E.",
+        "Emirates"
+      ],
+      "adjectives": [
+        "Emirati"
+      ],
+      "capitals": [
+        "Abu Dhabi"
+      ]
+    },
+    "ARG": {
+      "adjectives": [
+        "Argentine",
+        "Argentinian"
+      ],
+      "capitals": [
+        "Buenos Aires"
+      ]
+    },
+    "AUS": {
+      "adjectives": [
+        "Australian"
+      ],
+      "capitals": [
+        "Canberra"
+      ]
+    },
+    "AUT": {
+      "adjectives": [
+        "Austrian"
+      ],
+      "capitals": [
+        "Vienna"
+      ]
+    },
+    "BEL": {
+      "adjectives": [
+        "Belgian"
+      ],
+      "capitals": []
+    },
+    "BGD": {
+      "adjectives": [
+        "Bangladeshi"
+      ],
+      "capitals": [
+        "Dhaka"
+      ]
+    },
+    "BRA": {
+      "adjectives": [
+        "Brazilian"
+      ],
+      "capitals": [
+        "Brasilia"
+      ]
+    },
+    "BLR": {
+      "adjectives": [
+        "Belarusian"
+      ],
+      "capitals": [
+        "Minsk"
+      ]
+    },
+    "CAN": {
+      "adjectives": [
+        "Canadian"
+      ],
+      "capitals": [
+        "Ottawa"
+      ]
+    },
+    "CHE": {
+      "adjectives": [
+        "Swiss"
+      ],
+      "capitals": []
+    },
+    "CHL": {
+      "adjectives": [
+        "Chilean"
+      ],
+      "capitals": []
+    },
+    "CHN": {
+      "aliases": [
+        "PRC",
+        "Mainland China"
+      ],
+      "adjectives": [
+        "Chinese"
+      ],
+      "capitals": [
+        "Beijing"
+      ]
+    },
+    "COL": {
+      "adjectives": [
+        "Colombian"
+      ],
+      "capitals": [
+        "Bogota"
+      ]
+    },
+    "CUB": {
+      "adjectives": [
+        "Cuban"
+      ],
+      "capitals": [
+        "Havana"
+      ]
+    },
+    "CZE": {
+      "aliases": [
+        "Czech Republic"
+      ],
+      "adjectives": [
+        "Czech"
+      ],
+      "capitals": []
+    },
+    "DEU": {
+      "adjectives": [
+        "German"
+      ],
+      "capitals": [
+        "Berlin"
+      ]
+    },
+    "DNK": {
+      "adjectives": [
+        "Danish"
+      ],
+      "capitals": [
+        "Copenhagen"
+      ]
+    },
+    "EGY": {
+      "adjectives": [
+        "Egyptian"
+      ],
+      "capitals": [
+        "Cairo"
+      ]
+    },
+    "ESP": {
+      "adjectives": [
+        "Spanish"
+      ],
+      "capitals": [
+        "Madrid"
+      ]
+    },
+    "ETH": {
+      "adjectives": [
+        "Ethiopian"
+      ],
+      "capitals": [
+        "Addis Ababa"
+      ]
+    },
+    "FIN": {
+      "adjectives": [
+        "Finnish"
+      ],
+      "capitals": [
+        "Helsinki"
+      ]
+    },
+    "FRA": {
+      "adjectives": [
+        "French"
+      ],
+      "capitals": []
+    },
+    "GBR": {
+      "aliases": [
+        "UK",
+        "U.K.",
+        "Britain",
+        "Great Britain"
+      ],
+      "adjectives": [
+        "British"
+      ],
+      "capitals": []
+    },
+    "GRC": {
+      "adjectives": [
+        "Greek"
+      ],
+      "capitals": [
+        "Athens"
+      ]
+    },
+    "HUN": {
+      "adjectives": [
+        "Hungarian"
+      ],
+      "capitals": [
+        "Budapest"
+      ]
+    },
+    "IDN": {
+      "adjectives": [
+        "Indonesian"
+      ],
+      "capitals": [
+        "Jakarta"
+      ]
+    },
+    "IND": {
+      "adjectives": [
+        "Indian"
+      ],
+      "capitals": [
+        "New Delhi"
+      ]
+    },
+    "IRL": {
+      "adjectives": [
+        "Irish"
+      ],
+      "capitals": []
+    },
+    "IRN": {
+      "adjectives": [
+        "Iranian"
+      ],
+      "capitals": [
+        "Tehran"
+      ]
+    },
+    "IRQ": {
+      "adjectives": [
+        "Iraqi"
+      ],
+      "capitals": [
+        "Baghdad"
+      ]
+    },
+    "ISR": {
+      "adjectives": [
+        "Israeli"
+      ],
+      "capitals": []
+    },
+    "ITA": {
+      "adjectives": [
+        "Italian"
+      ],
+      "capitals": []
+    },
+    "JPN": {
+      "adjectives": [
+        "Japanese"
+      ],
+      "capitals": [
+        "Tokyo"
+      ]
+    },
+    "KAZ": {
+      "adjectives": [
+        "Kazakh"
+      ],
+      "capitals": [
+        "Astana"
+      ]
+    },
+    "KOR": {
+      "aliases": [
+        "Republic of Korea",
+        "ROK"
+      ],
+      "adjectives": [
+        "South Korean"
+      ],
+      "capitals": [
+        "Seoul"
+      ]
+    },
+    "LKA": {
+      "adjectives": [
+        "Sri Lankan"
+      ],
+      "capitals": [
+        "Colombo"
+      ]
+    },
+    "MEX": {
+      "adjectives": [
+        "Mexican"
+      ],
+      "capitals": [
+        "Mexico City"
+      ]
+    },
+    "MMR": {
+      "aliases": [
+        "Burma"
+      ],
+      "adjectives": [
+        "Burmese"
+      ],
+      "capitals": [
+        "Naypyidaw"
+      ]
+    },
+    "MYS": {
+      "adjectives": [
+        "Malaysian"
+      ],
+      "capitals": [
+        "Kuala Lumpur"
+      ]
+    },
+    "NGA": {
+      "adjectives": [
+        "Nigerian"
+      ],
+      "capitals": [
+        "Abuja"
+      ]
+    },
+    "NLD": {
+      "aliases": [
+        "Holland"
+      ],
+      "adjectives": [
+        "Dutch"
+      ],
+      "capitals": [
+        "Amsterdam",
+        "The Hague"
+      ]
+    },
+    "NOR": {
+      "adjectives": [
+        "Norwegian"
+      ],
+      "capitals": [
+        "Oslo"
+      ]
+    },
+    "PAK": {
+      "adjectives": [
+        "Pakistani"
+      ],
+      "capitals": [
+        "Islamabad"
+      ]
+    },
+    "PHL": {
+      "adjectives": [
+        "Philippine",
+        "Filipino"
+      ],
+      "capitals": [
+        "Manila"
+      ]
+    },
+    "POL": {
+      "adjectives": [
+        "Polish"
+      ],
+      "capitals": [
+        "Warsaw"
+      ]
+    },
+    "PRK": {
+      "aliases": [
+        "DPRK"
+      ],
+      "adjectives": [
+        "North Korean"
+      ],
+      "capitals": [
+        "Pyongyang"
+      ]
+    },
+    "PRT": {
+      "adjectives": [
+        "Portuguese"
+      ],
+      "capitals": [
+        "Lisbon"
+      ]
+    },
+    "ROU": {
+      "adjectives": [
+        "Romanian"
+      ],
+      "capitals": [
+        "Bucharest"
+      ]
+    },
+    "RUS": {
+      "aliases": [
+        "Russia"
+      ],
+      "adjectives": [
+        "Russian"
+      ],
+      "capitals": [
+        "Moscow",
+        "Kremlin"
+      ]
+    },
+    "SAU": {
+      "adjectives": [
+        "Saudi"
+      ],
+      "capitals": [
+        "Riyadh"
+      ]
+    },
+    "SDN": {
+      "adjectives": [
+        "Sudanese"
+      ],
+      "capitals": [
+        "Khartoum"
+      ]
+    },
+    "SGP": {
+      "adjectives": [
+        "Singaporean"
+      ],
+      "capitals": []
+    },
+    "SWE": {
+      "adjectives": [
+        "Swedish"
+      ],
+      "capitals": [
+        "Stockholm"
+      ]
+    },
+    "SYR": {
+      "adjectives": [
+        "Syrian"
+      ],
+      "capitals": [
+        "Damascus"
+      ]
+    },
+    "THA": {
+      "adjectives": [
+        "Thai"
+      ],
+      "capitals": [
+        "Bangkok"
+      ]
+    },
+    "TUR": {
+      "aliases": [
+        "Turkey",
+        "Turkiye"
+      ],
+      "adjectives": [
+        "Turkish"
+      ],
+      "capitals": [
+        "Ankara"
+      ]
+    },
+    "TWN": {
+      "adjectives": [
+        "Taiwanese"
+      ],
+      "capitals": [
+        "Taipei"
+      ]
+    },
+    "UKR": {
+      "adjectives": [
+        "Ukrainian"
+      ],
+      "capitals": [
+        "Kyiv",
+        "Kiev"
+      ]
+    },
+    "USA": {
+      "aliases": [
+        "US",
+        "U.S.",
+        "USA",
+        "U.S.A."
+      ],
+      "adjectives": [
+        "American"
+      ],
+      "capitals": [
+        "Washington"
+      ]
+    },
+    "VEN": {
+      "adjectives": [
+        "Venezuelan"
+      ],
+      "capitals": [
+        "Caracas"
+      ]
+    },
+    "VNM": {
+      "aliases": [
+        "Vietnam"
+      ],
+      "adjectives": [
+        "Vietnamese"
+      ],
+      "capitals": [
+        "Hanoi"
+      ]
+    },
+    "YEM": {
+      "adjectives": [
+        "Yemeni"
+      ],
+      "capitals": [
+        "Sanaa"
+      ]
+    },
+    "ZAF": {
+      "adjectives": [
+        "South African"
+      ],
+      "capitals": [
+        "Pretoria"
+      ]
+    }
+  },
+  "exclude": [
+    "South China Sea",
+    "East China Sea",
+    "China Sea",
+    "Indian Ocean",
+    "New Mexico",
+    "Latin America",
+    "Latin American",
+    "South America",
+    "South American",
+    "North America",
+    "North American",
+    "Central America",
+    "Central American",
+    "Washington state",
+    "Washington State",
+    "New Guinea",
+    "Dutch Harbor",
+    "British Columbia"
+  ]
+}
