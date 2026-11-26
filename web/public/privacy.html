@@ -1,39 +1,84 @@
-Privacy policy
-RiskPredict AI · Last updated 26 November 2026
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy · RiskPredict AI</title>
+<meta name="description" content="What RiskPredict AI collects, why, who processes it, and how to remove it.">
+<style>
+  :root { --bg: #E7ECF1; --card: #FFFFFF; --ink: #121A23; --muted: #5A6675; --line: #D5DCE4; --link: #1F5FD1; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0F141A; --card: #161D25; --ink: #E6EBF0; --muted: #9AA6B4; --line: #26303B; --link: #7FA8F5; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 400 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 40px auto; padding: 32px 28px; background: var(--card);
+         border: 1px solid var(--line); border-radius: 16px; }
+  @media (max-width: 760px) { main { margin: 0; border-radius: 0; border: 0; padding: 24px 16px; } }
+  h1 { font-size: 28px; font-weight: 600; line-height: 1.25; margin: 0 0 4px; }
+  h2 { font-size: 18px; font-weight: 600; margin: 28px 0 8px; }
+  p, li { margin: 0 0 10px; }
+  ul { padding-left: 20px; margin: 0 0 10px; }
+  .meta { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+  a { color: var(--link); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 4px 0 12px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy policy</h1>
+  <p class="meta">RiskPredict AI · Last updated 26 November 2026</p>
 
-RiskPredict AI is a non-commercial university project. It matches public global feeds (news, ports, hazards, cyber, sanctions and markets) to the suppliers, sites and routes in the tools you connect, and shows the resulting risks on a map. Its source code is public at github.com/abdurraheem0528/riskpredict-ai.
+  <p>RiskPredict AI is a non-commercial university project. It matches public global feeds (news, ports, hazards, cyber, sanctions and markets) to the suppliers, sites and routes in the tools you connect, and shows the resulting risks on a map. Its source code is public at <a href="https://github.com/abdurraheem0528/riskpredict-ai">github.com/abdurraheem0528/riskpredict-ai</a>.</p>
 
-What we collect
-Your account: your email address and your password, stored only as an argon2id hash.
-Data from tools you connect, and only what you choose:
-Google Sheets: only the spreadsheets you pick in the Google Picker. We ask for the drive.file permission, so we can't see any other file in your Google Drive.
-Airtable (through Composio): only the bases and tables you choose.
-We read their rows to build the suppliers, sites and routes in your workspace.
-Sign-in tokens for those tools: the Google refresh token is encrypted before it is stored. Composio holds the Airtable sign-in.
-How we use it
-Only to show risks, evidence, advice and what-if scenarios in your own workspace. We don't sell data, show ads, build profiles or use your data to train AI models. Each workspace is isolated by database row-level security, and all traffic uses HTTPS.
+  <h2>What we collect</h2>
+  <ul>
+    <li><strong>Your account:</strong> your email address and your password, stored only as an argon2id hash.</li>
+    <li><strong>Data from tools you connect, and only what you choose:</strong>
+      <ul>
+        <li><strong>Google Sheets:</strong> only the spreadsheets you pick in the Google Picker. We ask for the <code>drive.file</code> permission, so we can't see any other file in your Google Drive.</li>
+        <li><strong>Airtable (through Composio):</strong> only the bases and tables you choose.</li>
+      </ul>
+      We read their rows to build the suppliers, sites and routes in your workspace.</li>
+    <li><strong>Sign-in tokens for those tools:</strong> the Google refresh token is encrypted before it is stored. Composio holds the Airtable sign-in.</li>
+  </ul>
 
-Google user data
-RiskPredict AI's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. Data from your Google Sheets is used only to provide the features described above. People can't read it unless you ask for support, and it is never transferred for advertising.
+  <h2>How we use it</h2>
+  <p>Only to show risks, evidence, advice and what-if scenarios in your own workspace. We don't sell data, show ads, build profiles or use your data to train AI models. Each workspace is isolated by database row-level security, and all traffic uses HTTPS.</p>
 
-Who processes it
-Service	What for
-Neon	The database that stores your account and workspace data
-Vercel	Runs the API
-Cloudflare Pages	Serves the dashboard
-GitHub Actions	Runs the background jobs (feed updates and source syncs)
-Groq	Suggests column mappings: it receives column headers and up to 5 sample values per column. Words the advice text: it receives an entity's name and kind and the risk's description. It never sets a score.
-Composio	Connects Airtable, only if you connect it
-Cookies and tracking
-None. The dashboard sets no cookies and uses no analytics or tracking scripts.
+  <h2>Google user data</h2>
+  <p>RiskPredict AI's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Data from your Google Sheets is used only to provide the features described above. People can't read it unless you ask for support, and it is never transferred for advertising.</p>
 
-Keeping and deleting data
-Removing a source or connection deletes its rows and the risks built from them.
-Live-update events are kept for 24 hours. Processed webhook records are kept for 30 days.
-You can revoke Google access at any time at myaccount.google.com/permissions.
-To have your account and all workspace data deleted, contact us (below). We delete it within 30 days.
-Contact
-Questions or deletion requests: contact the project owner through the GitHub repository.
+  <h2>Who processes it</h2>
+  <table>
+    <tr><th>Service</th><th>What for</th></tr>
+    <tr><td>Neon</td><td>The database that stores your account and workspace data</td></tr>
+    <tr><td>Vercel</td><td>Runs the API</td></tr>
+    <tr><td>Cloudflare Pages</td><td>Serves the dashboard</td></tr>
+    <tr><td>GitHub Actions</td><td>Runs the background jobs (feed updates and source syncs)</td></tr>
+    <tr><td>Groq</td><td>Suggests column mappings: it receives column headers and up to 5 sample values per column. Words the advice text: it receives an entity's name and kind and the risk's description. It never sets a score.</td></tr>
+    <tr><td>Composio</td><td>Connects Airtable, only if you connect it</td></tr>
+  </table>
 
-Changes
-If this policy changes, the date at the top changes with it.
+  <h2>Cookies and tracking</h2>
+  <p>None. The dashboard sets no cookies and uses no analytics or tracking scripts.</p>
+
+  <h2>Keeping and deleting data</h2>
+  <ul>
+    <li>Removing a source or connection deletes its rows and the risks built from them.</li>
+    <li>Live-update events are kept for 24 hours. Processed webhook records are kept for 30 days.</li>
+    <li>You can revoke Google access at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+    <li>To have your account and all workspace data deleted, contact us (below). We delete it within 30 days.</li>
+  </ul>
+
+  <h2>Contact</h2>
+  <p>Questions or deletion requests: contact the project owner through the <a href="https://github.com/abdurraheem0528/riskpredict-ai">GitHub repository</a>.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, the date at the top changes with it.</p>
+</main>
+</body>
+</html>
