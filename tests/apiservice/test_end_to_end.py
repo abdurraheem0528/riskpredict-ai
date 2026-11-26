@@ -155,6 +155,10 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         ents = client.get("/v1/map/entities", headers=hdr(me)).json()["features"]
         assert len(ents) == len(ENTITIES)
         assert {f["properties"]["name"]: f["properties"]["place"] for f in ents}["Kansai Precision Parts"] == "Japan"
+        # A route's declared chokepoints, as ids ("Suez Canal" was written as a name); none on other kinds.
+        props = {f["properties"]["name"]: f["properties"] for f in ents}
+        assert props["Asia-Europe lane"]["chokepoints"] == ["suez"]
+        assert "chokepoints" not in props["Kansai Precision Parts"]
         dis = {f["id"]: f["properties"] for f in client.get("/v1/map/disruptions", headers=hdr(me)).json()["features"]}
         suez = dis["chokepoint:suez"]
         assert suez["status"] == "disrupted" and suez["event_ids"] == ["portwatch:pw-e2e-1"]

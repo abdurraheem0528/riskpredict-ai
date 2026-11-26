@@ -6,7 +6,9 @@ Shared by the API (responses) and the worker (live-update event payloads), so a
 
 from __future__ import annotations
 
+import functools
 import re
+import unicodedata
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -221,24 +223,54 @@ def entity(row: dict) -> dict:
     }
 
 
+def _cp_label(s: str) -> str:
+    """As ``api.core.mapping._norm_label``: casefold, accents and punctuation dropped, "strait of" ignored."""
+    s = unicodedata.normalize("NFKD", s).casefold()
+    return re.sub(r"[^a-z0-9]+", "", s.replace("strait of", "").replace("the ", ""))
+
+
+@functools.lru_cache(maxsize=1)
+def _chokepoint_index() -> dict[str, str]:
+    from api.core import engine as engine_iface
+
+    index: dict[str, str] = {}
+    for cp in engine_iface.chokepoints():
+        for label in (cp.id, cp.name, *cp.aliases):
+            index.setdefault(_cp_label(label), cp.id)
+    return index
+
+
+def route_chokepoints(attrs: Any) -> list[str]:
+    """A route's declared chokepoints (``attrs.chokepoints``) as ids, in the order given, each once.
+
+    Sync already stores ids (``api.core.mapping``); a name or alias is resolved here too, and a
+    value that names no known chokepoint is left out."""
+    raw = attrs.get("chokepoints") if isinstance(attrs, dict) else None
+    out: list[str] = []
+    for v in raw if isinstance(raw, list) else []:
+        cid = _chokepoint_index().get(_cp_label(str(v))) if v else None
+        if cid and cid not in out:
+            out.append(cid)
+    return out
+
+
 def entity_feature(row: dict) -> dict:
     geom = {"type": "Point", "coordinates": [row["lon"], row["lat"]]} if row["lat"] is not None else None
-    return {
-        "type": "Feature",
-        "id": str(row["id"]),
-        "geometry": geom,
-        "properties": {
-            "kind": row["kind"],
-            "name": row["name"],
-            "countries": list(row["countries"]),
-            "ports": list(row["ports"]),
-            "city": row["city"],
-            "place": entity_place(row),
-            "criticality": row["criticality"],
-            "open_risk_count": int(row["open_risk_count"] or 0),
-            "max_score": r1(row["max_score"]),
-        },
+    props = {
+        "kind": row["kind"],
+        "name": row["name"],
+        "countries": list(row["countries"]),
+        "ports": list(row["ports"]),
+        "city": row["city"],
+        "place": entity_place(row),
+        "criticality": row["criticality"],
+        "open_risk_count": int(row["open_risk_count"] or 0),
+        "max_score": r1(row["max_score"]),
     }
+    if row["kind"] == "route":
+        # Routes only: the dashboard draws a route's sea lane through these, in order.
+        props["chokepoints"] = route_chokepoints(row.get("attrs"))
+    return {"type": "Feature", "id": str(row["id"]), "geometry": geom, "properties": props}
 
 
 # A story is one feed item (news report, hazard, listing) that reaches several entities: the

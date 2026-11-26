@@ -619,7 +619,7 @@ export interface paths {
         };
         /**
          * The workspace's entities as map features
-         * @description Entities with `lat`/`lon` (their own, else their city's) are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Not paginated; at most 5,000 features (then `truncated` is true).
+         * @description Entities with `lat`/`lon` (their own, else their city's) are Points. Entities with only a country or port have `geometry` null and the dashboard places them by `countries[0]`/`ports[0]` (Natural Earth `ADM0_A3`, World Port Index UN/LOCODE). Route features also carry `chokepoints`, their declared chokepoint ids in order. Not paginated; at most 5,000 features (then `truncated` is true).
          */
         get: operations["mapEntities"];
         put?: never;
@@ -1545,6 +1545,14 @@ export interface components {
                     criticality: string | null;
                     open_risk_count: number;
                     max_score: number | null;
+                    /**
+                     * @description Routes only (absent on other kinds and in a preview): the chokepoint ids the route
+                     *     declares (`attrs.chokepoints`, ids as on the disruptions layer, `chokepoint:<id>`), in
+                     *     the order it passes them from its first port to its last, each once; may be empty.
+                     *     The dashboard draws the route's sea lane through them. Suppliers, sites and ports have
+                     *     no declared route; the chokepoints the engine infers for them are on their risks.
+                     */
+                    chokepoints?: string[];
                     /** @description Preview only */
                     row_number?: number | null;
                 };

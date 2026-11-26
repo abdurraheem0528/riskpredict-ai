@@ -41,10 +41,11 @@ function pagesHeaders(): Plugin {
   };
 }
 
-// The gazetteer's URL carries a hash of its files (src/map/geo.ts), so a release with new
-// port names or positions is never masked by a copy cached under the same URL.
+// The gazetteer's and the sea lanes' URLs carry a hash of their files (src/map/geo.ts,
+// src/map/lanes.ts), so a release with new port names, positions or lanes is never masked by
+// a copy cached under the same URL.
 const mapDataVersion = createHash('sha256')
-  .update(['centroids.json', 'ports.json'].map((f) => readFileSync(new URL(`./public/map/${f}`, import.meta.url))).join('\n'))
+  .update(['centroids.json', 'ports.json', 'lanes.json'].map((f) => readFileSync(new URL(`./public/map/${f}`, import.meta.url))).join('\n'))
   .digest('hex')
   .slice(0, 12);
 
