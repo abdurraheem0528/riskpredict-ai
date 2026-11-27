@@ -22,6 +22,7 @@ from engine.models import (
 )
 from engine.places import city_position, place_label, port_name
 from engine.reference import chokepoint_id, chokepoints
+from engine.relevance import headline
 from engine.scenario import (
     EntityOverride,
     FxShock,
@@ -32,6 +33,7 @@ from engine.scenario import (
     run_scenario,
     scenario_results,
 )
+from engine.texts import country_name
 from engine.watch import watch_terms_for
 
 __all__ = [
@@ -42,4 +44,5 @@ __all__ = [
     "assess", "load_entities", "load_feeds", "write_risks", "run_workspace", "run_scenario", "scenario_results",
     "watch_terms_for", "advice_messages", "template_advice", "needs_new_advice",
     "chokepoints", "chokepoint_id", "city_position", "port_name", "place_label", "copy_keys",
+    "headline", "country_name",
 ]  # fmt: skip

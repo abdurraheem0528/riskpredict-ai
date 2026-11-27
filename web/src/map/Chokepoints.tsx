@@ -2,6 +2,7 @@
 // disrupted one in the Medium (or High) fill with a slow ring and its name and the number
 // of drawn lanes through it. Diamonds show from about zoom 1.2 on the globe (class `zd`),
 // labels from the pill zoom (`zp`); the ring stops under reduced motion and in a hidden tab.
+// A chokepoint that carries a story's score pill (StoryPills) shows no label of its own.
 import { useEffect, useMemo, useRef } from 'react';
 import type { Marker } from 'maplibre-gl';
 import { useMap } from './MapRoot';
@@ -26,7 +27,7 @@ export function useChokepoints(): Chokepoint[] {
   );
 }
 
-export function Chokepoints({ laneCounts = {}, only = null }: { laneCounts?: Record<string, number>; only?: Set<string> | null }) {
+export function Chokepoints({ laneCounts = {}, only = null, unlabelled = null }: { laneCounts?: Record<string, number>; only?: Set<string> | null; unlabelled?: ReadonlySet<string> | null }) {
   const { map, lib } = useMap();
   const all = useChokepoints();
   const list = useMemo(() => (only ? all.filter((c) => only.has(c.id)) : all), [all, only]);
@@ -41,7 +42,7 @@ export function Chokepoints({ laneCounts = {}, only = null }: { laneCounts?: Rec
     }
     for (const c of list) {
       const active = c.status === 'watch' || c.status === 'disrupted';
-      const text = active ? chokeLabel(c.name, laneCounts[c.id]) : '';
+      const text = active && !unlabelled?.has(c.id) ? chokeLabel(c.name, laneCounts[c.id]) : '';
       const key = `${c.status}|${text}`;
       let r = recs.current.get(c.id);
       if (r && r.key === key) continue;
@@ -58,10 +59,13 @@ export function Chokepoints({ laneCounts = {}, only = null }: { laneCounts?: Rec
       if (active) {
         const ring = document.createElement('i');
         ring.className = 'ring';
-        lab = document.createElement('span');
-        lab.className = 'clab';
-        lab.textContent = text;
-        el.append(ring, lab);
+        el.append(ring);
+        if (text) {
+          lab = document.createElement('span');
+          lab.className = 'clab';
+          lab.textContent = text;
+          el.append(lab);
+        }
       }
       root.append(el);
       root.style.zIndex = '1';
@@ -69,7 +73,7 @@ export function Chokepoints({ laneCounts = {}, only = null }: { laneCounts?: Rec
       r = { m, el, lab, key };
       recs.current.set(c.id, r);
     }
-  }, [map, lib, list, laneCounts]);
+  }, [map, lib, list, laneCounts, unlabelled]);
 
   useEffect(() => {
     const rs = recs.current;

@@ -1,9 +1,8 @@
-// The map legend (small, bottom left of the free map area, beside the sheet): the level
-// pills, then the map's marks, then whatever the screen adds (feed status). Hidden on phones.
+// The map legend (small, bottom left of the free map area, beside the sheet): a 48 × 4 copy
+// of the score scale, then the map's marks, then whatever the screen adds (feed status).
+// Hidden on phones.
 import type { ReactNode } from 'react';
-import { LEVELS, type Level } from '../lib/format';
-
-const ORDER: Level[] = ['low', 'med', 'high', 'crit'];
+import { ScoreBands } from '../ui/ScoreScale';
 
 export function Legend({ sheet = 344, side = 'left', marks = ['lane', 'choke', 'site'], children }: {
   sheet?: number;
@@ -17,10 +16,9 @@ export function Legend({ sheet = 344, side = 'left', marks = ['lane', 'choke', '
   const style = { left, maxWidth: `calc(100% - ${left + right}px)` };
   return (
     <div className="legend mlegend glass" style={style} aria-label="Legend">
-      <span className="mlv" aria-label="Levels">
-        {ORDER.map((l) => (
-          <span key={l} className={`mlp l-${l}`}>{LEVELS[l].name}</span>
-        ))}
+      <span className="k mlv">
+        <ScoreBands width={48} height={4} />
+        Score out of 100
       </span>
       {marks.includes('shock') && <span className="k mk-shock"><i className="sw shock" aria-hidden="true" />Where it happens</span>}
       {marks.includes('lane') && <span className="k mk-lane"><i className="sw lane" aria-hidden="true" />Sea lane</span>}

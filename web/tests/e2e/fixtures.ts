@@ -53,6 +53,17 @@ export async function mapSettled(page: Page) {
   await expect(page.locator('.mapbox[data-map="idle"]')).toBeAttached({ timeout: 45_000 });
 }
 
+/**
+ * At 1360 × 900 the sheet (or its scrolling body) shows everything at once: no scrolling.
+ * Other widths keep today's behaviour (the phone sheet scrolls), so they are not checked.
+ */
+export async function noSheetScroll(page: Page, project: string, selector: string) {
+  if (!project.startsWith('desktop')) return;
+  const el = page.locator(selector).first();
+  const { scroll, client } = await el.evaluate((e) => ({ scroll: e.scrollHeight, client: e.clientHeight }));
+  expect(scroll, `${selector} scrolls: ${scroll} px of content in ${client} px`).toBeLessThanOrEqual(client);
+}
+
 export async function shot(page: Page, name: string, project: string) {
   // SHOT_DIR lets a private run (another port and outDir) keep its screenshots apart.
   await page.screenshot({ path: `${process.env.SHOT_DIR ?? 'screenshots'}/${project}/${name}.png`, animations: 'disabled' });

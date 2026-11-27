@@ -1319,21 +1319,65 @@ export interface components {
             /** Format: date-time */
             status_changed_at: string;
             /**
-             * @description One feed item (a news report, a hazard, a listing) that reaches several entities is one
-             *     *story*: the engine gives each of their risks the same key (`factors.story`,
-             *     risk-engine.md §5.9). Counts and lists that should not repeat a story use it.
+             * @description What lists and counts show once: every open risk of one category at one *place*, the
+             *     place being what the risk's strongest item matched (`where`). Routes that pass Bab
+             *     el-Mandeb and suppliers whose lanes pass it are one story, whichever report is
+             *     strongest for each. A hazard matched by distance (`geo_radius`) is the engine's story
+             *     (`factors.story`: one feed item reaching several entities, risk-engine.md §5.9).
+             *     Grouped by the API; the engine's keys are unchanged.
              */
             story: {
-                /** @description `<category>|<evidence key of the strongest item>`, or `risk:<id>` for a risk scored before engine 1.2.0 */
+                /** @description `<category>|<match_type>:<match_value>` of the strongest item (`trade_policy|country:NLD`, `logistics|chokepoint:bab_el_mandeb`); for a `geo_radius` match `factors.story` (`<category>|<evidence key>`); for a risk scored before engine 1.2.0 its entity's first country (`|country:<ISO3>`), else first port (`|port:<LOCODE>`), else `risk:<id>` */
                 key: string;
                 /** @description Open, acknowledged or mitigating risks in this story (1 when only this one) */
                 risk_count: number;
+                /** @description Distinct entities those risks belong to (all of them, not only the 10 listed) */
+                entity_count?: number;
+                /** @description EntityKind → distinct entities of that kind in the story (all of them): `{route: 8, supplier: 7}` */
+                kind_counts?: {
+                    [key: string]: number;
+                };
                 /** @description The entities the story reaches, highest score first */
                 entities: {
                     /** Format: uuid */
                     id: string;
                     name: string;
+                    kind?: components["schemas"]["EntityKind"];
+                    /** @description The entity's city */
+                    city?: string | null;
+                    criticality?: components["schemas"]["Criticality"] | null;
                 }[];
+            };
+            /**
+             * @description The place or thing the risk's strongest item matched (`factors.explain.matched`):
+             *     `{chokepoint, bab_el_mandeb, "Bab el-Mandeb"}`, `{country, NLD, "the Netherlands"}`,
+             *     `{port, NLRTM, "Rotterdam"}`. A risk scored before engine 1.2.0 falls back to its
+             *     entity's first country, else first port; null when it has neither.
+             */
+            where: null | {
+                /** @enum {string} */
+                match_type: "country" | "geo_radius" | "port" | "chokepoint" | "currency" | "commodity" | "software" | "sanctions_name" | "company_name";
+                /** @description As in `Evidence.match_value`: an ISO3, a UN/LOCODE, a chokepoint id, a distance (`geo_radius`)… */
+                match_value: string;
+                /** @description In words, as running text names it: a country with "the" where English needs it, a port's or chokepoint's display name; for `geo_radius` the entity's city; for software the package or product */
+                label: string;
+            };
+            /**
+             * @description The strongest report linked by the latest scoring, as its headline: the engine's reading
+             *     of the title (`engine.headline`: a trailing outlet segment and a leading wire tag
+             *     dropped). A headline the feed cut off (ending in "…" or "...", or with a quote that
+             *     never closes) is skipped for the next strongest; when every one is cut, the strongest
+             *     is used. Null for a risk with no news or other event (a market anomaly).
+             */
+            lead: null | {
+                title: string;
+                /** @description The feed (`newsdata`, `gdelt`, `usgs`…) */
+                source: string;
+                /** Format: date-time */
+                published_at: string | null;
+                url: string | null;
+                /** @description The feed item's type (`news`, `hazard.earthquake`, `port.disruption`…), as in `EvidenceSnapshot.type` */
+                type?: string | null;
             };
         };
         RiskDetail: components["schemas"]["Risk"] & {
@@ -1496,8 +1540,10 @@ export interface components {
         RiskSummary: {
             /** @description open + acknowledged + mitigating */
             open_count: number;
-            /** @description Distinct stories among those risks (`Risk.story.key`): what the Overview counts */
+            /** @description Distinct stories among those risks (`Risk.story.key`: one per category and place): what the Overview counts */
             story_count: number;
+            /** @description The highest score of each of those stories, highest first (the Overview's score strip) */
+            story_scores?: number[];
             /** @description RiskCategory → distinct open stories (all categories present, 0 if none) */
             stories_by_category: {
                 [key: string]: number;
@@ -3097,8 +3143,9 @@ export interface operations {
                 since?: string;
                 sort?: "-score" | "-last_seen_at" | "-first_seen_at" | "-likelihood" | "-impact";
                 /**
-                 * @description `story`: one item per story (`Risk.story.key`): the highest-scored matching risk of
-                 *     each, with `story.entities` listing every entity the story reaches. Without it, every
+                 * @description `story`: one item per story (a category at a place, `Risk.story.key`): the
+                 *     highest-scored matching risk of each, with `story.entities` listing the entities the
+                 *     story reaches (up to 10; `story.kind_counts` counts all of them). Without it, every
                  *     risk is listed.
                  */
                 group?: "story";

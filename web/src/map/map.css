@@ -81,9 +81,8 @@
 .mvr { width: 1px; height: 20px; margin: 0 4px; background: var(--sep); flex: none; }
 
 /* --- legend: small, bottom left of the free map area --- */
-.legend.mlegend { right: auto; bottom: 20px; height: 48px; gap: 14px; padding: 0 16px 0 10px; border-radius: var(--r-cap); overflow: hidden; }
-.mlegend .mlv { display: inline-flex; gap: 4px; flex: none; }
-.mlegend .mlp { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 12px; font: 600 11px/14px var(--font); }
+.legend.mlegend { right: auto; bottom: 20px; height: 48px; gap: 14px; padding: 0 16px; border-radius: var(--r-cap); overflow: hidden; }
+.mlegend .mlv { gap: 8px; flex: none; }
 .mlegend .k { flex: none; }
 .mlegend .sw { flex: none; display: inline-block; }
 .mlegend .sw.lane { width: 16px; height: 2px; border-radius: 1px; background: var(--lane); opacity: 0.7; }

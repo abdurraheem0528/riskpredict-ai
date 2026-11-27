@@ -47,36 +47,93 @@ describe('screens', () => {
     expect(screen.getByText('Google Sheets or Airtable')).toBeInTheDocument();
     // Register and Scenarios wait for a source; one blue button.
     const nav = screen.getByRole('navigation', { name: 'Main' });
-    expect(within(nav).getByText('Register')).toHaveAttribute('aria-disabled', 'true');
+    expect(within(nav).getByText('Risks')).toHaveAttribute('aria-disabled', 'true');
     expect(document.querySelectorAll('.b.pri')).toHaveLength(1);
   });
 
-  it('Main: top risks from the API, the first one selected', async () => {
+  it('Overview: how many risks and their levels, the score strip, and the top story open in place', async () => {
     boot('/');
-    const first = await screen.findByRole('button', { name: /Name matches a sanctions entry/ });
-    expect(first).toHaveAttribute('aria-pressed', 'true');
-    expect(document.querySelector('.figxl')).toHaveTextContent('81');
-    // the headline counts stories (story_count); risks only when they differ
-    expect(screen.getByText('6 open stories')).toBeInTheDocument();
-    // one story that reaches two entities is one row, naming the first and counting the rest
-    expect(screen.getByText('Yantian to Rotterdam and 1 more')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '18 risks touch your business' })).toBeInTheDocument();
+    expect(screen.getByText(/^All are Low\. Checked 4 min ago\.$/)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '18 scores out of 100, from 7 to 34' })).toBeInTheDocument();
+    // one row per story, listed once by place, with the real headline and what it reaches
+    const first = await screen.findByRole('button', { name: /^Shipping through Bab el-Mandeb/ });
+    expect(first).toHaveAttribute('aria-expanded', 'true');
+    expect(within(first).getByText('Houthis Strike Saudi Ports on Red Sea')).toBeInTheDocument();
+    expect(within(first).getByText('8 routes and 7 suppliers ship through it')).toBeInTheDocument();
+    expect(within(first).getByText('34')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^(Shipping|Trade policy|Sanctions) / })).toHaveLength(3);
+    // the open row: the receipt (likely × impact = score) and its two buttons
+    expect(await screen.findByText('68%')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText('Shipping, on a route you rated high')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open risk' })).toHaveAttribute('href', `/risks/${risks[0].id}`);
+    expect(screen.getByRole('link', { name: 'What if' })).toHaveAttribute('href', `/scenarios?risk=${risks[0].id}`);
+    expect(screen.getByRole('link', { name: /All 18 risks/ })).toHaveAttribute('href', '/register');
     expect(document.querySelectorAll('.b.pri')).toHaveLength(1);
+    // no internal words
+    expect(document.body.textContent).not.toMatch(/signals matched|open stories|same country|noisy-OR/);
+    // another row opens in its place
+    await userEvent.click(screen.getByRole('button', { name: /^Trade policy in the Netherlands/ }));
+    expect(screen.getByRole('button', { name: /^Trade policy in the Netherlands/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(await screen.findByText('Trade policy, at a site you rated critical')).toBeInTheDocument();
   });
 
-  it('Main: open stories first, then the entity × story risks', async () => {
-    server.use(http.get(`${API}/v1/risks/summary`, () => HttpResponse.json({ ...summary, story_count: 41, open_count: 66 })));
+  it('Overview: names the levels when they differ; the Risks tab counts stories', async () => {
+    server.use(http.get(`${API}/v1/risks/summary`, () => HttpResponse.json({ ...summary, story_count: 41, open_count: 66, story_scores: [72, 61, ...Array(39).fill(12)] })));
     boot('/');
-    expect(await screen.findByText('41 open stories')).toBeInTheDocument();
-    expect(screen.getByText('66 risks')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '41 risks touch your business' })).toBeInTheDocument();
+    expect(screen.getByText(/^2 are High, 39 Low\./)).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'Main' });
-    expect(within(nav).getByTitle('41 open stories')).toHaveTextContent('41');
+    expect(within(nav).getByTitle('41 risks')).toHaveTextContent('41');
+    expect(within(nav).getByRole('link', { name: /^Risks/ })).toHaveAttribute('href', '/register');
   });
 
-  it('Register: filtered to one entity, it names the entity', async () => {
-    const e = entities.find((x) => x.name === 'Lumen Display Co')!;
+  it('Risks: one row per place, category chips with counts on one row, and the sort menu', async () => {
+    boot('/risks');
+    expect(await screen.findByRole('heading', { name: 'Risks' })).toBeInTheDocument();
+    expect(screen.getByText(/^18 touch your business\. Checked 4 min ago\.$/)).toBeInTheDocument();
+    await screen.findByText('Shipping through Bab el-Mandeb');
+    const listed = [...document.querySelectorAll<HTMLElement>('a.rrow')];
+    expect(listed).toHaveLength(18);
+    expect(listed[0]).toHaveAttribute('href', `/risks/${risks[0].id}`);
+    expect(within(listed[0]).getByText('Shipping through Bab el-Mandeb')).toBeInTheDocument();
+    expect(within(listed[1]).getByText('Trade policy in the Netherlands')).toBeInTheDocument();
+    expect(within(listed[1]).getByText('Dutch Government Lobbies Against US Chip Export Bill')).toBeInTheDocument();
+    expect(within(listed[1]).getByText('2 sites, in Eindhoven and Rotterdam')).toBeInTheDocument();
+    expect(within(listed[2]).getByText('Sanctions in Malaysia')).toBeInTheDocument();
+    expect(within(listed[2]).getByText('Penang Semicon Assembly')).toBeInTheDocument();
+    expect(within(listed[3]).getByText('Cyber threats in Taiwan')).toBeInTheDocument();
+    expect(within(listed[4]).getByText('Sanctions in China')).toBeInTheDocument();
+    expect(within(listed[5]).getByText('Shipping in Malaysia')).toBeInTheDocument();
+    // chips: All, then the categories with their story counts
+    const chips = screen.getByRole('group', { name: 'Category' });
+    expect(within(chips).getByRole('button', { name: 'All 18' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(chips).getByRole('button', { name: 'Shipping 4' })).toBeInTheDocument();
+    // the sort button opens the two choices
+    await userEvent.click(screen.getByRole('button', { name: 'Highest first' }));
+    const menu = screen.getByRole('menu', { name: 'Sort' });
+    expect(within(menu).getAllByRole('menuitemradio').map((b) => b.textContent)).toEqual(['Highest first', 'Newest first']);
+    await userEvent.click(within(menu).getByRole('menuitemradio', { name: 'Newest first' }));
+    expect(screen.getByRole('button', { name: 'Newest first' })).toBeInTheDocument();
+  });
+
+  it('Risks: /register is the same list', async () => {
+    boot('/register');
+    expect(await screen.findByRole('heading', { name: 'Risks' })).toBeInTheDocument();
+    expect(await screen.findByText('Shipping through Bab el-Mandeb')).toBeInTheDocument();
+  });
+
+  it('Overview: /overview opens the Overview', async () => {
+    // (a typed or bookmarked /overview is replaced by / before the first render: tests/e2e)
+    boot('/overview');
+    expect(await screen.findByRole('heading', { name: '18 risks touch your business' })).toBeInTheDocument();
+  });
+
+  it('Risks: filtered to one entity, it names the entity', async () => {
+    const e = entities.find((x) => x.name === 'Formosa Microcircuits')!;
     boot(`/register?entity=${e.id}`);
-    expect(await screen.findByTitle('Lumen Display Co')).toHaveTextContent('Lumen Display Co');
+    expect(await screen.findByTitle('Formosa Microcircuits')).toHaveTextContent('Formosa Microcircuits');
     expect(screen.queryByText('One entity')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Show all' })).toHaveAttribute('href', '/register');
   });
@@ -96,7 +153,7 @@ describe('screens', () => {
     expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 
-  it('Risk: evidence and advice; acknowledging calls PATCH', async () => {
+  it('Risk: the place, why it reaches you, the score and its move, the receipt, the news and what to do', async () => {
     let patched = '';
     server.use(
       http.patch(`${API}/v1/risks/:id`, async ({ request }) => {
@@ -104,23 +161,57 @@ describe('screens', () => {
         return HttpResponse.json({ ...risks[1], status: patched });
       }),
     );
-    const r = risks.find((x) => x.category === 'logistics')!;
+    const r = risks[1]; // the live Atlas Eindhoven risk
     boot(`/risks/${r.id}`);
-    expect(await screen.findByRole('heading', { name: r.title })).toBeInTheDocument();
-    expect(screen.getByText(/Order four weeks/)).toBeInTheDocument();
-    expect(screen.getByText('Transit calls at Bab el-Mandeb down week on week')).toBeInTheDocument();
-    expect(screen.getByText('The same story also reaches')).toBeInTheDocument();
-    expect(screen.getByText('Lumen Display Co')).toBeInTheDocument();
-    // the numbers sit in a collapsed section, not in the explanation
-    const how = screen.getByText('How this was scored').closest('details')!;
-    expect(how).not.toHaveAttribute('open');
-    await userEvent.click(screen.getByText('How this was scored'));
-    expect(how).toHaveAttribute('open');
-    expect(within(how).getByText(/noisy-OR of 2 items/)).toBeInTheDocument();
-    expect(within(how).getByText('chokepoint: Bab el-Mandeb')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Trade policy in the Netherlands' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Risks' })).toHaveAttribute('href', '/register');
+    expect(screen.getByText('Open')).toBeInTheDocument();
+    expect(screen.getByText('Atlas Eindhoven Assembly Plant, a critical site, and Atlas Rotterdam Distribution Centre are in the Netherlands.')).toBeInTheDocument();
+    expect(screen.getByText('30')).toHaveClass('figxl');
+    expect(screen.getByText('Up 3 since yesterday')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Score 30 out of 100: Low' })).toBeInTheDocument();
+    expect(screen.getByText('Likely')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText(/^4 reports (in \d days|on \d+ \w+) name the Netherlands$/)).toBeInTheDocument();
+    expect(screen.getByText('60%')).toBeInTheDocument();
+    expect(screen.getByText('Trade policy, at a site you rated critical')).toBeInTheDocument();
+    // two news items, strongest first; "All 4" shows the rest in place
+    const lead = screen.getByRole('link', { name: /Dutch Government Lobbies Against US Chip Export Bill/ });
+    expect(lead).toHaveAttribute('href', 'https://news.example.test/dutch-lobby');
+    expect(screen.queryByText(/Dutch exporters warn of delays/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'All 4' }));
+    expect(screen.getByText(/Dutch exporters warn of delays/)).toBeInTheDocument();
+    expect(screen.getByText('Written by AI from these reports')).toBeInTheDocument();
+    expect(screen.getByText(/which tools or spares would need a new export licence/)).toBeInTheDocument();
+    expect(document.querySelectorAll('.rsteps li')).toHaveLength(3);
+    // gone: the tiles, the formula and the footer line; the sentence names both sites
+    expect(document.body.textContent).not.toMatch(/signals matched|since the last one|Sources:|noisy-OR|same country|The same story also reaches/);
+    // the working is one tap away
+    await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Show the working' }));
+    const how = screen.getByRole('region', { name: 'How this was scored' });
+    expect(within(how).getByText(/noisy-OR of 4 items/)).toBeInTheDocument();
+    expect(within(how).getByText('country: Netherlands (NLD)')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Acknowledge' }));
     await screen.findByText('Marked acknowledged');
     expect(patched).toBe('acknowledged');
+  });
+
+  it('Risk: a chokepoint story counts what ships through it; a market move says what moved', async () => {
+    boot(`/risks/${risks[0].id}`);
+    expect(await screen.findByRole('heading', { name: 'Shipping through Bab el-Mandeb' })).toBeInTheDocument();
+    expect(screen.getByText('8 of your routes and 7 of your suppliers ship through Bab el-Mandeb.')).toBeInTheDocument();
+    expect(screen.getByText('Down 2 since yesterday')).toBeInTheDocument();
+    expect(screen.getByText(/^2 reports (in \d days|on \d+ \w+) mention Bab el-Mandeb$/)).toBeInTheDocument();
+  });
+
+  it('Risk: a market move says what moved, and has no news', async () => {
+    const fx = risks.find((x) => x.category === 'financial')!;
+    boot(`/risks/${fx.id}`);
+    expect(await screen.findByRole('heading', { name: 'TWD swings' })).toBeInTheDocument();
+    expect(screen.getByText('An unusual move in EUR/TWD')).toBeInTheDocument();
+    expect(screen.queryByText('The news')).not.toBeInTheDocument();
+    expect(screen.getByText('From the playbook')).toBeInTheDocument();
   });
 
   it('Risk: a missing risk says so', async () => {

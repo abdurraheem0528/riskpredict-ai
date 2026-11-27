@@ -136,14 +136,18 @@ describe('live player', () => {
     expect(applied).toEqual(['risk.created:r2']);
   });
 
-  it('the ripple goes where the strongest evidence is, else the risk’s place; the caption names its feed', () => {
-    const r = risks.find((x) => x.category === 'logistics')!;
+  it('the ripple goes to the chokepoint of a chokepoint story, else where the strongest evidence is, else the risk’s place; the caption is the lead headline', () => {
+    const r = risks.find((x) => x.where?.match_type === 'chokepoint')!;
     const d = riskDetail(r);
-    expect(signalPoint(r, d)).toEqual([43.33, 12.58]);
-    expect(signalPoint({ ...r, lat: null, lon: null, ports: ['CNYTN'] }, null)).toEqual([114.27, 22.57]);
-    expect(signalPoint({ ...r, lat: null, lon: null, ports: [], countries: [] }, null)).toBeNull();
-    expect(captionText(r, d)).toEqual({ title: 'Transit calls at Bab el-Mandeb down week on week', source: 'PortWatch' });
-    expect(captionText(r, null)).toEqual({ title: r.title, source: null });
+    const at = (id: string): [number, number] | null => (id === 'bab_el_mandeb' ? [43.33, 12.58] : null);
+    expect(signalPoint(r, d, at)).toEqual([43.33, 12.58]);
+    const quake = { ...d, evidence: [{ ...d.evidence[0], snapshot: { ...d.evidence[0].snapshot, lat: 23.9, lon: 121.6 } }] };
+    expect(signalPoint({ ...r, where: null }, quake)).toEqual([121.6, 23.9]);
+    expect(signalPoint({ ...r, where: null, lat: null, lon: null, ports: ['CNYTN'] }, null)).toEqual([114.27, 22.57]);
+    expect(signalPoint({ ...r, where: null, lat: null, lon: null, ports: [], countries: [] }, null)).toBeNull();
+    expect(captionText(r, d)).toEqual({ title: 'Houthis Strike Saudi Ports on Red Sea', source: 'NewsData' });
+    expect(captionText({ ...r, lead: null }, d)).toEqual({ title: d.evidence[0].snapshot.title, source: 'NewsData' });
+    expect(captionText({ ...r, lead: null }, null)).toEqual({ title: r.title, source: null });
   });
 });
 

@@ -12,7 +12,7 @@
 // reduced motion, is applied at once. A hidden tab mid-sequence lands every step at once
 // (motion.ts `later` and `tween` do).
 import type { QueryClient } from '@tanstack/react-query';
-import { fetchRiskDetail, type EntityFC, type Risk, type RiskDetail } from '../api/queries';
+import { fetchRiskDetail, type DisruptionFC, type EntityFC, type Risk, type RiskDetail } from '../api/queries';
 import type { StreamBatch, StreamEventName, StreamEvents } from '../api/stream';
 import { feedName, levelOf } from '../lib/format';
 import { later, motionOff } from '../lib/motion';
@@ -124,7 +124,7 @@ export class LivePlayer {
 
   private run(risk: Risk, detail: RiskDetail | null, apply: () => void) {
     const fx = this.deps.getMap();
-    const src = signalPoint(risk, detail);
+    const src = signalPoint(risk, detail, (id) => this.chokepointAt(id));
     if (!fx || !src) return apply();
     const { title, source } = captionText(risk, detail);
     ripple(fx, src);
@@ -154,6 +154,13 @@ export class LivePlayer {
     });
   }
 
+  /** A chokepoint's position, from the disruptions layer the map already loaded. */
+  private chokepointAt(id: string): LonLat | null {
+    const fc = this.deps.qc.getQueryData<DisruptionFC>(['disruptions']);
+    const f = fc?.features.find((x) => x.id === `chokepoint:${id}`);
+    return f?.geometry ? (f.geometry.coordinates as LonLat) : null;
+  }
+
   /** Where the entities the story reaches are on the map (at least the risk's own entity). */
   private entityPoints(risk: Risk): LonLat[] {
     const fc = this.deps.qc.getQueryData<EntityFC>([this.deps.ws, 'mapEntities']);
@@ -164,16 +171,27 @@ export class LivePlayer {
   }
 }
 
-/** The strongest evidence item with a position, else the risk's own place. */
-export function signalPoint(risk: Pick<Risk, 'lat' | 'lon' | 'ports' | 'countries'>, detail: Pick<RiskDetail, 'evidence'> | null): LonLat | null {
+/** Where the trouble is: the chokepoint of a chokepoint story (as its pill), else the strongest
+ *  evidence item with a position, else the risk's own place. */
+export function signalPoint(
+  risk: Pick<Risk, 'lat' | 'lon' | 'ports' | 'countries'> & { where?: Risk['where'] },
+  detail: Pick<RiskDetail, 'evidence'> | null,
+  chokepointAt: (id: string) => LonLat | null = () => null,
+): LonLat | null {
+  if (risk.where?.match_type === 'chokepoint') {
+    const at = chokepointAt(risk.where.match_value);
+    if (at) return at;
+  }
   const ev = [...(detail?.evidence ?? [])].sort((a, b) => (b.contribution ?? 0) - (a.contribution ?? 0));
   for (const e of ev) if (e.snapshot.lat != null && e.snapshot.lon != null) return [e.snapshot.lon, e.snapshot.lat];
   if (!gazetteerReady() && (risk.lat == null || risk.lon == null)) return null;
   return placeOf({ lat: risk.lat, lon: risk.lon, ports: risk.ports, countries: risk.countries });
 }
 
-/** The caption: the strongest evidence's title and its feed's short name, else the risk's title. */
-export function captionText(risk: Pick<Risk, 'title'>, detail: Pick<RiskDetail, 'evidence'> | null): { title: string; source: string | null } {
+/** The caption: the lead headline (as the list shows it) and its feed's short name, else the
+ *  strongest evidence's title, else the risk's title. */
+export function captionText(risk: Pick<Risk, 'title'> & { lead?: Risk['lead'] }, detail: Pick<RiskDetail, 'evidence'> | null): { title: string; source: string | null } {
+  if (risk.lead?.title) return { title: risk.lead.title, source: feedName(risk.lead.source) };
   const top = [...(detail?.evidence ?? [])].sort((a, b) => (b.contribution ?? 0) - (a.contribution ?? 0))[0];
   if (!top) return { title: risk.title, source: null };
   const source = top.event ? feedName(top.event.source) : top.anomaly ? top.anomaly.series : null;
