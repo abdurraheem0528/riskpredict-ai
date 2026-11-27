@@ -118,7 +118,14 @@ where they stay inside the open map (`map/labels.ts`).
 Eurostat MARNET network (`public/map/lanes.json`, EUPL-1.2) from the route's first port,
 through its declared chokepoints in order, to its last port. Shared stretches are drawn
 once, with a dash flow toward the destination; the selected route is drawn on top.
-Chokepoints under watch say how many drawn lanes pass them.
+Chokepoints under watch say how many drawn lanes pass them. `npm run map-data -- --lanes-only`
+rebuilds the network and fails if a chokepoint's gate lies outside its radius, is not on a
+lane through it, or has an edge over 1,000 km, or if any edge is over 4,000 km (a segment
+across ±180° read as flat lon/lat; the longest real one is 3,611 km).
+
+**Site labels** make way for each other: where two would overlap, the more critical site
+(then the first by name) keeps its label and the other hides until the map zooms in far
+enough to part them. The squares always show.
 
 Features without a position are placed as the contract says: by their first port (World
 Port Index UN/LOCODE) or first country (Natural Earth label point). `/v1/map/risks` places
@@ -129,7 +136,7 @@ of type `country`/`port` are joined on `place_key` the same way.
 | `countries.geojson` | Natural Earth 1:50m admin-0, simplified to 12 %, 0.01° | 217 KiB | 70 KiB |
 | `ports.json` | NGA World Port Index (Pub 150), 3,282 ports by UN/LOCODE | 117 KiB | 53 KiB |
 | `centroids.json` | Natural Earth label points and names, 246 codes | 8 KiB | 4 KiB |
-| `lanes.json` | Eurostat SeaRoute MARNET (100 km), simplified: 4,023 nodes, 6,200 edges | 56 KiB | 22 KiB |
+| `lanes.json` | Eurostat SeaRoute MARNET (100 km), simplified: 4,009 nodes, 6,176 edges | 56 KiB | 22 KiB |
 
 The 1:50m set is used (not 1:110m) because 1:110m has no Singapore, Hong Kong, Bahrain or
 Malta. `ports.json` and `centroids.json` load once, in parallel with MapLibre.

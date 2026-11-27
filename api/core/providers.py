@@ -147,9 +147,9 @@ def _cell(v: Any) -> str:
 
 
 def read_google(settings: Settings, conn: ConnectionRef, spreadsheet_id: str, gid: str, header_row: int,
-                max_rows: int | None = None) -> Table:  # fmt: skip
+                max_rows: int | None = None, *, first_pick: bool = False) -> Table:  # fmt: skip
     token = _token(settings, conn)
-    meta = google.spreadsheet(token, spreadsheet_id)
+    meta = google.spreadsheet(token, spreadsheet_id, waits=google.FIRST_PICK_WAITS if first_pick else ())
     tab = meta.tab(gid)
     if tab is None:
         from api.core.errors import UpstreamNotFound
@@ -197,9 +197,12 @@ def read_composio(settings: Settings, conn: ConnectionRef, base_id: str, table_i
 
 
 def read(settings: Settings, conn: ConnectionRef, kind: str, external_id: str, external_table_id: str,
-         header_row: int, max_rows: int | None = None) -> Table:  # fmt: skip
+         header_row: int, max_rows: int | None = None, *, first_pick: bool = False) -> Table:  # fmt: skip
+    """The table as it is now. ``first_pick`` (adding a source only, never the worker): a Google
+    sheet that answers 404 is read again over about 5 s, while Google's grant for a sheet picked
+    moments after it was created comes through (``google.FIRST_PICK_WAITS``)."""
     if kind == "google_sheet":
-        return read_google(settings, conn, external_id, external_table_id, header_row, max_rows)
+        return read_google(settings, conn, external_id, external_table_id, header_row, max_rows, first_pick=first_pick)
     return read_composio(settings, conn, external_id, external_table_id, max_rows)
 
 

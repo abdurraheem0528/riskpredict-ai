@@ -25,6 +25,7 @@ export type EntityProps = {
   countries?: string[];
   ports?: string[];
   city?: string | null;
+  criticality?: string | null;
   max_score?: number | null;
   open_risk_count?: number;
 };
@@ -502,14 +503,52 @@ function place(map: MlMap, recs: Map<string, PillRec>) {
 // --- sites -------------------------------------------------------------------------------------------
 
 const MAX_SITE_MARKERS = 60;
+const CRITICALITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
+/** Sites in the order their labels claim room: the more critical first, then by name. */
+export function siteLabelOrder<T extends { properties: Pick<EntityProps, 'name' | 'criticality'> }>(sites: readonly T[]): T[] {
+  const rank = (p: T['properties']) => CRITICALITY_RANK[p.criticality ?? ''] ?? 4;
+  return [...sites].sort((a, b) => rank(a.properties) - rank(b.properties) || a.properties.name.localeCompare(b.properties.name));
+}
+
+/** A site label's box on screen, from the square's centre (map.css `.msite .slab`: 8 px below, 16 px tall). */
+export const siteLabelBox = (x: number, y: number, w: number): [number, number, number, number] => [x - w / 2, y + 8, x + w / 2, y + 24];
+
+/**
+ * Which site labels to show, given in label order (siteLabelOrder): each one whose box (with
+ * `pad` px round it) stays clear of the labels shown before it. The others hide until the map
+ * zooms in far enough to part them; the squares always show.
+ */
+function placeLabels(map: MlMap, sites: readonly Feature<Point, EntityProps>[], recs: Map<string, { lab: HTMLSpanElement; at: [number, number] }>) {
+  const items: { id: string; box: [number, number, number, number] }[] = [];
+  for (const f of sites) {
+    const r = recs.get(f.properties._id);
+    if (!r) continue;
+    const p = map.project(r.at);
+    items.push({ id: f.properties._id, box: siteLabelBox(p.x, p.y, r.lab.offsetWidth || 7 * f.properties.name.length) });
+  }
+  const shown = placeSiteLabels(items);
+  for (const { id } of items) recs.get(id)!.lab.classList.toggle('hid', !shown.has(id));
+}
+
+export function placeSiteLabels(items: readonly { id: string; box: [number, number, number, number] }[], pad = 3): Set<string> {
+  const shown = new Set<string>();
+  const taken: [number, number, number, number][] = [];
+  for (const { id, box: [x0, y0, x1, y1] } of items) {
+    if (taken.some(([a0, b0, a1, b1]) => x0 - pad < a1 && a0 < x1 + pad && y0 - pad < b1 && b0 < y1 + pad)) continue;
+    taken.push([x0, y0, x1, y1]);
+    shown.add(id);
+  }
+  return shown;
+}
 
 /** The business's sites: 10 px rounded ink squares with a land outline and a label from the pill zoom. */
 function Sites({ data }: { data: EntityFc | null }) {
   const { map, lib } = useMap();
   const P = usePalette();
-  const sites = useMemo(() => (data?.features ?? []).filter((f) => f.properties.kind === 'site'), [data]);
+  const sites = useMemo(() => siteLabelOrder((data?.features ?? []).filter((f) => f.properties.kind === 'site')), [data]);
   const many = sites.length > MAX_SITE_MARKERS;
-  const recs = useRef(new Map<string, { m: Marker; lab: HTMLSpanElement }>());
+  const recs = useRef(new Map<string, { m: Marker; lab: HTMLSpanElement; at: [number, number] }>());
 
   useEffect(() => {
     if (!map || !lib) return;
@@ -540,12 +579,35 @@ function Sites({ data }: { data: EntityFc | null }) {
         });
         const m = new lib.Marker({ element: root, anchor: 'center', opacityWhenCovered: '0', subpixelPositioning: true }).setLngLat(at).addTo(map);
         root.style.zIndex = '2';
-        r = { m, lab };
+        r = { m, lab, at };
         recs.current.set(id, r);
-      } else r.m.setLngLat(at);
+      } else {
+        r.m.setLngLat(at);
+        r.at = at;
+      }
       r.lab.textContent = f.properties.name;
     }
+    placeLabels(map, sites, recs.current);
   }, [map, lib, sites, many]);
+
+  // Labels that would land on each other: the more critical site keeps its label, re-checked
+  // after every move (two sites 90 km apart share one spot at world zoom and part as it zooms in).
+  useEffect(() => {
+    if (!map || many) return;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    // as the pills: not on every frame of the slow spin
+    const onEnd = (e: unknown) => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => placeLabels(map, sites, recs.current), (e as { rpSpin?: boolean })?.rpSpin ? 500 : 0);
+    };
+    map.on('moveend', onEnd);
+    map.on('resize', onEnd);
+    return () => {
+      if (t) clearTimeout(t);
+      map.off('moveend', onEnd);
+      map.off('resize', onEnd);
+    };
+  }, [map, sites, many]);
 
   useEffect(() => {
     const rs = recs.current;
@@ -555,9 +617,13 @@ function Sites({ data }: { data: EntityFc | null }) {
     };
   }, []);
 
-  // Many sites: a symbol layer instead (the rp-square image, MapLibre-drawn names).
+  // Many sites: a symbol layer instead (the rp-square image, MapLibre-drawn names, which make
+  // way for each other in the same order).
   const T = useRamps();
-  const fc = useMemo(() => (many ? { type: 'FeatureCollection' as const, features: sites } : null), [many, sites]);
+  const fc = useMemo(
+    () => (many ? { type: 'FeatureCollection' as const, features: sites.map((f, i) => ({ ...f, properties: { ...f.properties, _order: i } })) } : null),
+    [many, sites],
+  );
   useGeoJson(
     'sites',
     fc,
@@ -568,6 +634,7 @@ function Sites({ data }: { data: EntityFc | null }) {
             'icon-image': 'rp-square', 'icon-allow-overlap': true,
             'text-field': ['step', ['zoom'], '', T.pill, ['get', 'name']] as ExpressionSpecification,
             'text-font': [FONT], 'text-size': 12, 'text-anchor': 'top', 'text-offset': [0, 0.9] as [number, number], 'text-optional': true,
+            'symbol-sort-key': ['get', '_order'],
           },
           paint: { 'text-color': P.ink, 'text-halo-color': P.halo, 'text-halo-width': 1.5 },
         }]

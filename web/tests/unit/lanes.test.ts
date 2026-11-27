@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  DASH, buildLanes, decodeNetwork, routeInputs, routePath, unwrap,
+  DASH, buildLanes, decodeNetwork, km, routeInputs, routePath, unwrap,
   type LanesFile, type Network,
 } from '../../src/map/lanes';
 import type { LonLat } from '../../src/map/geo';
@@ -18,6 +18,9 @@ const KAOHSIUNG: LonLat = [120.27, 22.6];
 const ROTTERDAM: LonLat = [4.4, 51.9];
 const SHANGHAI: LonLat = [121.5, 31.23];
 const LOS_ANGELES: LonLat = [-118.27, 33.73];
+const PENANG: LonLat = [100.35, 5.417];
+const SINGAPORE: LonLat = [103.85, 1.283]; // SGSIN's UN/LOCODE position (1°17'N 103°51'E)
+const lineKm = (c: LonLat[]) => c.reduce((s, p, i) => (i ? s + km(c[i - 1], p) : 0), 0);
 
 /** A LanesFile from plain nodes ([lon, lat] in degrees), edges and gates, as the build writes it. */
 function file(nodes: LonLat[], edges: [number, number][], gates: Record<string, [number, number]> = {}): LanesFile {
@@ -75,6 +78,14 @@ describe('a route through a small network', () => {
     expect(q.passes).toEqual(['north', 'south']);
   });
 
+  it('does not pass a chokepoint whose antimeridian the lane crosses', () => {
+    // 170°E → 170°W crosses 180°, the antimeridian of a gate at 0°: the line is half a world away.
+    const pacific = decodeNetwork(file([[0, 0], [10, 0], [170, 0], [-170, 0]], [[0, 1], [2, 3]], { zero: [0, 100] }));
+    const p = routePath(pacific, [170, 0], [], [-170, 0])!;
+    expect(p.coords.at(-1)).toEqual([190, 0]);
+    expect(p.passes).toEqual([]);
+  });
+
   it('skips a chokepoint it has no place for, and uses one from the disruptions layer', () => {
     expect(routePath(net, [0, 1], ['atlantis'], [2, 1])!.via).toEqual([]);
     const p = routePath(net, [0, 1], ['east'], [0, 0], { east: { at: [2, 0.5], radiusKm: 80 } })!;
@@ -91,6 +102,41 @@ describe('the real network (public/map/lanes.json)', () => {
       expect(g, c.id).toBeDefined();
       expect(g.at).toEqual([c.lon, c.lat]);
     }
+  });
+
+  it('has no edge the wrong way round the world', () => {
+    // The longest real edge is MARNET's 3,611 km Southern Ocean lane toward Cape Horn; an edge
+    // across ±180° read as flat lon/lat is 6,000 km or more (scripts/build-map-data.mjs).
+    let longest = 0;
+    for (const w of real.weight) longest = Math.max(longest, w);
+    expect(longest).toBeLessThan(4000);
+  });
+
+  it('puts each gate inside its chokepoint, on a lane through it', () => {
+    for (const [id, g] of Object.entries(real.gates)) {
+      expect(km(g.at, [real.x[g.node], real.y[g.node]]), id).toBeLessThanOrEqual(g.radiusKm);
+      const edges = Array.from(real.weight.subarray(real.start[g.node], real.start[g.node + 1]));
+      expect(edges.length, id).toBeGreaterThanOrEqual(2);
+      for (const w of edges) expect(w, id).toBeLessThan(1000);
+    }
+  });
+
+  // Published sea distances (Port of Rotterdam, Suez Canal Authority): Singapore → Rotterdam
+  // 8,288 nmi (15,349 km) by Suez and 11,755 nmi (21,770 km) by the Cape. Kaohsiung is about
+  // 1,600 nmi (3,000 km) before Singapore, Penang about 350 nmi (650 km) after it. MARNET at
+  // 100 km runs a few per cent long.
+  it.each([
+    ['Kaohsiung', KAOHSIUNG, ['singapore', 'malacca', 'bab_el_mandeb', 'suez', 'gibraltar', 'dover'], 17000, 20500],
+    ['Penang', PENANG, ['malacca', 'bab_el_mandeb', 'suez', 'gibraltar', 'dover'], 14500, 16500],
+    ['Singapore', SINGAPORE, ['cape_of_good_hope', 'dover'], 20500, 24000],
+  ] as const)('routes %s → Rotterdam about as far as ships sail it', (_, origin, cps, lo, hi) => {
+    const p = routePath(real, origin, cps, ROTTERDAM)!;
+    expect(p.via).toEqual(cps);
+    const length = lineKm(p.coords);
+    expect(length).toBeGreaterThan(lo);
+    expect(length).toBeLessThan(hi);
+    // no spur out into the Pacific (it used to reach 175°E)
+    for (const [lon] of p.coords) expect(lon).toBeLessThan(125);
   });
 
   it('routes Yantian → Bab el-Mandeb → Suez → Rotterdam through them in that order, by sea', () => {

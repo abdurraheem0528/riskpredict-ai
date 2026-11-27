@@ -83,7 +83,8 @@ country counts only when it is central to the article: named in the title (also 
 "Chinese", or "Beijing" for the government) or its tag, or the first place GDELT located
 in it. A passing mention deep inside a long article does not count. Sanctions news also
 needs the country to be the target ("sanctions on Chinese chipmakers", not "EU sanctions
-on Russia" for a China supplier); cyber news needs a national-scale incident ("nationwide
+on Russia" for a China supplier; since 1.3.1 not a country that imposes the measure, as in
+"The Netherlands and China plan to coordinate export controls"); cyber news needs a national-scale incident ("nationwide
 cyberattack on rail network") or the supplier's own sector ("German sensor maker" for a
 sensor supplier).
 

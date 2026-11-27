@@ -65,9 +65,37 @@ def test_title_countries(title, countries):
     ("Singapore charges three over AI chips smuggling under US sanctions rules", set()),
     ("European Leaders Aren't Banal, They are Evil", set()),
     ("Do sanctions on semiconductors actually work? Analysts are divided", set()),
+    # 1.3.1: "to <term>" needs a placing verb, never an infinitive; a list of countries shares its verb
+    ("ASML: The Netherlands and China plan to coordinate export controls", set()),  # was CHN, NLD
+    ("US adds Chinese firms to entity list", {"CHN"}),
+    ("China added to US entity list", {"CHN"}),  # was USA
+    ("Chinese firms added to the entity list", {"CHN"}),  # was none
+    ("US moves Russian banks onto blacklist", {"RUS"}),  # was RUS, USA
+    ("Japan to tighten export controls on chipmaking equipment", set()),  # was JPN
+    ("China to blacklist US defence firms", set()),  # was CHN
+    ("Netherlands and Japan agree to tighten chip export controls", set()),  # was JPN, NLD
+    ("US and UK sanctions on Russia", {"RUS"}),  # was RUS, USA
+    ("US, UK and Canada impose sanctions on Russia", {"RUS"}),
+    ("Sanctions on Russia widen", {"RUS"}),  # the sanctions widen, not Russia
 ])  # fmt: skip
 def test_sanction_targets(title, targets):
     assert R.sanction_targets(title) == frozenset(targets)
+
+
+ASSEMBLY = ent("assembly", "site", name="Eindhoven Assembly Plant", countries=["NLD"], criticality="critical")
+COORDINATE = "ASML: The Netherlands and China plan to coordinate export controls"
+
+
+def test_a_country_imposing_export_controls_is_not_their_target():
+    # Currents, 27 Nov: both countries impose the measure. Tagged sanctions, it reaches neither.
+    item = news("n1", tag("sanctions", 0.8, companies=[("ASML", 0.9)], countries=["NLD", "CHN"]),
+                countries=["NLD", "CHN"], title=COORDINATE)  # fmt: skip
+    assert risks([ASSEMBLY, PCB], [item]) == []
+    # Tagged trade policy, it still counts for a Dutch site, as before, and never says "aimed at".
+    policy = news("n2", tag("trade_policy", 0.8, countries=["NLD", "CHN"]), countries=["NLD", "CHN"], title=COORDINATE)
+    [a] = by_entity(risks([ASSEMBLY], [policy]), ASSEMBLY)
+    assert a.category == "trade_policy"
+    assert "aimed at" not in a.explanation
 
 
 # --- matching -----------------------------------------------------------------------------------
