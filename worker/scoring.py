@@ -90,6 +90,26 @@ def _alerts_for(change: Any, risk: dict, threshold: float) -> list[tuple[str, st
     return out
 
 
+# The top 5 evidence keys of each risk's previous scoring (risk-engine.md §8), read before the run.
+# Only the rows that scoring linked count: a row left over from an earlier run keeps its old,
+# often higher, contribution and would make the advice look out of date on every run.
+PREVIOUS_TOP_SQL = """
+SELECT * FROM (
+    SELECT ev.*, row_number() OVER (PARTITION BY ev.risk_id ORDER BY ev.contribution DESC, ev.id) AS n
+    FROM biz.risk_evidence ev
+    JOIN biz.risks r ON r.workspace_id = ev.workspace_id AND r.id = ev.risk_id
+    WHERE ev.last_linked_at >= r.last_scored_at
+) x WHERE n <= 5
+"""
+
+
+def previous_top_keys(conn) -> dict[UUID, set[str]]:
+    out: dict[UUID, set[str]] = {}
+    for r in conn.execute(PREVIOUS_TOP_SQL).fetchall():
+        out.setdefault(r["risk_id"], set()).add(ser.evidence_key(r))
+    return out
+
+
 SSE_FOR = {"created": "risk.created", "rescored": "risk.updated", "reopened": "risk.updated", "resolved": "risk.resolved"}
 
 
@@ -105,12 +125,7 @@ def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSumm
         if wsrow is None:
             return None
         before = {r["id"]: r for r in conn.execute("SELECT id, score, advice IS NOT NULL AS has_advice FROM biz.risks").fetchall()}
-        old_keys: dict[UUID, set[str]] = {}
-        for r in conn.execute(
-            "SELECT * FROM (SELECT ev.*, row_number() OVER (PARTITION BY risk_id ORDER BY contribution DESC, id) AS n"
-            " FROM biz.risk_evidence ev) x WHERE n <= 5"
-        ).fetchall():
-            old_keys.setdefault(r["risk_id"], set()).add(ser.evidence_key(r))
+        old_keys = previous_top_keys(conn)
 
         result = eng.run_workspace(conn, ws, now=now)
         entities = list(result.entities)

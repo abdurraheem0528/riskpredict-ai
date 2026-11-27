@@ -8,6 +8,7 @@ from engine.advice import advice_messages, needs_new_advice, template_advice
 from engine.config import DEFAULT_CONFIG, EngineConfig
 from engine.core import ENGINE_VERSION, assess
 from engine.db import EngineContextError, load_entities, load_feeds, run_workspace, write_risks
+from engine.dupes import item_keys as copy_keys
 from engine.models import (
     Anomaly,
     Assessment,
@@ -40,5 +41,5 @@ __all__ = [
     "ScenarioError", "EngineContextError",
     "assess", "load_entities", "load_feeds", "write_risks", "run_workspace", "run_scenario", "scenario_results",
     "watch_terms_for", "advice_messages", "template_advice", "needs_new_advice",
-    "chokepoints", "chokepoint_id", "city_position", "port_name", "place_label",
+    "chokepoints", "chokepoint_id", "city_position", "port_name", "place_label", "copy_keys",
 ]  # fmt: skip

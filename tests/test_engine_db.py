@@ -11,6 +11,7 @@ import os
 import secrets
 import uuid
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -197,7 +198,8 @@ def test_run_writes_risks_evidence_and_history(app):
     a = make_workspace(app, "a", ENTITIES)
     res = run(app, a["ws"])
     assert res.engine_version == engine.ENGINE_VERSION and res.scored_entities == 4
-    assert res.counts == {"created": 4, "rescored": 0, "unchanged": 0, "resolved": 0, "reopened": 0, "invalid_keys": 0}
+    assert res.counts == {"created": 4, "rescored": 0, "unchanged": 0, "resolved": 0, "reopened": 0,
+                          "evidence_pruned": 0, "invalid_keys": 0}
     assert {c.change for c in res.changes} == {"created"}
     d = dump(a["ws"])
     cats = {r[1].split("|")[1]: r for r in d["risks"]}
@@ -438,3 +440,114 @@ def test_full_list_read_is_bounded(app):
         feeds = engine.load_feeds(c, engine.load_entities(c), now=NOW, config=small)
     assert [e.raw_id for e in feeds.events] == ["sdn:0", "sdn:1"]
     assert run(app, a["ws"]).counts["created"] == 1  # the default bound reads all of them
+
+
+# --- evidence the engine no longer links, and copies of one report (engine 1.3.3) -----------------
+# The live case of 27 Nov 2026, as test data: a China sanctions risk for a PCB supplier kept rows
+# that engines before 1.3.0 had linked (articles that do not aim sanctions at China), shown first
+# with their old contributions, and six copies of one syndicated article.
+
+PEARL = [{"kind": "supplier", "name": "Pearl River PCB Works", "countries": ["CHN"], "criticality": "high"}]
+NVIDIA = "Nvidia's Most Advanced AI Chips Reach Chinese Military despite US sanctions on China"
+EVIL = "European Leaders Aren't Banal, They are Evil"
+CARTEL = "Trump administration expands anti-cartel campaign as legal challenges mount"
+
+
+def sanctions_news(raw_id: str, title: str, *, age_h: float = 6.0, url: str | None = None):
+    """GDELT news tagged as sanctions with China among its countries (test data)."""
+    return replace(news(raw_id, tag("sanctions", 0.9, countries=["CHN"]), age_h=age_h, title=title), url=url)
+
+
+def old_row(ws, risk_id, raw_id: str, title: str, contribution: float, linked_at) -> None:
+    """An evidence row as an engine before 1.3.0 left it: linked on an earlier run, never since."""
+    with psycopg.connect(DSN) as c:
+        c.execute(
+            "INSERT INTO biz.risk_evidence (workspace_id, risk_id, kind, event_source, event_raw_id, match_type,"
+            " match_value, match_confidence, signal, recency, contribution, snapshot, first_linked_at, last_linked_at)"
+            " VALUES (%s, %s, 'event', 'gdelt', %s, 'country', 'CHN', 0.36, 1.0, 1.0, %s, %s, %s, %s)",
+            (ws, risk_id, raw_id, contribution, Jsonb({"title": title, "type": "news", "url": None}), linked_at,
+             linked_at),
+        )  # fmt: skip
+
+
+def rows_of(risk_id) -> list[tuple]:
+    """(raw_id, last_linked_at, linked by the latest scoring) per evidence row, as the owner."""
+    with psycopg.connect(DSN) as c:
+        return c.execute(
+            "SELECT ev.event_raw_id, ev.last_linked_at, ev.last_linked_at >= r.last_scored_at FROM biz.risk_evidence ev"
+            " JOIN biz.risks r ON r.id = ev.risk_id WHERE ev.risk_id = %s ORDER BY ev.event_raw_id", (risk_id,)
+        ).fetchall()  # fmt: skip
+
+
+def test_evidence_rejected_while_still_in_the_feeds_is_pruned(app):
+    put_events(sanctions_news("b-nvidia", NVIDIA), sanctions_news("a-evil", EVIL))
+    a = make_workspace(app, "p", PEARL)
+    run(app, a["ws"], now=NOW - timedelta(hours=1))
+    [risk] = dump(a["ws"])["risks"]
+    assert [r[0] for r in rows_of(risk[0])] == ["b-nvidia"]  # this engine never links a-evil (§5.10)
+    old_row(a["ws"], risk[0], "a-evil", EVIL, 0.35, NOW - timedelta(days=1))  # an older engine did
+    res = run(app, a["ws"])
+    assert res.counts["evidence_pruned"] == 1
+    assert rows_of(risk[0]) == [("b-nvidia", NOW, True)]
+    again = run(app, a["ws"])
+    assert again.counts["evidence_pruned"] == 0 and again.changes == ()  # idempotent
+
+
+def test_evidence_whose_event_left_the_feeds_stays_and_does_not_count(app):
+    put_events(sanctions_news("b-nvidia", NVIDIA))
+    a = make_workspace(app, "p", PEARL)
+    run(app, a["ws"], now=NOW - timedelta(hours=1))
+    [risk] = dump(a["ws"])["risks"]
+    gone_at = NOW - timedelta(days=1)
+    # not in feeds.events: retention removed it
+    old_row(a["ws"], risk[0], "a-gone", "Ethiopia's Calculated Use of Maritime Diplomacy", 0.33, gone_at)
+    res = run(app, a["ws"])
+    assert res.counts["evidence_pruned"] == 0
+    assert rows_of(risk[0]) == [("a-gone", gone_at, False), ("b-nvidia", NOW, True)]
+    [after] = dump(a["ws"])["risks"]
+    assert [i["evidence_key"] for i in after[8]["likelihood"]["items"]] == ["event:gdelt:b-nvidia"]
+
+
+def test_resolved_risk_keeps_its_evidence(app):
+    put_events(sanctions_news("b-nvidia", NVIDIA), sanctions_news("a-evil", EVIL))
+    a = make_workspace(app, "p", PEARL)
+    run(app, a["ws"], now=NOW - timedelta(hours=1))
+    [risk] = dump(a["ws"])["risks"]
+    old_row(a["ws"], risk[0], "a-evil", EVIL, 0.35, NOW - timedelta(days=1))
+    before = rows_of(risk[0])
+    with psycopg.connect(DSN) as c:  # retention deletes b-nvidia; a-evil is still in the feeds
+        c.execute("DELETE FROM feeds.events WHERE raw_id = 'b-nvidia'")
+    res = run(app, a["ws"])
+    assert [c.change for c in res.changes] == ["resolved"] and res.counts["evidence_pruned"] == 0
+    assert rows_of(risk[0]) == before
+    assert run(app, a["ws"], now=NOW + timedelta(hours=1)).counts["evidence_pruned"] == 0
+    assert rows_of(risk[0]) == before
+
+
+def test_dismissed_risk_keeps_its_evidence(app):
+    # Still re-scored, but its rows are what "never linked before" (§3, rule 3) remembers.
+    put_events(sanctions_news("b-nvidia", NVIDIA), sanctions_news("a-evil", EVIL))
+    a = make_workspace(app, "p", PEARL)
+    run(app, a["ws"], now=NOW - timedelta(hours=1))
+    [risk] = dump(a["ws"])["risks"]
+    old_row(a["ws"], risk[0], "a-evil", EVIL, 0.35, NOW - timedelta(days=1))
+    with tx(app, workspace=a["ws"], user=a["user"]) as c:
+        c.execute("UPDATE biz.risks SET status = 'dismissed', status_changed_by = %s", (a["user"],))
+    res = run(app, a["ws"])
+    assert res.counts["evidence_pruned"] == 0 and res.counts["reopened"] == 0
+    assert rows_of(risk[0]) == [("a-evil", NOW - timedelta(days=1), False), ("b-nvidia", NOW, True)]
+
+
+def test_copies_of_one_report_are_one_evidence_row(app):
+    title = "New US sanctions on China over chip exports"
+    copies = [sanctions_news(f"cartel-{i}", title, age_h=6 + i) for i in range(6)]
+    put_events(*copies)
+    a = make_workspace(app, "p", PEARL)
+    run(app, a["ws"])
+    d = dump(a["ws"])
+    [risk] = d["risks"]
+    assert [e[3] for e in d["evidence"]] == ["cartel-0"]  # the strongest copy: the most recent one
+    items = risk[8]["likelihood"]["items"]
+    assert len(items) == 1 and risk[3] == pytest.approx(items[0]["contribution"], abs=1e-6)
+    assert risk[8]["explain"]["item_count"] == 1
+

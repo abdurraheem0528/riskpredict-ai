@@ -20,7 +20,7 @@ from datetime import datetime
 from typing import Any, Iterable, Mapping, Sequence
 from uuid import UUID
 
-from engine import names, relevance as rel, scoring as S, software as sw, texts
+from engine import dupes, names, relevance as rel, scoring as S, software as sw, texts
 from engine.config import DEFAULT_CONFIG, EngineConfig
 from engine.geo import EARTH_RADIUS_KM, geo_confidence, haversine_km, radius_km
 from engine.models import Anomaly, Assessment, Entity, Evidence, FeedEvent, FeedSnapshot
@@ -28,7 +28,7 @@ from engine.reference import (
     chokepoint_by_alias, chokepoint_id, chokepoints, hs_keywords, keyword_in, lane_for_country,
 )
 
-ENGINE_VERSION = "1.3.2"
+ENGINE_VERSION = "1.3.3"
 
 # §5.1: which keys each entity kind is matched on. Routes declare their chokepoints;
 # suppliers, sites and ports get them inferred from their port or position (§5.9).
@@ -207,17 +207,13 @@ class _Index:
 
 
 def _event_class(ev: FeedEvent) -> str:
-    if ev.type in S.SANCTION_POSITIVE:
-        return "sanctions"
-    if ev.source == "scenario":
-        return "scenario"
-    if ev.type.startswith("cyber."):
-        return "cve"
-    if ev.type.startswith("hazard."):
-        return "hazard"
-    if ev.type == "port.disruption":
-        return "port"
-    return "news"
+    return S.event_class(ev.source, ev.type)
+
+
+def _copy_keys(item: _Item) -> tuple[str, ...]:
+    """The keys under which this item is a copy of another news item (``engine.dupes``)."""
+    ev = item.event
+    return dupes.item_keys(ev.source, ev.type, ev.title, ev.url) if ev is not None else ()
 
 
 def _tag_list(ev: FeedEvent, name: str) -> list[dict]:
@@ -598,7 +594,10 @@ class _Assessor:
                 groups[fingerprint(item.entity.id, item.category, item.driver)].append(item)
         out: list[Assessment] = []
         for fp in sorted(groups):
-            items = sorted(groups[fp], key=lambda i: (-i.p, i.key))[: cfg.max_evidence]
+            # Copies of one news report (same title or URL, other raw ids) are one item (1.3.3):
+            # the strongest copy is kept, the others neither count nor show.
+            items = dupes.first_of_each(sorted(groups[fp], key=lambda i: (-i.p, i.key)), _copy_keys)
+            items = items[: cfg.max_evidence]
             entity, category = items[0].entity, items[0].category
             likelihood = S.likelihood([i.p for i in items], cfg)
             impact, ifac = S.impact(entity, category, shares.get(entity.id), cfg)

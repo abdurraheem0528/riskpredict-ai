@@ -65,6 +65,22 @@ def event_category(ev: FeedEvent) -> str | None:
     return None
 
 
+def event_class(source: str, type_: str) -> str:
+    """How an event is matched: ``sanctions``, ``scenario``, ``cve``, ``hazard``, ``port`` or ``news``
+    (tagged text: GDELT, RSS)."""
+    if type_ in SANCTION_POSITIVE:
+        return "sanctions"
+    if source == "scenario":
+        return "scenario"
+    if type_.startswith("cyber."):
+        return "cve"
+    if type_.startswith("hazard."):
+        return "hazard"
+    if type_ == "port.disruption":
+        return "port"
+    return "news"
+
+
 def anomaly_category(a: Anomaly) -> str | None:
     if a.series.startswith("portwatch."):
         return "logistics"

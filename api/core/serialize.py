@@ -273,6 +273,9 @@ def entity_feature(row: dict) -> dict:
     return {"type": "Feature", "id": str(row["id"]), "geometry": geom, "properties": props}
 
 
+# `evidence_count` counts the rows linked by the risk's latest scoring (`last_linked_at` is that
+# run's time), the items `factors.likelihood` was computed from. A row from an earlier run whose
+# feed row has gone is still shown ("no longer in the feed") but not counted (risk-engine.md §13).
 # A story is one feed item (news report, hazard, listing) that reaches several entities: the
 # engine writes the same `factors.story` key on each of their risks (risk-engine.md §5.9).
 # The grouped subquery runs once per statement (hash join), over the workspace's live risks.
@@ -280,8 +283,8 @@ STORY_KEY = "coalesce(r.factors->>'story', 'risk:' || r.id::text)"
 RISK_SELECT = """
 SELECT r.*, e.kind AS entity_kind, e.name AS entity_name, e.city AS entity_city, e.countries AS entity_countries,
        e.ports AS entity_ports,
-       (SELECT count(*) FROM biz.risk_evidence ev WHERE ev.workspace_id = r.workspace_id AND ev.risk_id = r.id)
-       AS evidence_count,
+       (SELECT count(*) FROM biz.risk_evidence ev WHERE ev.workspace_id = r.workspace_id AND ev.risk_id = r.id
+          AND ev.last_linked_at >= r.last_scored_at) AS evidence_count,
        st.n AS story_size, st.entities AS story_entities
 FROM biz.risks r
 JOIN biz.entities e ON e.workspace_id = r.workspace_id AND e.id = r.entity_id
