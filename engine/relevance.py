@@ -663,18 +663,22 @@ CATEGORY_CUES: Mapping[str, tuple[tuple[str, ...], ...]] = {
         protest, protests, protester, protesters, protestor, protestors, protesting, protested, demonstration,
         demonstrations, demonstrators, rally, rallies, riot, riots, rioting, rioters, unrest, uprising, curfew,
         crackdown, tear gas, sit in"""),
-    # "tariffs, trade deals, import or export bans and quotas"
+    # "tariffs, trade deals, import or export bans and quotas". 1.3.5: bans, restrictions and curbs
+    # ("… US Bill Restricting China's Access to Chipmaking Tools"). "Deal(s)" and "duties" alone stay out.
     "trade_policy": _phrases("""
         tariff, tariffs, export, exports, exported, exporting, exporter, exporters, import, imports, imported,
         importing, importer, importers, quota, quotas, trade, controls, dumping, customs, levy, levies, subsidy,
         subsidies, subsidised, subsidized, protectionism, protectionist, wto, import duty, import duties,
-        export duty, export duties, customs duty, customs duties, embargo, embargoes"""),
+        export duty, export duties, customs duty, customs duties, embargo, embargoes, ban, bans, banned, banning,
+        restrict, restricts, restricted, restricting, restriction, restrictions, curb, curbs, curbed, curbing"""),
     # "port closures, congestion, canal or strait blockages, attacks on vessels, freight delays"
+    # (1.3.5: blockades and blockages)
     "port_shipping_disruption": _phrases("""
         port, ports, shipping, ship, ships, shipment, shipments, shipper, shippers, vessel, vessels, cargo,
         freight, container, containers, canal, canals, strait, straits, maritime, tanker, tankers, terminal,
         terminals, harbour, harbor, harbours, harbors, dock, docks, dockworkers, dockers, seafarers, sea lane,
-        sea lanes, shipping lane, shipping lanes, congestion, ferry, ferries, boxship"""),
+        sea lanes, shipping lane, shipping lanes, congestion, ferry, ferries, boxship, blockade, blockades,
+        blockaded, blockage, blockages"""),
     # "earthquakes, storms, floods, wildfires, volcanoes, droughts"
     "natural_hazard": _phrases("""
         earthquake, earthquakes, quake, quakes, tremor, tremors, aftershock, aftershocks, storm, storms,

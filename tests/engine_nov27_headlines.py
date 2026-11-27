@@ -1,9 +1,13 @@
-"""Real headlines from the live workspace on 27 Nov 2026, as test rows for engine 1.3.4 (§5.10 A–G).
+"""Real headlines from the live workspace on 27 Nov 2026, as test rows for engine 1.3.4 (§5.10 A–G)
+and 1.3.5 (§5.10 C: bans, restrictions, curbs; blockades).
 
 The headlines, tag categories and GDELT ``countries`` (first mention first) are those the live
-API returned as evidence on 27 Nov (engine 1.3.3). The suppliers are test data modelled on the
+API returned as evidence on 27 Nov (engine 1.3.3). The 1.3.5 rows are real headlines of 26–27 Nov:
+NewsData stories the live check after 1.3.4 found dropped, a Bloomberg story of 26 Nov, and
+trade-tagged stories that must stay out. The suppliers are test data modelled on the
 live workspace's; the one URL host given (moderntokyotimes.com) is the outlet's own name, and
-wrp.org.uk is the outlet the trailing segment names. Nothing here is fetched.
+wrp.org.uk is the outlet the trailing segment names. ``CONSTRUCTED`` holds the one row that is
+not a real headline. Nothing here is fetched.
 
 Only the public engine API is used, so the same rows can be run against an older engine:
 
@@ -178,9 +182,31 @@ ROWS: tuple[Row, ...] = tuple(Row(x[0], x[1], x[2], _c(x[3]), *x[4:]) for x in [
     ("either", "conflict", "DEU", None,
      "ForMin Neculaescu: I have requested a consistent German presence in Romania, including military capabilities"),
     ("either", "hazard", "IND", None, "India seizes Nepal flood crisis to rebuild influence"),
-    ("either", "trade", "CHN", None, "Carney courts Chinese investment, but deals could come with real risks"),
-    ("either", "trade", "JPN", None, "Japan Weighs Safety Duties for AI Firms, With Penalties for Defying Orders"),
+    # --- engine 1.3.5 (§5.10 C): a ban, a restriction or a curb is a trade-policy cue ------------------
+    # NewsData stories 1.3.4 dropped from "Trade policy news in Netherlands affecting Atlas Eindhoven
+    # Assembly Plant" / "… Atlas Rotterdam Distribution Centre" and "… in China affecting Pearl River
+    # PCB Works" (worker run of 27 Nov, 17:06 UTC); Bloomberg, 26 Nov.
+    ("keep", "trade", "NLD", None,
+     "Netherlands Seeks to Block US Bill Restricting China’s Access to Chipmaking Tools"),
+    ("keep", "trade", "CHN", None,
+     "Netherlands Seeks to Block US Bill Restricting China’s Access to Chipmaking Tools"),
+    ("keep", "trade", "CHN", None, "China extends pause on tighter mineral restrictions"),
+    ("keep", "trade", "NLD", None, "Netherlands to Fight Rollout of Proposed US Curbs on ASML"),
+    # must stay out: "deal(s)" and "duties" alone are no trade-policy cue (the last two were "either" in 1.3.4)
+    ("drop", "trade", "CHN", None,
+     "Ten Smart Cities for $50 Billion: What’s Behind Indonesia’s Deals With China", "C"),
+    ("drop", "trade", "CHN", None, "Carney courts Chinese investment, but deals could come with real risks", "C"),
+    ("drop", "trade", "JPN", None, "Japan Weighs Safety Duties for AI Firms, With Penalties for Defying Orders", "C"),
+    ("either", "trade", "CHN", None,
+     "Nvidia Chip Sellers Scramble to Find Customers After Government Tightens China Remote Access Rules"),
+    ("either", "trade", "CHN", None, "Investigation Reveals Nvidia Chips Flowing To Chinese-Owned Firms"),
 ])  # fmt: skip
+
+# Constructed for the tests (not a real headline, as tests/fixtures/README.md marks constructed
+# controls): a blockade with no other shipping cue word, so only the 1.3.5 words let it count.
+CONSTRUCTED: tuple[Row, ...] = (
+    Row("keep", "shipping", "TWN", None, "Taiwan warns China could impose a blockade"),
+)
 
 # Copies that differ only by outlet name or wire tag: each group is one report (G).
 COPY_GROUPS = (
@@ -214,5 +240,6 @@ if __name__ == "__main__":  # pragma: no cover - prints the verdicts of the engi
     import engine
 
     print("engine", engine.ENGINE_VERSION)
-    for r in ROWS:
-        print(f"{r.expect:6} {'counts' if reaches(r) else 'dropped':7} {r.category:9} {r.country} {r.title[:90]}")
+    for r in ROWS + CONSTRUCTED:
+        mark = " (constructed)" if r in CONSTRUCTED else ""
+        print(f"{r.expect:6} {'counts' if reaches(r) else 'dropped':7} {r.category:9} {r.country} {r.title[:90]}{mark}")

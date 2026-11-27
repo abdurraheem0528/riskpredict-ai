@@ -495,7 +495,7 @@ All of these constants live in `EngineConfig` (`engine/config.py`, the "anchorin
 block): `support_match_types`, `support_weight`, `market_event_prefix`,
 `market_only_score_cap`, `inferred_chokepoint_factor`.
 
-### 5.10 A news country must be what the article is about (engine 1.3.0, 1.3.4)
+### 5.10 A news country must be what the article is about (engine 1.3.0, 1.3.4, 1.3.5)
 
 The live test of 27 Nov (11 suppliers, 41 open stories) still let in loosely related
 articles that only mention a country somewhere in their text: "Sanctions news in China
@@ -654,6 +654,17 @@ the worker's next run (§9). That run links only what 1.3.4 accepts and, since 1
 deletes the rows it rejected while their feed row exists; a risk left with no evidence, or below
 the minimum score, resolves as usual (`resolved_by_engine`). Some live risks resolve; that is the
 intended result.
+
+**Engine 1.3.5 (C).** The trade-policy cues add ban, bans, banned, banning, restrict, restricts,
+restricted, restricting, restriction, restrictions, curb, curbs, curbed and curbing (the label says
+"import or export bans"), and the shipping cues blockade, blockades, blockaded, blockage and
+blockages (the label says "canal or strait blockages"): after 1.3.4 the live check of 27 Nov lost
+"Netherlands Seeks to Block US Bill Restricting China's Access to Chipmaking Tools" from both Atlas
+Netherlands risks and "China extends pause on tighter mineral restrictions" from Pearl River PCB
+Works. "Deal(s)" and "duties" alone stay out ("… Indonesia's Deals With China", "Japan Weighs Safety
+Duties for AI Firms"). The 1.3.4 table keeps every verdict; the 1.3.5 rows count again or stay out
+as listed in `tests/engine_nov27_headlines.py`. The bump re-scores every live workspace on the
+worker's next run, as above.
 
 ### 5.11 Places: city positions and port names
 

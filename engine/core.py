@@ -28,7 +28,7 @@ from engine.reference import (
     chokepoint_by_alias, chokepoint_id, chokepoints, hs_keywords, keyword_in, lane_for_country,
 )
 
-ENGINE_VERSION = "1.3.4"
+ENGINE_VERSION = "1.3.5"
 
 # §5.1: which keys each entity kind is matched on. Routes declare their chokepoints;
 # suppliers, sites and ports get them inferred from their port or position (§5.9).
