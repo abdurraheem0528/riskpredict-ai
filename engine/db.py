@@ -15,7 +15,8 @@ Query budget per workspace run (all bounded, all on indexes):
   series (1: fx history for the workspace's currencies + latest EPSS per
   matched CVE), source health (1).
 * ``write_risks``: 1–2 reads, then batched writes (at most ``BATCH`` rows per
-  statement) for inserts, updates, history, evidence and the evidence trim.
+  statement) for inserts, updates, history, evidence, the prune of rejected evidence
+  (engine 1.3.3) and the evidence trim.
 """
 
 from __future__ import annotations
@@ -433,6 +434,31 @@ WHERE (r.match_type, r.match_value, r.match_confidence, r.signal, r.recency, r.c
                         EXCLUDED.recency, EXCLUDED.contribution, EXCLUDED.snapshot, EXCLUDED.last_linked_at)
 """
 
+# True while an evidence row's feed row exists: the event (or, for the full sanctions lists,
+# raw_id '<dataset>:<entity_id>', §5.8, the list entry) or the anomaly. The API's
+# `still_in_feeds` (api/routes/data.py) is the same test; tests/apiservice/test_api_real_engine.py
+# checks they agree.
+STILL_IN_FEEDS = """
+CASE WHEN ev.kind = 'event' THEN EXISTS (SELECT 1 FROM feeds.events f
+                                         WHERE f.source = ev.event_source AND f.raw_id = ev.event_raw_id)
+                                  OR EXISTS (SELECT 1 FROM feeds.sanctions_entries s
+                                             WHERE s.source = ev.event_source
+                                               AND s.dataset = split_part(ev.event_raw_id, ':', 1)
+                                               AND s.entity_id = substr(ev.event_raw_id,
+                                                                        strpos(ev.event_raw_id, ':') + 1))
+     ELSE EXISTS (SELECT 1 FROM feeds.anomalies a WHERE a.series = ev.anomaly_series AND a.key = ev.anomaly_key
+                  AND a.ts = ev.anomaly_ts AND a.method = ev.anomaly_method) END
+"""
+
+# Evidence of a live risk that this run did not link although its feed row is still there: this
+# engine saw the item and rejected it (e.g. news an older version linked, §5.10), so the row goes
+# (engine 1.3.3, §13). Rows whose feed row has gone stay: "no longer in the feed", never counted.
+PRUNE_EVIDENCE = f"""
+DELETE FROM biz.risk_evidence ev
+WHERE ev.workspace_id = %(ws)s AND ev.risk_id = ANY(%(ids)s::uuid[]) AND ev.last_linked_at <> %(now)s
+  AND {STILL_IN_FEEDS}
+"""
+
 # Keep at most `max_evidence` rows per risk: evidence linked in this run first, then by contribution.
 TRIM_EVIDENCE = """
 DELETE FROM biz.risk_evidence WHERE workspace_id = %(ws)s AND id IN (
@@ -495,6 +521,7 @@ def write_risks(
             linked.setdefault(r[0], set()).add(_evidence_key(*r[1:]))
 
     inserts, updates, history, changes = [], [], [], []
+    live_ids: list[UUID] = []  # existing risks that stay or become open/acknowledged/mitigating
     counts = {"created": 0, "rescored": 0, "unchanged": 0, "resolved": 0, "reopened": 0}
     for fp in sorted(assessed):
         a = assessed[fp]
@@ -514,6 +541,8 @@ def write_risks(
         )
         p["reopen"] = reopen
         updates.append(p)
+        if reopen or status in LIVE:  # a dismissed risk keeps its rows: rule 3 remembers them (§13)
+            live_ids.append(rid)
         old_score = None if old["score"] is None else round(float(old["score"]), 1)
         if reopen:
             history.append({"ws": ws, "id": rid, "now": now, "likelihood": a.likelihood, "impact": a.impact,
@@ -558,9 +587,13 @@ def write_risks(
                       (INSERT_HISTORY, history), (UPSERT_EVIDENCE, evidence)):  # fmt: skip
         for chunk in _chunks(rows):
             cur.executemany(sql, chunk)
+    pruned = 0
+    for chunk in _chunks(sorted(live_ids, key=str)):
+        pruned += cur.execute(PRUNE_EVIDENCE, {"ws": ws, "now": now, "ids": list(chunk)}).rowcount
     touched = sorted({r["risk_id"] for r in evidence}, key=str)
     for chunk in _chunks(touched):
         cur.execute(TRIM_EVIDENCE, {"ws": ws, "now": now, "ids": list(chunk), "keep": config.max_evidence})
+    counts["evidence_pruned"] = pruned
 
     order = {"created": 0, "reopened": 1, "rescored": 2, "resolved": 3}
     changes.sort(key=lambda c: (order[c.change], c.fingerprint))

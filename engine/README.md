@@ -167,7 +167,9 @@ sorted strongest first, `L = min(0.99, 1 − Π(1 − 0.5^(k−1) × p_k))`. One
 full; the second half, the third a quarter, so L always stays below twice the strongest
 `p` (seven weak items of 0.3 give 0.49, where the plain noisy-OR of 1.2.0 gave 0.92).
 The strongest 50 are kept, stored as evidence, and are exactly the items L is computed
-from. For example, an `EUR/TRY` robust-z flag (p 0.697) and an IsolationForest flag on
+from. Copies of one news report (same normalised title or canonical URL, other raw ids:
+one syndicated article on six sites) are one item since 1.3.3: the strongest copy counts,
+the others neither count nor show (`engine/dupes.py`; 1.3.2 counted all six). For example, an `EUR/TRY` robust-z flag (p 0.697) and an IsolationForest flag on
 the same day (p 0.488) combine to L = 1 − 0.303 × (1 − 0.5 × 0.488) = **0.771** (1.2.0:
 0.845).
 
@@ -215,6 +217,10 @@ matched site "Osaka plant" on geo_radius 15 km. Strongest: … signal 0.700 × r
   deleted it), or that scores below 5, is `resolved` by the engine with history
   `resolved_by_engine`. It reopens if it is found again.
 * A re-run with the same data at the same `now` writes nothing.
+* Since 1.3.3 a live risk loses the evidence rows this run did not link while their feed
+  row is still there (the engine saw the item and rejected it, e.g. news an older version
+  linked). Rows whose feed row has gone stay, shown as "no longer in the feed" and not
+  counted; resolved and dismissed risks keep all their rows.
 
 Evidence keeps a snapshot of the feed row, because feed retention deletes rows and
 nothing in `biz` holds a foreign key to `feeds`.

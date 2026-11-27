@@ -146,3 +146,10 @@ def place_label(city: str | None, countries: list[str], ports: list[str]) -> str
     (``None`` too without the engine: the dashboard then writes the line itself)."""
     fn = _place_fn("place_label")
     return fn(city, countries, ports) if fn is not None else None
+
+
+def copy_keys(source: str | None, type_: str | None, title: str | None, url: str | None) -> tuple[str, ...]:
+    """The keys under which a stored news item is a copy of another (same normalised title or
+    canonical URL, engine 1.3.3), or ``()``: not news, or no engine (then nothing is merged)."""
+    fn = _place_fn("copy_keys")
+    return tuple(fn(source, type_, title, url)) if fn is not None else ()

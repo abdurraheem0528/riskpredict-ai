@@ -1960,7 +1960,7 @@ components:
         lat: {type: [number, "null"]}
         lon: {type: [number, "null"]}
         place: {type: [string, "null"], description: "The entity's `place` when it has a city (`Hsinchu, Taiwan`), else the risk's first port and countries in words (`Kaohsiung, Taiwan`)"}
-        evidence_count: {type: integer, minimum: 0}
+        evidence_count: {type: integer, minimum: 0, description: "Evidence rows linked by the risk's latest scoring (engine 1.3.3): the items its likelihood was computed from. Older rows (feed row gone) are listed in RiskDetail.evidence but not counted"}
         first_seen_at: {type: string, format: date-time}
         last_seen_at: {type: string, format: date-time}
         status_changed_at: {type: string, format: date-time}
@@ -2004,7 +2004,7 @@ components:
                     generated_at: {type: string, format: date-time}
             evidence:
               type: array
-              description: Sorted by contribution, highest first
+              description: The rows linked by the risk's latest scoring first, then older ones, each by contribution, highest first. An older row that is a copy of a row listed before it (same news title or URL) is left out
               items: {$ref: "#/components/schemas/Evidence"}
             history:
               type: array

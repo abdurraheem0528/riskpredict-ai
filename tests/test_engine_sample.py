@@ -106,7 +106,10 @@ def test_news_titles_say_news_once_for_every_category(tag_type):
     n = news("n1", tag(tag_type, 0.9, countries=["JPN"]), title=title.get(tag_type))
     [a] = assess([sup], snap([n]), base_currency=None)
     assert a.title.count("news") == 1 and a.title.endswith("in Japan affecting Acme Parts"), a.title
-    n2 = news("n2", tag(tag_type, 0.9, countries=["JPN"]), title=title.get(tag_type))
+    # A second, different report (1.3.3: a copy with the same title would be the same item).
+    title2 = {"sanctions": "More sanctions on Japan",
+              "cyber_incident": "Second nationwide outage after cyberattack in Japan"}
+    n2 = news("n2", tag(tag_type, 0.9, countries=["JPN"]), title=title2.get(tag_type))
     two = assess([sup], snap([n, n2]), base_currency=None)[0]
     if tag_type == "sanctions":
         assert two.explanation == "2 recent news reports describe sanctions aimed at Japan, where Acme Parts is based."

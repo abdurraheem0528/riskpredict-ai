@@ -1310,6 +1310,7 @@ export interface components {
             lon: number | null;
             /** @description The entity's `place` when it has a city (`Hsinchu, Taiwan`), else the risk's first port and countries in words (`Kaohsiung, Taiwan`) */
             place?: string | null;
+            /** @description Evidence rows linked by the risk's latest scoring (engine 1.3.3): the items its likelihood was computed from. Older rows (feed row gone) are listed in RiskDetail.evidence but not counted */
             evidence_count: number;
             /** Format: date-time */
             first_seen_at: string;
@@ -1347,7 +1348,7 @@ export interface components {
                 /** Format: date-time */
                 generated_at: string;
             };
-            /** @description Sorted by contribution, highest first */
+            /** @description The rows linked by the risk's latest scoring first, then older ones, each by contribution, highest first. An older row that is a copy of a row listed before it (same news title or URL) is left out */
             evidence: components["schemas"]["Evidence"][];
             /** @description Oldest first, at most 200 points */
             history: {

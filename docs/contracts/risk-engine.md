@@ -37,6 +37,7 @@ from engine import (
     scenario_results,       # the pure part of run_scenario (no I/O)
     chokepoints, chokepoint_id,  # §5.3 table for the API's disruptions layer; id/name/alias → id
     city_position, port_name, place_label,  # §5.11: the mapper's city positions, display names
+    copy_keys,              # 1.3.3, §5.6: (source, type, title, url) → keys that make two news items one
 )
 
 # --- pure core: no I/O, deterministic for the same inputs -----------------------
@@ -100,7 +101,8 @@ Assessment:   fingerprint: str; entity_id: UUID; category: str; title: str; expl
 RiskChange:   risk_id: UUID; fingerprint: str; change: 'created' | 'rescored' | 'resolved' | 'reopened'
               old_score: float | None; new_score: float | None; category: str
 RunResult:    engine_version: str; scored_entities: int; changes: tuple[RiskChange, ...]
-              counts: Mapping[str, int]            # created, rescored, unchanged, resolved, reopened
+              counts: Mapping[str, int]            # created, rescored, unchanged, resolved, reopened,
+                                                   # evidence_pruned (1.3.3, §13)
               # since engine 1.1.0, filled by run_workspace only (empty from write_risks):
               assessments: tuple[Assessment, ...]  # the assessments written (score ≥ min_score)
               entities: tuple[Entity, ...]         # the entities they were scored from
@@ -143,7 +145,7 @@ and no full scans of `feeds.series`.
                             "match_confidence": 0.88, "contribution": 0.58, "weight": 1.0}]},
   "impact": {"value": 0.68, "criticality": "high", "criticality_weight": 0.75,
              "exposure_share": 0.12, "exposure_norm": 0.48, "category_multiplier": 0.9},
-  "engine_version": "1.3.2",
+  "engine_version": "1.3.3",
   "story": "natural_hazard|event:usgs:us6000abcd",
   "explain": {"matched": {"match_type": "geo_radius", "match_value": "12 km", "label": "distance: 12 km",
                           "matched_text": null, "inferred_from": null, "supported_by": null},
@@ -195,8 +197,10 @@ the title or its tag) or `"first_place"` (the first place located in the article
    `acknowledged` or `mitigating` risk becomes `resolved` with
    `status_changed_by = NULL` and history `resolved_by_engine`. Risks are never
    deleted by the engine.
-6. **Evidence:** upserted on its unique key, with `last_linked_at = now`. At most 50
-   rows are kept per risk; the lowest contributions are deleted first.
+6. **Evidence:** upserted on its unique key, with `last_linked_at = now`. Since 1.3.3 a
+   live risk's rows that this run did not link are deleted while their feed row still
+   exists (§13). At most 50 rows are kept per risk; the lowest contributions are deleted
+   first.
 
 Alerts are **not** written by the engine. The worker turns `RunResult.changes` into
 `biz.alerts` rows and live-update events (§9).
@@ -339,6 +343,19 @@ country matches of about 0.3 each read "92% likely"; now they give 0.49 (live te
 `factors.likelihood` keeps `method: "noisy_or"`, and adds `decay` and each item's
 `weight`. `EngineConfig.likelihood_decay` (`engine/config.py`); 1.0 restores the plain
 noisy-OR.
+
+**Copies of one news report count once (engine 1.3.3, `engine/dupes.py`).** GDELT and the
+RSS feeds carry a syndicated article once per site, each under its own `raw_id`. Within one
+fingerprint, news items whose normalised titles are equal (casefolded words, accents and
+punctuation dropped, at least 3 words), or whose canonical URLs are (host without `www.`,
+path, query minus `utm_*` and other tracking parameters; scheme and fragment ignored; never a
+bare home page), are one item: the strongest copy (highest `p`, then evidence key, so the most
+recent of equal copies) is kept, and the others are neither in L nor stored as evidence. A copy
+of a copy (same title as one, same URL as another) is still the same item. Engine ≤ 1.3.2
+counted each copy: six copies of one sanctions article for a China supplier gave L 0.418 where
+one gives 0.25. Only news is merged; a quake, CVE record or sanctions listing is identified by
+its `raw_id`, and two with one title are two things. `copy_keys` gives the API the same keys,
+so a page never shows two copies.
 
 The two anomaly methods on the same point are separate items, so agreement raises L.
 The items are the (at most) `config.max_evidence` = 50 strongest of the fingerprint, by
@@ -615,7 +632,10 @@ per run in total, which is why only 5 per workspace are allowed.
 
 After `write_risks`, the worker asks for advice when `needs_new_advice(...)` is true.
 That is when there is no advice yet, the score moved into another 20-point band
-(0–20, 20–40, …), or the set of top-5 evidence keys changed. The steps:
+(0–20, 20–40, …), or the set of top-5 evidence keys changed. The old top 5 are taken from
+the rows the previous scoring linked (`last_linked_at ≥ last_scored_at`), never from rows an
+earlier run left behind, whose old contributions would make the advice look out of date on
+every run (1.3.3). The steps:
 
 1. `advice_messages(risk, entity)` builds the chat messages. They contain the entity
    kind and name, the category, the title and explanation, up to 5 evidence titles
@@ -735,9 +755,27 @@ the inputs applied. It writes nothing; the API stores the result in `biz.scenari
   `workspace_id` argument (`EngineContextError` otherwise).
 * A `resolved` change has `new_score = None`. A dismissed risk that stays dismissed is
   still rescored (numbers, `last_seen_at`, history `rescored` on a move of ≥ 1.0).
+* **Pruning (engine 1.3.3).** In the same transaction, after the evidence upsert, a risk
+  that is `open`, `acknowledged` or `mitigating` after this run (reopened ones included)
+  loses the rows this run did not link whose event or anomaly is still in the feeds
+  (`feeds.events`, the full sanctions lists in `feeds.sanctions_entries`, `feeds.anomalies`;
+  `engine.db.STILL_IN_FEEDS`, the same test as the API's `still_in_feeds`). This engine saw
+  those items and rejected them, so they are not evidence any more: e.g. news an engine
+  before 1.3.0 linked, which §5.10 rejects. `RunResult.counts["evidence_pruned"]` says how
+  many went. Rows whose feed row has gone (retention, delisting) stay, with their snapshot
+  and old `last_linked_at`; the API shows them as "no longer in the feed" and does not count
+  them. A `resolved` risk is not scored, so its evidence stays as it was. A `dismissed` risk
+  keeps all its rows, so that "never linked before" (§3, rule 3) has a memory; on a live risk
+  that memory is the rows of the latest run plus those whose feed row has gone.
+* The bump to 1.3.3 re-scores every workspace with a live risk on the worker's next run
+  (§9), which prunes every live risk once: no migration was needed for the existing rows.
 * The evidence trim keeps the rows linked in this run first, then the highest
-  contributions. Rows that are no longer linked stay (with their old `last_linked_at`)
-  until the trim removes them, so "never linked before" (§3, rule 3) has a memory.
+  contributions.
+* **What the API shows (1.3.3).** `Risk.evidence_count` counts the rows linked by the risk's
+  latest scoring (`last_linked_at ≥ last_scored_at`): the items of `factors.likelihood`.
+  `RiskDetail.evidence` lists those rows first, then the older ones, each group by
+  contribution; an older row that is a copy (`copy_keys`) of a row listed before it is left
+  out.
 * Updates are skipped when nothing differs, so a re-run with the same data and the same
   `now` changes no row. `RunResult.counts` also has `invalid_keys`: entity key values
   `jobs.codes` could not normalise (dropped, not guessed).

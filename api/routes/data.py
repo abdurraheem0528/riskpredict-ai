@@ -181,27 +181,56 @@ def risk_summary(ctx: WsCtx) -> dict:
     }
 
 
-EVIDENCE_SELECT = """
-SELECT ev.*,
-       CASE WHEN ev.kind = 'event' THEN EXISTS (SELECT 1 FROM feeds.events f
-                                                WHERE f.source = ev.event_source AND f.raw_id = ev.event_raw_id)
-                                         -- full sanctions lists: raw_id '<dataset>:<entity_id>' (§5.8)
-                                         OR EXISTS (SELECT 1 FROM feeds.sanctions_entries s
-                                                    WHERE s.source = ev.event_source
-                                                      AND s.dataset = split_part(ev.event_raw_id, ':', 1)
-                                                      AND s.entity_id = substr(ev.event_raw_id,
-                                                                               strpos(ev.event_raw_id, ':') + 1))
-            ELSE EXISTS (SELECT 1 FROM feeds.anomalies a WHERE a.series = ev.anomaly_series AND a.key = ev.anomaly_key
-                         AND a.ts = ev.anomaly_ts AND a.method = ev.anomaly_method) END AS still_in_feeds
-FROM biz.risk_evidence ev WHERE ev.risk_id = %s ORDER BY ev.contribution DESC, ev.id
+# True while an evidence row's feed row exists: the event (full sanctions lists: raw_id
+# '<dataset>:<entity_id>', §5.8) or the anomaly. The same test as engine.db.STILL_IN_FEEDS, which
+# prunes rejected evidence by it (tests/apiservice/test_api_real_engine.py checks the two agree).
+STILL_IN_FEEDS = """
+CASE WHEN ev.kind = 'event' THEN EXISTS (SELECT 1 FROM feeds.events f
+                                         WHERE f.source = ev.event_source AND f.raw_id = ev.event_raw_id)
+                                  OR EXISTS (SELECT 1 FROM feeds.sanctions_entries s
+                                             WHERE s.source = ev.event_source
+                                               AND s.dataset = split_part(ev.event_raw_id, ':', 1)
+                                               AND s.entity_id = substr(ev.event_raw_id,
+                                                                        strpos(ev.event_raw_id, ':') + 1))
+     ELSE EXISTS (SELECT 1 FROM feeds.anomalies a WHERE a.series = ev.anomaly_series AND a.key = ev.anomaly_key
+                  AND a.ts = ev.anomaly_ts AND a.method = ev.anomaly_method) END
 """
+
+# The rows linked by the risk's latest scoring come first (they are what it was scored from, and
+# what `evidence_count` counts), then by contribution; an older row keeps its old contribution.
+EVIDENCE_SELECT = f"""
+SELECT ev.*, (ev.last_linked_at >= r.last_scored_at) AS latest_run, {STILL_IN_FEEDS} AS still_in_feeds
+FROM biz.risk_evidence ev
+JOIN biz.risks r ON r.workspace_id = ev.workspace_id AND r.id = ev.risk_id
+WHERE ev.risk_id = %s
+ORDER BY (ev.last_linked_at >= r.last_scored_at) DESC, ev.contribution DESC, ev.id
+"""
+
+
+def shown_evidence(rows: list[dict]) -> list[dict]:
+    """The rows to show, in order: every row of the latest scoring (the engine already merged
+    copies of one news report into one item, 1.3.3), and an older row only when it is not a copy
+    (same normalised title or canonical URL) of a row shown before it."""
+    from api.core import engine as engine_iface
+
+    seen: set[str] = set()
+    out = []
+    for e in rows:
+        keys: tuple[str, ...] = ()
+        if e["kind"] == "event":
+            snap = e["snapshot"] or {}
+            keys = engine_iface.copy_keys(e["event_source"], snap.get("type"), snap.get("title"), snap.get("url"))
+        if e["latest_run"] or seen.isdisjoint(keys):
+            out.append(e)
+        seen.update(keys)
+    return out
 
 
 def risk_detail(conn, risk_id: UUID) -> dict:
     row = conn.execute(ser.RISK_SELECT + " WHERE r.id = %s", (risk_id,)).fetchone()
     if row is None:
         raise not_found("risk not found")
-    evidence = conn.execute(EVIDENCE_SELECT, (risk_id,)).fetchall()
+    evidence = shown_evidence(conn.execute(EVIDENCE_SELECT, (risk_id,)).fetchall())
     history = conn.execute(
         "SELECT * FROM (SELECT * FROM biz.risk_history WHERE risk_id = %s ORDER BY recorded_at DESC, id DESC LIMIT 200) h"
         " ORDER BY recorded_at, id",
@@ -216,7 +245,8 @@ def risk_detail(conn, risk_id: UUID) -> dict:
     if legacy.written_by_old_engine(row):  # e.g. resolved before engine 1.2.0: raw-formula text
         ent = conn.execute("SELECT kind, name, hs_codes FROM biz.entities WHERE id = %s",
                            (row["entity_id"],)).fetchone()  # fmt: skip
-        explanation = legacy.explanation(row, evidence, ent) or explanation
+        scored = [e for e in evidence if e["latest_run"]] or evidence  # what it was last scored from
+        explanation = legacy.explanation(row, scored, ent) or explanation
     return {
         **ser.risk(row),
         "explanation": explanation,
