@@ -7,7 +7,7 @@ import {
   DASH, buildLanes, decodeNetwork, km, routeInputs, routePath, unwrap,
   type LanesFile, type Network,
 } from '../../src/map/lanes';
-import type { LonLat } from '../../src/map/geo';
+import { __setGazetteer, type LonLat } from '../../src/map/geo';
 
 // Vitest runs from web/ (jsdom: import.meta.url is not a file URL).
 const WEB = process.cwd();
@@ -217,6 +217,26 @@ describe('route inputs', () => {
     expect(ins[0].chokepoints).toEqual(['bab_el_mandeb', 'suez']);
     expect(ins[1].origin).toEqual([120.27, 22.6]);
     expect(ins[1].chokepoints).toEqual([]);
+  });
+
+  it('draws routes declared with the standard codes of the busiest ports (public/map/ports.json)', () => {
+    const ports = JSON.parse(readFileSync(resolve(WEB, 'public/map/ports.json'), 'utf8')) as Parameters<typeof __setGazetteer>[1];
+    __setGazetteer({}, ports);
+    try {
+      const fs = [
+        { id: 'sha', properties: { kind: 'route', ports: ['CNSHA', 'NLRTM'], chokepoints: ['malacca', 'bab_el_mandeb', 'suez'] } },
+        { id: 'sin', properties: { kind: 'route', ports: ['SGSIN', 'NLRTM'] } },
+        { id: 'szx', properties: { kind: 'route', ports: ['CNSZX', 'USLAX'] } },
+      ];
+      const ins = routeInputs(fs);
+      expect(ins.map((r) => r.id)).toEqual(['sha', 'sin', 'szx']);
+      for (const r of ins) expect(routePath(real, r.origin, r.chokepoints, r.dest), r.id).not.toBeNull();
+    } finally {
+      __setGazetteer( // back to tests/setup.ts's tables
+        { TUR: [35.2, 39.1, 'Turkey'], CHN: [104.2, 35.9, 'China'], TWN: [121.0, 23.7, 'Taiwan'], NLD: [5.3, 52.1, 'Netherlands'], YEM: [47.6, 15.9, 'Yemen'] },
+        { CNYTN: [114.27, 22.57, 'Yantian'], NLRTM: [4.4, 51.9, 'Rotterdam'], TWKHH: [120.27, 22.6, 'Kao-Hsiung'] },
+      );
+    }
   });
 
   it('unwraps longitudes so a line never jumps across the map', () => {

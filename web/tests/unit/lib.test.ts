@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ago, initials, levelOf, outOf5, pct, signed } from '../../src/lib/format';
-import { __setGazetteer, cleanPortName, placeAll, placeLabel, placeOf, portName } from '../../src/map/geo';
+import { __setGazetteer, cleanPortName, placeAll, placeLabel, placeOf, portName, portPoint, unplacedPorts } from '../../src/map/geo';
 import { backoffMs } from '../../src/api/stream';
 import { adviceSteps } from '../../src/screens/RiskView';
 import { feedSummary } from '../../src/lib/feeds';
@@ -68,6 +68,26 @@ describe('port names', () => {
     const ports = JSON.parse(readFileSync('public/map/ports.json', 'utf8')) as Record<string, [number, number, string, string?]>;
     const names = ['TWKHH', 'MYPEN', 'AEJEA', 'CLSAI', 'VNHPH'].map((c) => cleanPortName(ports[c][3] ?? ports[c][2]));
     expect(names).toEqual(['Kaohsiung', 'Penang', 'Jebel Ali', 'San Antonio', 'Haiphong']);
+  });
+  it("places every code of the World Shipping Council's Top 50 container ports (tests/fixtures/top50_container_ports.json)", () => {
+    type Top50 = { ports: { rank: number; port: string; codes: string[] }[]; left_out: { code: string }[] };
+    const top = JSON.parse(readFileSync('../tests/fixtures/top50_container_ports.json', 'utf8')) as Top50;
+    const ports = JSON.parse(readFileSync('public/map/ports.json', 'utf8')) as Parameters<typeof __setGazetteer>[1];
+    __setGazetteer({}, ports);
+    const codes = top.ports.flatMap((p) => p.codes);
+    expect(top.ports).toHaveLength(50);
+    expect(unplacedPorts(codes)).toEqual([]);
+    expect(codes.filter((c) => portName(c) === c)).toEqual([]);
+    expect(unplacedPorts(top.left_out.map((l) => l.code))).toEqual(top.left_out.map((l) => l.code));
+    // The standard codes the World Port Index files under its own codes, by their port's name.
+    expect(['CNSHA', 'SGSIN', 'CNNGB', 'CNSZX', 'CNTAO', 'CNTSN', 'CNXMN', 'IDTPP'].map(portName))
+      .toEqual(['Shanghai', 'Singapore', 'Ningbo', 'Shenzhen', 'Qingdao', 'Tianjin Xingang', 'Xiamen', 'Tanjung Priok']);
+    expect(portPoint('CNSHA')).toEqual(portPoint('CNSGH'));
+    expect(Object.values(ports).filter((p) => /\b(Apt|Airport)\b/.test(p[3] ?? p[2]))).toEqual([]);
+  });
+  it('lists the codes the table does not have, once each', () => {
+    __setGazetteer({}, { NLRTM: [4.4, 51.9, 'Rotterdam'] });
+    expect(unplacedPorts(['XXABC', 'NLRTM', 'YYDEF', 'XXABC'])).toEqual(['XXABC', 'YYDEF']);
   });
 });
 

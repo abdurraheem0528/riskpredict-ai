@@ -64,6 +64,12 @@ So each fixture below is marked by where it came from:
 Tiingo's FX prices endpoint is tested with an inline row in
 `tests/test_keyed_sources.py`: the docs list its fields but print no example values.
 
+## Reference lists
+
+| File | Source |
+|---|---|
+| `top50_container_ports.json` | The World Shipping Council's [Top 50 Container Ports](https://www.worldshipping.org/top-50-container-ports), 2024 statistics: rank and port name, as two full reproductions of the WSC table give them (Goliath Africa Logistics, 12 Feb 2026; PortNews24, 30 Jul 2026; they agree row for row), because the WSC page draws its table with a script and this sandbox could not read it. Fetched 2026-11-27. Each port's UN/LOCODEs (standard code first, then other codes in common use) were added from the UNECE code list and the World Port Index. `tests/test_places.py` and `web/tests/unit/lib.test.ts` check that every code resolves in `ports.json` and `ports.tsv` |
+
 When the keys are in place, replace the constructed and documented files with real
 responses (keep them small, never commit a URL or header that contains a key) and
 update the expected values in `tests/test_keyed_sources.py`.

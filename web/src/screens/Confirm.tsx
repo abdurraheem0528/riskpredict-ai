@@ -13,7 +13,8 @@ import { useWorkspaceState } from '../app/TopBar';
 import { navigate } from '../lib/router';
 import { KINDS, plural, fmtInt, type EntityKind } from '../lib/format';
 import { EntitiesLayer } from '../map/layers';
-import { usePlaced } from '../map/data';
+import { useGazetteer, usePlaced } from '../map/data';
+import { unplacedPorts } from '../map/geo';
 import { useMap, fitTo, sheetPadding } from '../map/MapRoot';
 import { boxOf } from './Main';
 import { Icon } from '../ui/Icon';
@@ -25,6 +26,7 @@ type Field = S['MappingField'];
 type Choice = { field: Field | ''; split?: string; currency?: string; touched: boolean };
 const KIND_LIST: EntityKind[] = ['supplier', 'site', 'customer', 'route', 'port', 'currency', 'commodity', 'software'];
 const SURE = 0.6;
+const MAX_UNPLACED = 6; // port codes named in the corner card; the rest as "+N"
 
 export function Confirm({ id }: { id: string }) {
   const { workspace, role } = useSession();
@@ -290,6 +292,8 @@ function PreviewCard({
   const feats = preview?.entities.features ?? [];
   const countries = new Set(feats.flatMap((f) => f.properties.countries));
   const ports = new Set(feats.flatMap((f) => f.properties.ports));
+  // Valid UN/LOCODEs the port table has no entry for: never dropped silently.
+  const unplaced = useGazetteer() ? unplacedPorts(ports) : [];
   const things = kind ? KINDS[kind].many : 'entities';
   return (
     <>
@@ -309,6 +313,12 @@ function PreviewCard({
                 ? `We will watch ${[countries.size ? plural(countries.size, 'country', 'countries') : '', ports.size ? plural(ports.size, 'port') : ''].filter(Boolean).join(' and ')}. Nothing else.`
                 : 'None of these rows has a country, port or position yet.'}
             </span>
+            {unplaced.length > 0 && (
+              <span className="t13">
+                {plural(unplaced.length, 'port code')} we cannot place: {unplaced.slice(0, MAX_UNPLACED).join(', ')}
+                {unplaced.length > MAX_UNPLACED ? ` +${fmtInt(unplaced.length - MAX_UNPLACED)}` : ''}.
+              </span>
+            )}
           </>
         ) : null}
       </div>

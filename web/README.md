@@ -134,7 +134,7 @@ of type `country`/`port` are joined on `place_key` the same way.
 | File | Source | Raw | gzip |
 |---|---|---:|---:|
 | `countries.geojson` | Natural Earth 1:50m admin-0, simplified to 12 %, 0.01° | 217 KiB | 70 KiB |
-| `ports.json` | NGA World Port Index (Pub 150), 3,282 ports by UN/LOCODE | 117 KiB | 53 KiB |
+| `ports.json` | NGA World Port Index (Pub 150), 3,303 ports by UN/LOCODE, with the standard codes of the WSC Top 50 container ports the WPI files under its own codes | 137 KiB | 62 KiB |
 | `centroids.json` | Natural Earth label points and names, 246 codes | 8 KiB | 4 KiB |
 | `lanes.json` | Eurostat SeaRoute MARNET (100 km), simplified: 4,009 nodes, 6,176 edges | 56 KiB | 22 KiB |
 
@@ -216,6 +216,8 @@ breakpoints and wording rules are followed as drawn. These are the deliberate di
 - The corner card says how many entities the preview placed and how many countries and
   ports will be watched. "5 risks already touch you" is not shown: the preview endpoint
   returns entities and problems, not risks. Problem rows are listed instead.
+- A valid UN/LOCODE that `ports.json` does not have gets no map position and no lane, so the
+  card names it: "2 port codes we cannot place: XXABC, YYDEF." (six named, then "+N").
 
 **Main (Overview)**
 - The headline is the highest open score with the open count. The API has no portfolio
