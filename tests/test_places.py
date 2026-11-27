@@ -152,6 +152,36 @@ def test_the_port_table_matches_the_dashboards():
         assert places.port_name(code) == places.clean_port_name(p[3] if len(p) > 3 and p[3] else p[2]), code
 
 
+def _top50() -> dict:
+    return json.loads((ROOT / "tests/fixtures/top50_container_ports.json").read_text(encoding="utf-8"))
+
+
+def test_the_top_50_container_ports_resolve_under_every_common_code():
+    # The World Shipping Council's Top 50 (tests/fixtures/top50_container_ports.json): every
+    # code places the port on the map (ports.json) and names it in the API (ports.tsv), and
+    # a port's codes land within 100 km of each other (the WPI's own CNCWN row was on Hainan).
+    ports = json.loads((ROOT / "web/public/map/ports.json").read_text(encoding="utf-8"))
+    top = _top50()
+    assert [p["rank"] for p in top["ports"]] == list(range(1, 51))
+    missing = [c for p in top["ports"] for c in p["codes"] if c not in ports or places.port_name(c) is None]
+    assert missing == []
+    for p in top["ports"]:
+        lon0, lat0 = ports[p["codes"][0]][:2]
+        for c in p["codes"][1:]:
+            assert haversine_km(lat0, lon0, ports[c][1], ports[c][0]) < 100, (p["port"], c)
+    for left in top["left_out"]:  # the fixture says what is still unplaced; keep it true
+        assert left["code"] not in ports and places.port_name(left["code"]) is None, left["code"]
+
+
+def test_the_standard_codes_of_the_biggest_ports_have_port_names():
+    codes = ["CNSHA", "SGSIN", "CNNGB", "CNSZX", "CNTAO", "CNTSN", "CNXMN", "IDTPP", "CNCWN", "CNCAN", "CNDLC", "CNYNT"]
+    assert [places.port_name(c) for c in codes] == [
+        "Shanghai", "Singapore", "Ningbo", "Shenzhen", "Qingdao", "Tianjin Xingang", "Xiamen", "Tanjung Priok",
+        "Chiwan", "Guangzhou", "Dalian", "Yantai"]  # fmt: skip
+    # The code list names some of these codes as airports; no port is ever shown by one.
+    assert [n for n in places._ports().values() if " Apt" in n or "Airport" in n] == []
+
+
 def test_place_lines():
     assert places.place_label("Hsinchu", ["TWN"], ["TWKHH"]) == "Hsinchu, Taiwan"
     assert places.place_label(None, ["TWN"], ["TWKHH"]) == "Kaohsiung, Taiwan"

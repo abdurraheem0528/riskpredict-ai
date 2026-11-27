@@ -11,6 +11,7 @@ AEHTL	Hulaylah Oil Terminal	Hulaylah Terminal
 AEJAZ	Al Jazeera Port	
 AEJEA	Mina Jabal Ali	Jebel Ali
 AEJED	Jabal Az Zannah/ruways	Jebel Dhanna
+AEKHL	Mina Khalifa/Abu Dhabi	
 AEKLF	Khawr Fakkan	Khor al Fakkan
 AEMBS	Mubarraz Oil Terminal	Mubarras Island
 AEMSA	Mina Saqr	
@@ -480,17 +481,21 @@ CMMOU	Moudi Marine Terminal	Moudi Terminal
 CNBIH	Beihai	Beihai Pt
 CNBSP	Basuo	Basuo Pt
 CNBYQ	Bayuquan	
+CNCAN	Guangzhou	
 CNCGS	Changshu	Changshu Pt
 CNCOZ	Chaozhou	
-CNCWN	Chiwan	Chiwan Pt
+CNCWN	Shekou	Chiwan Pt
 CNCZX	Changzhou	
 CNDAL	Dalian	
 CNDDZ	Dandong	
+CNDGG	Dongguan	
+CNDLC	Dalian	
 CNDSN	Dongshan	Dongshan Pt
 CNFAN	Fang-Cheng	Fangcheng Pt
 CNFZH	Fuzhou	
 CNGAO	Gaogang	
 CNGGZ	Guangzhou	
+CNGZG	Guangzhou	Guangzhou Pt
 CNHIG	Haikou	Haikou Pt
 CNHME	Haimen	
 CNHNK	Hankow	Hankou
@@ -504,28 +509,39 @@ CNLKU	Longkou Gang	Longkou Pt
 CNLSH	Lushun	Lushun New Pt
 CNLSN	Lanshan	Lanshan Pt
 CNLYG	Lianyungang	
+CNNBG	Ningbo	Ningbo Pt
 CNNBO	Ningbo	
+CNNGB	Ningbo	
 CNNJI	Nanjing	
+CNNSA	Nansha Pt	
 CNNTG	Nantong	
 CNPLI	Penglai	Penglai Pt
+CNQDG	Qingdao Gang	Qingdao Pt
 CNQIN	Qingdao Gang	Qingdao
 CNQZH	Qinzhou	
 CNQZL	Quanzhou	
 CNRZH	Rizhao	
 CNSDG	Shui Dong	Shuidong Pt
 CNSGH	Shanghai	
+CNSHA	Shanghai	
 CNSHK	Shekou	Shekou Pt
 CNSHP	Qinhuangdao	Qinhuangdao Pt
 CNSYA	Sanya	Sanya Pt
+CNSZX	Yantian	Shenzhen
 CNTAC	Taicang	Taicang Pt
+CNTAO	Qingdao Gang	Qingdao
 CNTGS	Tangshan (Jingtang)	Tangshan
+CNTSN	Tianjin Xin Gang	Tianjin Xingang Pt
 CNTXG	Tianjin Xin Gang	Tianjin Xingang Pt
 CNWAX	Wanxian	
 CNWEG	Weihai	Weihai Pt
 CNWZO	Wenzhou	Wenzhou Pt
 CNXMG	Xiamen	Xiamen Pt
+CNXMN	Xiamen	Xiamen Pt
 CNXYG	Xiuyu	Xiuyu Pt
+CNYAT	Yantai	
 CNYIK	Yingkou	Yinkou
+CNYNT	Yantai	Yantai Pt
 CNYPG	Yangpu	Yangpu Pt
 CNYTG	Yantai	Yantai Pt
 CNYTN	Yantian	Yantian Pt
@@ -1161,7 +1177,7 @@ GNCKY	Conakry
 GNKMC	Kamsar	
 GPBBR	Basse Terre	Basse-Terre
 GPPTL	Port Louis	Port-Louis
-GPPTP	Pointe A Pitre	Point-à-Pitre Apt
+GPPTP	Pointe A Pitre	
 GQBSG	Bata	
 GQLUB	Luba	
 GQPET	Punta Europa Terminal	
@@ -1358,6 +1374,7 @@ IDTEG	Tegal	Tegal, Java
 IDTJB	Tanjung Balai Karimun	Tanjungbalai
 IDTJQ	Tanjungpandan	Tanjung Pandan
 IDTNJ	Tanjungpinang	
+IDTPP	Jakarta	Tanjung Priok
 IDTSE	Tanjung Sekong	Tanjung Sekong, Jv
 IDTTE	Ternate	Ternate, Halmahera
 IDUDG	Udang Oilfield	Udang Natuna Terminal
@@ -2251,13 +2268,15 @@ PHISL	Isabel
 PHJNZ	Jimenez	Jimenez/Ozamis
 PHJOL	Jolo	
 PHJPM	Jose Panganiban	Jose Panganiban, Luzon
-PHLGP	Legazpi Port	Legaspi Apt, Luzon
+PHLGP	Legazpi Port	
 PHLZB	Lazi	
 PHMAA	Maasin	
 PHMAS	Masao	
 PHMBT	Masbate	
 PHMGG	Mangagoy	Mangogoy/Bislig
 PHMNL	Manila	
+PHMNN	Manila	Manila North Harbour
+PHMNS	Manila	Manila South Harbour
 PHMSC	Masinloc	Masinloc/Sual
 PHMVS	Mariveles	Mariveles, Luzon
 PHMXI	Mati	Mati, Mindanao
@@ -2520,6 +2539,7 @@ SGJUR	Jurong Island	Jurong
 SGKEP	Keppel - (East Singapore)	Keppel
 SGPUB	Pulau Bukom	
 SGSEB	Pulau Sebarok	
+SGSIN	Keppel - (East Singapore)	Singapore
 SHASI	Georgetown	
 SHSHN	Jamestown	
 SIKOP	Koper	
@@ -3250,6 +3270,7 @@ VILIB	Limetree Bay
 VIPAX	Port Alucroix	
 VNBNO	Vinh Cam Ranh	Ba Ngoi
 VNCLI	Cat Lai	Cát Lái
+VNCMT	Cai Mep International Terminal	
 VNCPH	Cam Pha	
 VNDAD	Da Nang	
 VNHON	Hon Gai	Hongai

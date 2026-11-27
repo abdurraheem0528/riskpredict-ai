@@ -59,6 +59,16 @@ export function portPoint(locode: string): LonLat | null {
   const p = ports?.[locode];
   return p ? [p[0], p[1]] : null;
 }
+/**
+ * The codes in `codes` that the port table does not have, once each, in order: a row naming
+ * one gets no port position and no lane. Empty until the table has loaded.
+ */
+export function unplacedPorts(codes: Iterable<string>): string[] {
+  if (!ports) return [];
+  const out = new Set<string>();
+  for (const c of codes) if (!ports[c]) out.add(c);
+  return [...out];
+}
 /** The port's display name: "Kaohsiung", "Tokyo", "Penang", "Chennai" (not "Kao-Hsiung", "Tokyo Ko", …). */
 export function portName(locode: string): string {
   const p = ports?.[locode];

@@ -41,14 +41,16 @@ position from `engine/data/cities15000.tsv.gz`, matched only within the given co
 the mapper uses it for a row with a city and no latitude/longitude, so *Formosa
 Microcircuits* (Hsinchu, Taiwan, port TWKHH) sits in Hsinchu, not at the port of
 Kaohsiung 250 km away, and radius matching measures from Hsinchu. `engine.port_name("TWKHH")`
-is "Kaohsiung", by the same rule as the map.
+is "Kaohsiung", by the same rule as the map. Since 1.3.2 the standard codes of the World
+Shipping Council's Top 50 container ports all have a name (`CNSHA` "Shanghai", `SGSIN`
+"Singapore", `IDTPP` "Tanjung Priok"), where 1.3.1 wrote the code ("at the port of CNSHA").
 
 ### Data files and attribution
 
 | File | Source | Licence |
 |---|---|---|
 | `data/cities15000.tsv.gz` | [GeoNames](https://www.geonames.org/) `cities15000` (cities with 15,000+ people), via the copy in the PyPI package `geonamescache` 3.0.2; trimmed by `data/build_places.py` to country, position (4 dp), population, name and Latin match keys | CC BY 4.0 |
-| `data/ports.tsv` | `web/public/map/ports.json`: NGA World Port Index and UNECE UN/LOCODE names (see `web/public/map/ATTRIBUTION.md`) | Public domain; free to use |
+| `data/ports.tsv` | `web/public/map/ports.json`: NGA World Port Index and UNECE UN/LOCODE names, with the aliases of `web/scripts/build-map-data.mjs` (see `web/public/map/ATTRIBUTION.md`) | Public domain; free to use |
 | `data/chokepoints.json`, `data/sea_lanes.json`, `data/hs_chapters.json` | Written for this project | |
 
 ## The rules, with examples

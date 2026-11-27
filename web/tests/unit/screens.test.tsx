@@ -151,6 +151,31 @@ describe('screens', () => {
     expect(JSON.stringify(box.body)).not.toContain('confidence');
   });
 
+  it('Confirm: names the port codes the map cannot place, once each', async () => {
+    // The test gazetteer (tests/setup.ts) has CNYTN, NLRTM and TWKHH.
+    const feature = (row: number, ports: string[]) => ({
+      type: 'Feature' as const, id: `row:${row}`, geometry: null,
+      properties: { kind: 'supplier' as const, name: `Supplier ${row}`, countries: ['CHN'], ports, city: null, place: null, criticality: null, open_risk_count: 0, max_score: null, row_number: row },
+    });
+    const previewOf = (rows: string[][]) => ({ rows_read: rows.length, problems: [], entities: { type: 'FeatureCollection', truncated: false, features: rows.map((p, i) => feature(i + 2, p)) } });
+    server.use(http.post(`${API}/v1/sources/:id/mapping/preview`, () => HttpResponse.json(previewOf([['CNYTN'], ['XXABC', 'NLRTM'], ['YYDEF'], ['XXABC']]))));
+    boot(`/sources/${PENDING}/confirm`);
+    const side = await screen.findByRole('region', { name: 'What happens when you confirm' });
+    expect(await within(side).findByText('2 port codes we cannot place: XXABC, YYDEF.')).toBeInTheDocument();
+    expect(within(side).getByText('We will watch 1 country and 4 ports. Nothing else.')).toBeInTheDocument();
+  });
+
+  it('Confirm: says nothing about ports when the map has them all', async () => {
+    server.use(http.post(`${API}/v1/sources/:id/mapping/preview`, () => HttpResponse.json({
+      rows_read: 1, problems: [],
+      entities: { type: 'FeatureCollection', truncated: false, features: [{ type: 'Feature', id: 'row:2', geometry: null, properties: { kind: 'supplier', name: 'Supplier 2', countries: ['TWN'], ports: ['TWKHH'], city: null, place: null, criticality: null, open_risk_count: 0, max_score: null, row_number: 2 } }] },
+    })));
+    boot(`/sources/${PENDING}/confirm`);
+    const side = await screen.findByRole('region', { name: 'What happens when you confirm' });
+    expect(await within(side).findByText('We will watch 1 country and 1 port. Nothing else.')).toBeInTheDocument();
+    expect(within(side).queryByText(/we cannot place/)).not.toBeInTheDocument();
+  });
+
   it('Scenario: runs the what-if and shows who feels it first', async () => {
     type Sent = { name: string; inputs: { shocks: { type: string; chokepoints?: string[] }[] } };
     const box: { sent?: Sent } = {};

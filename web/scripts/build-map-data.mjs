@@ -4,19 +4,22 @@
 //
 //   Natural Earth 1:50m admin-0 countries (public domain) → countries.geojson, centroids.json ([lon, lat, name])
 //   NGA World Port Index, Pub 150 (US Government work, public domain) → ports.json
-//   UNECE UN/LOCODE code list (free to use) → the ports' display names in ports.json
+//   UNECE UN/LOCODE code list (free to use) → the ports' display names in ports.json, and the
+//     positions of the few standard port codes no WPI row fits (LOCODE_PLACED)
 //   Eurostat SeaRoute's MARNET maritime network, 100 km resolution (EUPL-1.2) → lanes.json
 //
 // Usage: node scripts/build-map-data.mjs [--wpi path/to/UpdatedPub150.csv] [--ne path/to/ne_50m_admin_0_countries.geojson]
 //                                        [--locode path/to/code-list.csv] [--marnet path/to/marnet_plus_100km.gpkg]
+//        node scripts/build-map-data.mjs --ports-only [--wpi path/to/UpdatedPub150.csv] [--locode path/to/code-list.csv]
 //        node scripts/build-map-data.mjs --port-names-only [--locode path/to/code-list.csv]
 //        node scripts/build-map-data.mjs --lanes-only [--marnet path/to/marnet_plus_100km.gpkg]
 // Without the flags it downloads them from the URLs below. Needs `npx` (mapshaper 0.6), and
 // Node 22.13 or later for the lanes (it reads MARNET's GeoPackage with node:sqlite).
+// --ports-only rebuilds just ports.json (also after a change to PORT_ALIASES or LOCODE_PLACED).
 // --port-names-only rewrites just the UN/LOCODE names in the committed ports.json.
 // --lanes-only rebuilds just lanes.json (also after a change to engine/data/chokepoints.json).
-// After the full build or --port-names-only, run `python engine/data/build_places.py` so the
-// API's port names (engine/data/ports.tsv) follow (tests/test_places.py checks that they agree).
+// After the full build, --ports-only or --port-names-only, run `python engine/data/build_places.py`
+// so the API's port names (engine/data/ports.tsv) follow (tests/test_places.py checks that they agree).
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -83,29 +86,139 @@ function parseCsv(text) {
 
 const round = (n, d) => Math.round(n * 10 ** d) / 10 ** d;
 
-// --- port display names ------------------------------------------------------------------
-// ports.json is UN/LOCODE → [lon, lat, WPI name] or [lon, lat, WPI name, UN/LOCODE name]: the
-// fourth element only when the UN/LOCODE name differs. The raw WPI name stays for matching;
-// the dashboard shows cleanPortName(UN/LOCODE name ?? WPI name) (src/map/geo.ts).
-async function addPortNames(ports) {
+// --- port aliases ------------------------------------------------------------------------
+// The standard UN/LOCODEs of some of the busiest container ports are not WPI codes: the WPI
+// files those ports under its own codes (Shanghai as CN SGH, Ningbo as CN NBO, Singapore
+// only as Keppel, SG KEP), and the UN/LOCODE code list gives CNSHA, CNNGB, CNSZX, CNTAO,
+// CNTSN, CNXMN, CNCAN, CNDLC and CNYNT only as airports, without coordinates. Without these
+// entries a sheet naming them gets no position, no lane and no port name.
+//
+// Each alias takes one WPI row's position and WPI name, unchanged: `wpi` is its World Port
+// Index Number and `as` its own WPI code, both checked when the table is built. Its display
+// name is the code list's name for the code, unless that names an airport; then `name` where
+// the table gives one, else the code-list name of the WPI row's code (`as`). `replaces`: the
+// WPI has its own row for the code, and the alias replaces it (see `why`). No position here
+// is our own: a port no WPI row fits is in LOCODE_PLACED, at the code list's coordinates, or
+// left out.
+//
+// The ports are the World Shipping Council's Top 50 Container Ports, 2024 statistics
+// (tests/fixtures/top50_container_ports.json; tests/test_places.py and
+// web/tests/unit/lib.test.ts check that every code there resolves). Sources: NGA World Port Index, Pub 150 (the rows
+// named below); the UNECE UN/LOCODE code list (Name, Function, Coordinates), via the
+// Frictionless Data datasets/un-locode code-list.csv.
+const PORT_ALIASES = [
+  { code: 'CNSHA', wpi: 59970, as: 'CNSGH', why: 'Shanghai: WPI 59970 "Shanghai" (CN SGH); UN/LOCODE CNSHA is Shanghai Hongqiao airport' },
+  { code: 'SGSIN', wpi: 50000, as: 'SGKEP', why: 'Singapore: the WPI\'s only Singapore row, 50000 "Keppel - (East Singapore)" (SG KEP); UN/LOCODE SGSIN "Singapore", 0117N 10351E, agrees' },
+  { code: 'CNNGB', wpi: 59940, as: 'CNNBO', why: 'Ningbo-Zhoushan: WPI 59940 "Ningbo" (CN NBO); UN/LOCODE CNNGB is Ningbo Lishe airport' },
+  { code: 'CNNBG', wpi: 59940, as: 'CNNBO', why: 'Ningbo-Zhoushan: UN/LOCODE CNNBG "Ningbo Pt"; WPI 59940 "Ningbo" (CN NBO)' },
+  {
+    code: 'CNSZX', wpi: 57857, as: 'CNYTN', name: 'Shenzhen',
+    why: 'Shenzhen: UN/LOCODE CNSZX is Shenzhen Bao\'an airport and the WPI has no Shenzhen row; its Shenzhen harbours are Yantian (east, CN YTN) and Shekou and Chiwan (west, CN SHK, CN CWN). CNSZX takes WPI 57857 "Yantian", named Shenzhen as the WSC list names the port',
+  },
+  {
+    code: 'CNCWN', wpi: 57777, as: 'CNSHK', replaces: true,
+    why: 'Chiwan, Shenzhen: the WPI\'s own CN CWN row (57818 "Chiwan", alternate name Mawan) is at 19.97N 110.03E, on Hainan, about 480 km from Chiwan; UN/LOCODE CNCWN "Chiwan Pt" is 2229N 11353E. WPI 57777 "Shekou" gives Chiwan as its alternate name and is 2 km from that point',
+  },
+  { code: 'CNTAO', wpi: 60140, as: 'CNQIN', why: 'Qingdao: WPI 60140 "Qingdao Gang" (CN QIN); UN/LOCODE CNTAO is Qingdao Jiaodong airport' },
+  { code: 'CNQDG', wpi: 60140, as: 'CNQIN', why: 'Qingdao: UN/LOCODE CNQDG "Qingdao Pt", no coordinates; WPI 60140 "Qingdao Gang" (CN QIN)' },
+  { code: 'CNTSN', wpi: 60190, as: 'CNTXG', why: 'Tianjin: WPI 60190 "Tianjin Xin Gang" (CN TXG); UN/LOCODE CNTSN is Tianjin Binhai airport' },
+  { code: 'CNXMN', wpi: 57870, as: 'CNXMG', why: 'Xiamen: WPI 57870 "Xiamen" (CN XMG); UN/LOCODE CNXMN is Xiamen Gaoqi airport' },
+  { code: 'CNCAN', wpi: 57830, as: 'CNGGZ', why: 'Guangzhou: WPI 57830 "Guangzhou", alternate name Canton (CN GGZ); UN/LOCODE CNCAN is Guangzhou Baiyun airport' },
+  { code: 'CNGZG', wpi: 57830, as: 'CNGGZ', why: 'Guangzhou: UN/LOCODE CNGZG "Guangzhou Pt"; WPI 57830 "Guangzhou" (CN GGZ)' },
+  { code: 'CNDLC', wpi: 60250, as: 'CNDAL', why: 'Dalian: WPI 60250 "Dalian" (CN DAL); UN/LOCODE CNDLC is Dalian Zhoushuizi airport' },
+  { code: 'CNYNT', wpi: 60160, as: 'CNYTG', why: 'Yantai: WPI 60160 "Yantai" (CN YTG); UN/LOCODE CNYNT is Yantai Laishan airport' },
+  { code: 'CNYAT', wpi: 60160, as: 'CNYTG', why: 'Yantai: UN/LOCODE CNYAT "Yantai"; WPI 60160 "Yantai" (CN YTG)' },
+  { code: 'IDTPP', wpi: 50970, as: 'IDJKT', why: 'Tanjung Priok: WPI 50970 "Jakarta" (ID JKT), alternate name Tandjoenpriok; UN/LOCODE IDTPP "Tanjung Priok", 0606S 10653E, agrees' },
+  { code: 'PHMNS', wpi: 58370, as: 'PHMNL', why: 'Manila: UN/LOCODE PHMNS "Manila South Harbour", no coordinates; WPI 58370 "Manila" (PH MNL)' },
+  { code: 'PHMNN', wpi: 58370, as: 'PHMNL', why: 'Manila: UN/LOCODE PHMNN "Manila North Harbour", no coordinates; WPI 58370 "Manila" (PH MNL)' },
+];
+// Standard codes of Top 50 ports that no WPI row fits, placed at the code list's own
+// coordinates for the code (a port entry, Function 1). Left out because neither source places
+// them: PAMIT (Manzanillo, Colón), CNYSN (Yangshan) and CNWGQ (Waigaoqiao, Shanghai) have no
+// coordinates and no WPI row; the confirm screen names such codes.
+const LOCODE_PLACED = [
+  { code: 'CNNSA', why: 'Nansha, Guangzhou: UN/LOCODE "Nansha Pt" 2245N 11335E; the WPI has no Nansha row' },
+  { code: 'CNDGG', why: 'Dongguan: UN/LOCODE "Dongguan" 2302N 11345E; the WPI has no Dongguan row' },
+  { code: 'VNCMT', why: 'Cai Mep: UN/LOCODE "Cai Mep International Terminal" 1031N 10700E; the WPI has no Cai Mep row' },
+  { code: 'AEKHL', why: 'Khalifa Port, Abu Dhabi: UN/LOCODE "Mina Khalifa/Abu Dhabi" 2450N 05440E; the WPI has no Khalifa row' },
+];
+const ALIAS_BY_CODE = Object.fromEntries(PORT_ALIASES.map((a) => [a.code, a]));
+
+// The UN/LOCODE code list: code → { name, fn (Function), coords ("2245N 11335E" or "") }.
+async function readLocode() {
   const path = arg('--locode') ?? (await fetchTo(LOCODE_URL, join(tmp, 'code-list.csv')));
   const [head, ...lines] = parseCsv(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''));
-  const [iChange, iCountry, iLocation, iName] = ['Change', 'Country', 'Location', 'Name'].map((c) => {
+  const cols = ['Change', 'Country', 'Location', 'Name', 'Function', 'Coordinates'].map((c) => {
     const i = head.indexOf(c);
     if (i < 0) throw new Error(`UN/LOCODE column missing: ${c}`);
     return i;
   });
-  const names = {};
+  const [iChange, iCountry, iLocation, iName, iFn, iCoords] = cols;
+  const list = {};
   for (const r of lines) {
     if ((r[iChange] ?? '').trim() === 'X') continue; // marked for deletion
     const code = `${r[iCountry] ?? ''}${r[iLocation] ?? ''}`.trim();
-    if (/^[A-Z]{2}[A-Z2-9]{3}$/.test(code) && r[iName]?.trim() && !names[code]) names[code] = r[iName].trim();
+    if (/^[A-Z]{2}[A-Z2-9]{3}$/.test(code) && r[iName]?.trim() && !list[code]) {
+      list[code] = { name: r[iName].trim(), fn: (r[iFn] ?? '').trim(), coords: (r[iCoords] ?? '').trim() };
+    }
   }
+  return list;
+}
+
+// The code list's "2245N 11335E" → [113.583, 22.75] (degrees and minutes).
+function locodePoint(s) {
+  const m = /^(\d{2})(\d{2})([NS]) (\d{3})(\d{2})([EW])$/.exec(s);
+  if (!m) return null;
+  const lat = (Number(m[1]) + Number(m[2]) / 60) * (m[3] === 'S' ? -1 : 1);
+  const lon = (Number(m[4]) + Number(m[5]) / 60) * (m[6] === 'W' ? -1 : 1);
+  return [round(lon, 3), round(lat, 3)];
+}
+
+// A code-list name that names an airport ("Shanghai Hongqiao International Apt") is never a
+// port's display name.
+const AIRPORT_NAME = /\b(Apt|Airport)\b/i;
+
+// Adds the aliases and LOCODE_PLACED to `ports` (built from the WPI). `rows`: World Port Index
+// Number → [code, lon, lat, WPI name]. Fails on anything the tables no longer fit.
+function addAliases(ports, rows, list) {
+  const problems = [];
+  for (const a of PORT_ALIASES) {
+    const r = rows.get(a.wpi);
+    if (!r) { problems.push(`${a.code}: no WPI row ${a.wpi}`); continue; }
+    if (r[0] !== a.as) { problems.push(`${a.code}: WPI row ${a.wpi} is ${r[0]}, not ${a.as}`); continue; }
+    if (ports[a.code] && !a.replaces) { problems.push(`${a.code}: the WPI now has its own row (drop the alias, or mark it replaces)`); continue; }
+    if (!ports[a.code] && a.replaces) { problems.push(`${a.code}: the WPI no longer has the row this alias replaces`); continue; }
+    const own = list[a.code]?.name;
+    if ((!own || AIRPORT_NAME.test(own)) && !a.name && !list[a.as]?.name) problems.push(`${a.code}: no display name`);
+    ports[a.code] = [r[1], r[2], r[3]];
+  }
+  for (const l of LOCODE_PLACED) {
+    const e = list[l.code];
+    const pt = e && e.fn.startsWith('1') ? locodePoint(e.coords) : null;
+    if (!pt) { problems.push(`${l.code}: not a UN/LOCODE port with coordinates`); continue; }
+    if (ports[l.code]) { problems.push(`${l.code}: the WPI now has its own row (drop it from LOCODE_PLACED)`); continue; }
+    ports[l.code] = [...pt, e.name];
+  }
+  if (problems.length) throw new Error(`port aliases: ${problems.join('; ')}`);
+  console.log(`ports: ${PORT_ALIASES.length} aliases of WPI rows, ${LOCODE_PLACED.length} placed at UN/LOCODE coordinates`);
+}
+
+// --- port display names ------------------------------------------------------------------
+// ports.json is UN/LOCODE → [lon, lat, WPI name] or [lon, lat, WPI name, UN/LOCODE name]: the
+// fourth element only when the UN/LOCODE name differs. The raw WPI name stays for matching;
+// the dashboard shows cleanPortName(UN/LOCODE name ?? WPI name) (src/map/geo.ts). For a port
+// in LOCODE_PLACED (no WPI row) the third element is the code-list name. A code-list name
+// that names an airport is not used; an alias's name is as PORT_ALIASES says.
+function addPortNames(ports, list) {
   let named = 0;
   for (const [code, p] of Object.entries(ports)) {
     p.length = 3;
-    if (names[code] && names[code] !== p[2]) {
-      p.push(names[code]);
+    const a = ALIAS_BY_CODE[code];
+    let name = list[code]?.name;
+    if (name && AIRPORT_NAME.test(name)) name = undefined;
+    if (a && !name) name = a.name ?? list[a.as]?.name;
+    if (name && name !== p[2]) {
+      p.push(name);
       named++;
     }
   }
@@ -423,14 +536,53 @@ async function writeLanes() {
   console.log(`  longest edge: ${stats.longest.toFixed(0)} km`);
 }
 
+// --- ports ---------------------------------------------------------------------------
+// ports.json from the WPI, the aliases and LOCODE_PLACED, and the display names.
+async function writePorts() {
+  const wpiPath = arg('--wpi') ?? (await fetchTo(WPI_URL, join(tmp, 'wpi.csv')));
+  const [header, ...rows] = parseCsv(readFileSync(wpiPath, 'utf8').replace(/^\uFEFF/, ''));
+  const col = (name) => {
+    const i = header.indexOf(name);
+    if (i < 0) throw new Error(`WPI column missing: ${name}`);
+    return i;
+  };
+  const [iNumber, iCode, iName, iLat, iLon] = ['World Port Index Number', 'UN/LOCODE', 'Main Port Name', 'Latitude', 'Longitude'].map(col);
+  const ports = {};
+  const byNumber = new Map();
+  let skipped = 0;
+  for (const r of rows) {
+    const code = (r[iCode] ?? '').replace(/\s+/g, '').toUpperCase();
+    const lat = Number(r[iLat]);
+    const lon = Number(r[iLon]);
+    if (!/^[A-Z]{2}[A-Z2-9]{3}$/.test(code) || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+      skipped++;
+      continue;
+    }
+    const p = [round(lon, 3), round(lat, 3), r[iName].trim()];
+    byNumber.set(Number(r[iNumber]), [code, ...p]);
+    if (!ports[code]) ports[code] = p;
+  }
+  const list = await readLocode();
+  addAliases(ports, byNumber, list);
+  addPortNames(ports, list);
+  const text = JSON.stringify(ports);
+  writeFileSync(join(out, 'ports.json'), text);
+  console.log(`ports.json: ${Object.keys(ports).length} ports (${skipped} WPI rows without a valid UN/LOCODE or position); ${Buffer.byteLength(text)} bytes (${gzipSync(text, { level: 9 }).length} gzip)`);
+}
+
 if (process.argv.includes('--lanes-only')) {
   await writeLanes();
   process.exit(0);
 }
 
+if (process.argv.includes('--ports-only')) {
+  await writePorts();
+  process.exit(0);
+}
+
 if (process.argv.includes('--port-names-only')) {
   const ports = JSON.parse(readFileSync(join(out, 'ports.json'), 'utf8'));
-  await addPortNames(ports);
+  addPortNames(ports, await readLocode());
   writeFileSync(join(out, 'ports.json'), JSON.stringify(ports));
   process.exit(0);
 }
@@ -463,29 +615,7 @@ execFileSync(
 );
 writeFileSync(join(out, 'centroids.json'), JSON.stringify(centroids));
 
-// --- ports ---------------------------------------------------------------------------
-const wpiPath = arg('--wpi') ?? (await fetchTo(WPI_URL, join(tmp, 'wpi.csv')));
-const [header, ...rows] = parseCsv(readFileSync(wpiPath, 'utf8').replace(/^\uFEFF/, ''));
-const col = (name) => {
-  const i = header.indexOf(name);
-  if (i < 0) throw new Error(`WPI column missing: ${name}`);
-  return i;
-};
-const [iCode, iName, iLat, iLon] = ['UN/LOCODE', 'Main Port Name', 'Latitude', 'Longitude'].map(col);
-const ports = {};
-let skipped = 0;
-for (const r of rows) {
-  const code = (r[iCode] ?? '').replace(/\s+/g, '').toUpperCase();
-  const lat = Number(r[iLat]);
-  const lon = Number(r[iLon]);
-  if (!/^[A-Z]{2}[A-Z2-9]{3}$/.test(code) || !Number.isFinite(lat) || !Number.isFinite(lon)) {
-    skipped++;
-    continue;
-  }
-  if (!ports[code]) ports[code] = [round(lon, 3), round(lat, 3), r[iName].trim()];
-}
-await addPortNames(ports);
-writeFileSync(join(out, 'ports.json'), JSON.stringify(ports));
+await writePorts();
 
 // --- sea lanes -------------------------------------------------------------------------
 await writeLanes();
@@ -493,4 +623,4 @@ await writeLanes();
 for (const f of ['countries.geojson', 'centroids.json', 'ports.json']) {
   console.log(`${f}: ${(statSync(join(out, f)).size / 1024).toFixed(0)} KiB`);
 }
-console.log(`${Object.keys(centroids).length} country codes, ${Object.keys(ports).length} ports (${skipped} WPI rows without a valid UN/LOCODE or position)`);
+console.log(`${Object.keys(centroids).length} country codes`);

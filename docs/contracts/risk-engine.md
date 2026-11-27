@@ -143,7 +143,7 @@ and no full scans of `feeds.series`.
                             "match_confidence": 0.88, "contribution": 0.58, "weight": 1.0}]},
   "impact": {"value": 0.68, "criticality": "high", "criticality_weight": 0.75,
              "exposure_share": 0.12, "exposure_norm": 0.48, "category_multiplier": 0.9},
-  "engine_version": "1.3.1",
+  "engine_version": "1.3.2",
   "story": "natural_hazard|event:usgs:us6000abcd",
   "explain": {"matched": {"match_type": "geo_radius", "match_value": "12 km", "label": "distance: 12 km",
                           "matched_text": null, "inferred_from": null, "supported_by": null},
@@ -566,7 +566,11 @@ while every positive control does.
   Penang, `AEJEA` → Jebel Ali, `CLSAI` → San Antonio, `VNHPH` → Haiphong
   (`engine/data/ports.tsv`, built from `web/public/map/ports.json`). Titles and sentences
   name ports this way ("at the port of Kaohsiung"); `match_value` and `inferred_from` keep
-  the code.
+  the code. Since 1.3.2 the table also has the standard codes of the busiest ports that the
+  WPI files under its own codes (`CNSHA` → Shanghai, `SGSIN` → Singapore, `CNSZX` →
+  Shenzhen; `PORT_ALIASES` in `web/scripts/build-map-data.mjs`), so their texts name the
+  port, not the code. A name the code list gives an airport ("… International Apt") is
+  never used.
 * `place_label(city, countries, ports) -> str | None`: `Hsinchu, Taiwan` with a city, else
   the first port's name and up to two countries (`Kaohsiung, Taiwan`). The API serves it
   as `Entity.place` and `Risk.place`.
