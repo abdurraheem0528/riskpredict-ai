@@ -45,6 +45,19 @@ export function adviceSteps(text: string): string[] {
   return (text.match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) ?? [text]).map((s) => s.trim()).filter(Boolean);
 }
 
+/** The publication time of the newest signal linked by the risk's latest scoring (rows with
+ *  `last_linked_at` on or after `last_seen_at`, which the engine sets on each run), or null. */
+export function newestSignalAt(r: Pick<RiskDetail, 'evidence' | 'last_seen_at'>): string | null {
+  const scored = new Date(r.last_seen_at).getTime();
+  let best: string | null = null;
+  for (const e of r.evidence) {
+    const at = e.snapshot.published_at;
+    if (!at || new Date(e.last_linked_at).getTime() < scored || Number.isNaN(new Date(at).getTime())) continue;
+    if (best === null || new Date(at).getTime() > new Date(best).getTime()) best = at;
+  }
+  return best;
+}
+
 export function RiskView({ id }: { id: string }) {
   const { workspace, role } = useSession();
   const ws = workspace.id;
@@ -149,6 +162,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
   const anomaly = r.evidence.find((e) => e.kind === 'anomaly')?.anomaly ?? null;
   const series = useSeries(anomaly?.series ?? null, anomaly?.key ?? null);
   const steps = r.advice ? adviceSteps(r.advice.text) : [];
+  const newest = newestSignalAt(r); // the newest signal, not the last run: the engine runs every 30 min
   const disruptions = useDisruptions();
   const chokeName = (id: string) =>
     disruptions.data?.features.find((f) => f.id === `chokepoint:${id}`)?.properties.name ?? id.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
@@ -227,7 +241,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
           <span className="t12">{imp.exposure_share != null ? 'of spend or revenue' : 'criticality'}</span>
         </div>
         <div className="tile"><span className="fig s">{r.evidence_count}</span><span className="t12">{r.evidence_count === 1 ? 'signal matched' : 'signals matched'}</span></div>
-        <div className="tile"><span className="fig s">{ago(r.last_seen_at).replace(' ago', '')}</span><span className="t12">since the last one</span></div>
+        <div className="tile"><span className="fig s">{newest ? ago(newest).replace(' ago', '') : '–'}</span><span className="t12">since the last one</span></div>
       </div>
 
       <div className="rule" />

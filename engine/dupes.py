@@ -1,10 +1,13 @@
-"""One news report, many copies: when two evidence items are the same item (engine 1.3.3).
+"""One news report, many copies: when two evidence items are the same item (engine 1.3.3, 1.3.4).
 
 GDELT and the RSS feeds carry a syndicated article once per site that ran it, each copy
 under its own ``raw_id``. Within one risk such copies are one item: the strongest copy
 is kept and the others neither count in the likelihood (risk-engine.md §5.6) nor show.
-Two news items are the same item when their normalised titles are equal, or their
-canonical URLs are.
+Two news items are the same item when their normalised headlines are equal, or their
+canonical URLs are. Since 1.3.4 the headline is the title without a trailing outlet or section
+name and without a leading wire tag (``engine.relevance.headline``), so "… | The Arkansas
+Democrat-Gazette" and "… | Northwest Arkansas Democrat-Gazette" are one report, and so are
+"Analysis-Trump's new tariffs …" and "Trump's new tariffs …".
 
 Only news is merged. A quake, a CVE record or a sanctions listing is identified by its
 own ``raw_id``; two of those with the same title are two things (two quakes of the same
@@ -20,6 +23,7 @@ import unicodedata
 from typing import Callable, Iterable, TypeVar
 from urllib.parse import parse_qsl, urlencode, urlsplit
 
+from engine.relevance import headline
 from engine.scoring import event_class
 
 T = TypeVar("T")
@@ -35,11 +39,12 @@ TRACKING_PARAMS = frozenset({
 _SEPARATORS = re.compile(r"[\W_]+")
 
 
-def title_key(title: str | None) -> str | None:
-    """Casefolded words of a title, accents and punctuation dropped; ``None`` when too short."""
+def title_key(title: str | None, url: str | None = None) -> str | None:
+    """Casefolded words of a title's headline (outlet name and wire tag dropped, 1.3.4; ``url``
+    helps tell the outlet), accents and punctuation dropped; ``None`` when too short."""
     if not isinstance(title, str):
         return None
-    t = unicodedata.normalize("NFKD", title)
+    t = unicodedata.normalize("NFKD", headline(title, url))
     t = "".join(ch for ch in t if not unicodedata.combining(ch)).casefold()
     words = _SEPARATORS.sub(" ", t).split()
     return " ".join(words) if len(words) >= TITLE_MIN_WORDS else None
@@ -71,7 +76,7 @@ def item_keys(source: str | None, type_: str | None, title: str | None, url: str
     if not source or not type_ or event_class(source, type_) != "news":
         return ()
     out = []
-    if (t := title_key(title)) is not None:
+    if (t := title_key(title, url)) is not None:
         out.append(f"title:{t}")
     if (u := url_key(url)) is not None:
         out.append(f"url:{u}")

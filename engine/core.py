@@ -28,7 +28,7 @@ from engine.reference import (
     chokepoint_by_alias, chokepoint_id, chokepoints, hs_keywords, keyword_in, lane_for_country,
 )
 
-ENGINE_VERSION = "1.3.3"
+ENGINE_VERSION = "1.3.4"
 
 # §5.1: which keys each entity kind is matched on. Routes declare their chokepoints;
 # suppliers, sites and ports get them inferred from their port or position (§5.9).
@@ -379,10 +379,17 @@ class _Assessor:
                 for e, via in idx.by_choke.get(cid or "", ()):
                     yield e, _choke_match(cid, via, 1.0, cfg)
         # countries (position beats country for hazards/logistics with a positioned event). A news
-        # item's country counts only when it is central to the item (§5.10): named in the title or
-        # its tag, or the first place located in the article; never a passing mention.
+        # item's country counts only when it is central to the item (§5.10): named in the headline
+        # or its tag, or (1.3.4) the first place located in an article about few places; never a
+        # passing mention. Since 1.3.4 the item must also be a current event with a cue word of its
+        # category in the headline (the title without outlet name or wire tag).
+        head = rel.headline(ev.title, ev.url) if news else ""
         if news:
-            countries = rel.central_countries(ev.title, self._tag_countries(ev), ev.countries) if idx.by_country else {}
+            countries = {}
+            tag_type, tag_entities = (ev.tag.event_type, ev.tag.entities) if ev.tag else ("", None)
+            if idx.by_country and not rel.not_current(head) and rel.category_cue(head, tag_type):
+                tagged = rel.headline_tag_countries(ev.title, head, tag_entities)
+                countries = rel.central_countries(head, tagged, ev.countries, cfg.first_place_max_countries)
             factor = cfg.news_country_factor
         else:
             countries, factor = dict.fromkeys(ev.countries, None), 1.0
@@ -390,7 +397,7 @@ class _Assessor:
             for e in idx.by_country.get(code, ()):
                 if cat in GEO_CATEGORIES and ev.has_position and e.has_position and has_key(e, "geo"):
                     continue
-                if news and not self._news_country_counts(ev, cat, code, e):
+                if news and not self._news_country_counts(head, cat, code, e):
                     continue
                 c = cfg.country_confidence.get(e.kind)
                 if c:
@@ -401,13 +408,14 @@ class _Assessor:
             yield from self._companies(ev)
             yield from self._commodities(ev)
 
-    def _news_country_counts(self, ev: FeedEvent, cat: str, code: str, entity: Entity) -> bool:
-        """§5.10: a central country is enough, except for sanctions (the country must be what the
-        measure is directed at) and cyber (a national-scale incident, or the entity's sector)."""
+    def _news_country_counts(self, head: str, cat: str, code: str, entity: Entity) -> bool:
+        """§5.10: a central country with a cue word of the category is enough (checked before), except
+        for sanctions (the country must be what the measure is directed at) and cyber (a
+        national-scale incident, or the entity's sector). ``head`` is the item's headline."""
         if cat == "sanctions":
-            return code in rel.sanction_targets(ev.title, self.cfg.sanctions_target_window)
+            return code in rel.sanction_targets(head, self.cfg.sanctions_target_window)
         if cat == "cyber":
-            return rel.national_scale(ev.title) or rel.sector_hit(ev.title, self._sector_cues(entity))
+            return rel.national_scale(head) or rel.sector_hit(head, self._sector_cues(entity))
         return True
 
     def _sector_cues(self, entity: Entity) -> frozenset[str]:
@@ -418,13 +426,6 @@ class _Assessor:
             cues = rel.sector_cues(entity.commodities, keywords, notes if isinstance(notes, str) else None)
             self.sector_cache[entity.id] = cues
         return cues
-
-    @staticmethod
-    def _tag_countries(ev: FeedEvent) -> list[str]:
-        if ev.tag is None or not isinstance(ev.tag.entities, Mapping):
-            return []
-        v = ev.tag.entities.get("countries")
-        return [c for c in v if isinstance(c, str)] if isinstance(v, list) else []
 
     def _software(self, ev: FeedEvent) -> Iterable[tuple[Entity, _Match]]:
         cfg, idx = self.cfg, self.idx

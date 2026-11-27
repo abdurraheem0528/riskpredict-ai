@@ -82,6 +82,9 @@ class EngineConfig:
     # first located place); a sanctions one needs it to be the target of the measure, found in
     # the title within this many words of the sanctions word ("sanctions on Chinese chipmakers").
     sanctions_target_window: int = 5
+    # Engine 1.3.4 (§5.10 A): the first place GDELT located is central only when neither the
+    # headline nor the tag names a country and GDELT located at most this many countries.
+    first_place_max_countries: int = 3
     geo_min_confidence: float = 0.05
     radius_km: Mapping[str, float] = field(
         default_factory=lambda: _frozen(

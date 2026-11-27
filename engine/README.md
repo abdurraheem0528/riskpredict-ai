@@ -90,6 +90,18 @@ on Russia" for a China supplier; since 1.3.1 not a country that imposes the meas
 cyberattack on rail network") or the supplier's own sector ("German sensor maker" for a
 sensor supplier).
 
+Since engine 1.3.4 these rules read the **headline**: the title without a trailing outlet or
+section name ("… – Modern Tokyo Times", "… - National", "… | Countercurrents") and without a
+leading wire tag ("Analysis-", "UPDATE 2-"), so "Tokyo" in an outlet's name no longer makes Japan
+central, and copies that differ only by outlet name count once. The first place GDELT located
+counts only when the headline and tag name no country and GDELT located at most 3 countries. A
+country match also needs a cue word of the tag's category in the headline (conflict: war,
+military, attack, troops …; labour: strike, union, workers …; trade policy: tariff, export,
+import …), so an election poll or a court judgment tagged conflict reaches no one; anniversary
+pieces ("26/11 … 18 Years Later") and court-record listings ("X vs Union Of India on 26
+November, 2026") never count by country; a cyber crime bust ("Police arrest two …") is not
+national scale, and "fraud module" is no power module (contract §5.10, A–G).
+
 | Rule | Example | `c` |
 |---|---|---|
 | `geo_radius` | Earthquake M6.5 (R = 50 × 2^1.5 = 141 km) 15 km from *Osaka plant* | 1 − 15/141 = **0.892** |
