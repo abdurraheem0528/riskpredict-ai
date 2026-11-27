@@ -1,6 +1,7 @@
-"""Engine 1.3.4 (risk-engine.md §5.10 A–G): real 27 Nov headlines that 1.3.3 linked as country news.
+"""Engine 1.3.4 (risk-engine.md §5.10 A–G): real 27 Nov headlines that 1.3.3 linked as country news;
+engine 1.3.5 (§5.10 C): real 26–27 Nov trade-policy headlines with a ban, a restriction or a curb.
 
-Every line of the brief's test table is a case here (tests/engine_nov27_headlines.py holds the rows);
+Every line of the briefs' test tables is a case here (tests/engine_nov27_headlines.py holds the rows);
 the suppliers are test data. Each must-drop row is also checked against the rule named for it."""
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ pytest.importorskip("rapidfuzz")  # the repository-wide job does not install the
 
 from engine import EventTag, assess, dupes, relevance as R  # noqa: E402
 from engine_fixtures import ent, event, news, snap, tag  # noqa: E402
-from engine_nov27_headlines import CONFIG, COPY_GROUPS, ROWS, SUPPLIERS, TAGS, item, reaches  # noqa: E402
+from engine_nov27_headlines import CONFIG, CONSTRUCTED, COPY_GROUPS, ROWS, SUPPLIERS, TAGS, item, reaches  # noqa: E402
 
 DROP = [r for r in ROWS if r.expect == "drop"]
 KEEP = [r for r in ROWS if r.expect == "keep"]
@@ -35,13 +36,15 @@ def test_must_still_count(row):
     assert reaches(row)
 
 
-# Either verdict is acceptable; these are the 1.3.4 results, recorded so a change shows.
+# Either verdict is acceptable; these are the 1.3.4 and 1.3.5 results, recorded so a change shows.
+# ("Carney courts Chinese investment" and "Japan Weighs Safety Duties" were here in 1.3.4, both
+# False; since 1.3.5 they are must-drop rows: "deals" and "duties" alone are no trade-policy word.)
 EITHER_RESULT = {
     "\"Terrorism knows no borders\"": True,  # India named, "terrorism" a conflict word, no anniversary word
     "ForMin Neculaescu": True,  # "German" names Germany, "military" a conflict word
     "India seizes Nepal flood crisis": True,  # India named, "flood" a hazard word
-    "Carney courts Chinese investment": False,  # no trade-policy word ("deals" alone is none)
-    "Japan Weighs Safety Duties": False,  # "duties" alone is no trade word; "import duties" would be
+    "Nvidia Chip Sellers Scramble": False,  # China named; "tightens … rules" is no trade-policy word
+    "Investigation Reveals Nvidia Chips": False,  # "Chinese-Owned" names China; no trade-policy word
 }
 
 
@@ -191,6 +194,13 @@ def test_an_outlet_name_does_not_make_a_country_central():
     ("labour_action", "Unionized rail workers launch work-to-rule campaign, 4 train services canceled", True),
     ("trade_policy", "Japan services producer prices jump 4.2% in October, firming the case for a BOJ hike", False),
     ("trade_policy", "Japan raises import duties on steel", True),
+    # 1.3.5: a ban, a restriction or a curb (real headlines, engine_nov27_headlines.py)
+    ("trade_policy", "Netherlands Seeks to Block US Bill Restricting China’s Access to Chipmaking Tools", True),
+    ("trade_policy", "China extends pause on tighter mineral restrictions", True),
+    ("trade_policy", "Netherlands to Fight Rollout of Proposed US Curbs on ASML", True),
+    ("trade_policy", "Ten Smart Cities for $50 Billion: What’s Behind Indonesia’s Deals With China", False),
+    ("trade_policy", "Japan Weighs Safety Duties for AI Firms, With Penalties for Defying Orders", False),
+    ("port_shipping_disruption", "Taiwan warns China could impose a blockade", True),  # constructed (CONSTRUCTED)
     ("port_shipping_disruption", "'Diplomacy key to South China Sea disputes'", False),
     ("financial_stress", "Pound-to-Euro Forecast: GBP Slides as ECB Turns Hawkish", False),
     ("financial_stress", "Lira crash deepens as Turkey imposes capital controls", True),
@@ -200,6 +210,27 @@ def test_an_outlet_name_does_not_make_a_country_central():
 ])  # fmt: skip
 def test_category_cues(tag_type, title, cue):
     assert R.category_cue(title, tag_type) is cue
+
+
+def test_the_1_3_5_cue_words():
+    """Trade policy: the bans, restrictions and curbs of the tagger's label; shipping: the blockades
+    and blockages of its label. "Deal(s)" and "duties" alone stay out (they are not the category)."""
+    trade, ship = set(R.CATEGORY_CUES["trade_policy"]), set(R.CATEGORY_CUES["port_shipping_disruption"])
+    for w in ("ban", "bans", "banned", "banning", "restrict", "restricts", "restricted", "restricting",
+              "restriction", "restrictions", "curb", "curbs", "curbed", "curbing"):  # fmt: skip
+        assert (w,) in trade, w
+    for w in ("blockade", "blockades", "blockaded", "blockage", "blockages"):
+        assert (w,) in ship, w
+    assert not {("deal",), ("deals",), ("duties",), ("duty",)} & trade
+
+
+@pytest.mark.parametrize("row", CONSTRUCTED, ids=_id)
+def test_a_blockade_is_a_shipping_cue(row):
+    # constructed: "blockade" is the headline's only shipping word, so it counts since 1.3.5 only
+    head = _head(row)
+    assert R.category_cue(head, TAGS[row.category])
+    assert not R.category_cue(head.replace("blockade", "embargo"), TAGS[row.category])
+    assert reaches(row)
 
 
 def test_chokepoint_and_company_matches_need_no_cue():
