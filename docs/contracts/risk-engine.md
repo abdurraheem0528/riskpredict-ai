@@ -38,6 +38,7 @@ from engine import (
     chokepoints, chokepoint_id,  # §5.3 table for the API's disruptions layer; id/name/alias → id
     city_position, port_name, place_label,  # §5.11: the mapper's city positions, display names
     copy_keys,              # 1.3.3, §5.6: (source, type, title, url) → keys that make two news items one
+                            # (1.3.4: compared on the headline, §5.10 B and G)
 )
 
 # --- pure core: no I/O, deterministic for the same inputs -----------------------
@@ -145,7 +146,7 @@ and no full scans of `feeds.series`.
                             "match_confidence": 0.88, "contribution": 0.58, "weight": 1.0}]},
   "impact": {"value": 0.68, "criticality": "high", "criticality_weight": 0.75,
              "exposure_share": 0.12, "exposure_norm": 0.48, "category_multiplier": 0.9},
-  "engine_version": "1.3.3",
+  "engine_version": "1.3.4",
   "story": "natural_hazard|event:usgs:us6000abcd",
   "explain": {"matched": {"match_type": "geo_radius", "match_value": "12 km", "label": "distance: 12 km",
                           "matched_text": null, "inferred_from": null, "supported_by": null},
@@ -347,7 +348,8 @@ noisy-OR.
 **Copies of one news report count once (engine 1.3.3, `engine/dupes.py`).** GDELT and the
 RSS feeds carry a syndicated article once per site, each under its own `raw_id`. Within one
 fingerprint, news items whose normalised titles are equal (casefolded words, accents and
-punctuation dropped, at least 3 words), or whose canonical URLs are (host without `www.`,
+punctuation dropped, at least 3 words; since 1.3.4 the title's **headline**, without a trailing
+outlet or section name and without a leading wire tag, §5.10 B and G), or whose canonical URLs are (host without `www.`,
 path, query minus `utm_*` and other tracking parameters; scheme and fragment ignored; never a
 bare home page), are one item: the strongest copy (highest `p`, then evidence key, so the most
 recent of equal copies) is kept, and the others are neither in L nor stored as evidence. A copy
@@ -493,7 +495,7 @@ All of these constants live in `EngineConfig` (`engine/config.py`, the "anchorin
 block): `support_match_types`, `support_weight`, `market_event_prefix`,
 `market_only_score_cap`, `inferred_chokepoint_factor`.
 
-### 5.10 A news country must be what the article is about (engine 1.3.0)
+### 5.10 A news country must be what the article is about (engine 1.3.0, 1.3.4)
 
 The live test of 27 Nov (11 suppliers, 41 open stories) still let in loosely related
 articles that only mention a country somewhere in their text: "Sanctions news in China
@@ -515,6 +517,8 @@ article, so a passing mention counted like a headline. Implemented in `engine/re
   * it is the **first place** GDELT located in the article (`event.countries[0]`; the
     feed keeps the locations first mention first). The stored rows have no mention
     counts, so "most-mentioned" cannot be told apart and the first place stands for it.
+    Since 1.3.4 only when neither the headline nor the tag names any country and GDELT
+    located at most `first_place_max_countries = 3` countries (A below).
 
   Any other country of `event.countries` is a passing mention and does not count. Events
   that carry their own location (GDACS, USGS, PortWatch, scenario shocks) are unchanged:
@@ -554,12 +558,102 @@ article, so a passing mention counted like a headline. Implemented in `engine/re
   only; a FIFA breach, a global ransomware statistic or a retailer's data leak reaches
   none. Company-name and software matches are unchanged.
 
-Every other category needs only a central country. The numbers did not change
+Every other category needs only a central country (in 1.3.0–1.3.3; since 1.3.4 also a cue word
+of its category, C below). The numbers did not change
 (`country_confidence`, `news_country_factor`); only which countries count. Measured on
 the constructed copy of the 27 Nov sheet (`tests/fixtures/engine_live_nov27_feeds.json`,
 `tests/test_engine_relevance.py`): 12 risks → 10, highest likelihood 0.957 → 0.458, risks
 at 0.8 or more 1 → 0, and none of the 13 passing-mention articles reaches a supplier,
 while every positive control does.
+
+#### Engine 1.3.4: the headline, a category cue, current events (A–G)
+
+After PR #23 (1.3.3) every open risk's evidence was read from the live API on 27 Nov: 34 open
+risks, 155 evidence rows, 131 of them news matched on country alone (confidence 0.36), many
+not about that country or that category ("Conflict news in India affecting Coromandel Power
+Modules": three court judgments, seven 26/11 anniversary pieces and a politician's remarks;
+"Cyber incident news in India": five local police fraud arrests). The rules below are in
+`engine/relevance.py`; `tests/test_engine_headlines.py` has every headline of that read-out as
+a case (`tests/engine_nov27_headlines.py`), each must-drop row checked against the rule named
+for it. 1.3.3 counted all 48 must-drop rows; 1.3.4 counts none of them and still counts all 15
+must-keep rows. Everything is still vocabulary plus token windows, deterministic, cached per title.
+
+* **B. The headline.** Every title rule (countries, sanctions, cyber, cues, copies) reads the
+  **headline**: the title without a trailing outlet or section segment and without a leading
+  wire tag (`relevance.headline(title, url)`). A segment after the last ` - `, ` – `, ` — ` (with
+  spaces, so "China-linked" is no break), `|` or ` :: ` is dropped when it is at most 6 words,
+  shorter than what stays, what stays has at least 3 words, and it is the outlet: the item's
+  URL host name or its initials (`moderntokyotimes.com` ↔ "Modern Tokyo Times", `wrp.org.uk` ↔
+  "Workers Revolutionary Party"), a domain, or a name in capitals ending in an outlet word
+  (Times, Post, Gazette, Herald, Journal, Daily, Reuters, …; "News", "Times", "Press", "Media",
+  "TV", "Online" anywhere: "News, Sports, Jobs", "Times of India"), a section ("National",
+  "World", "Business", "Academia", …), or after a pipe any name of up to 4 words
+  ("| Countercurrents"). Lower-case words ("… - last chance to see", "… - minister says") are
+  headline and stay. Wire tags: "Analysis-", "Factbox-", "UPDATE 2-", "EXCLUSIVE-", "INSIGHT-" …
+  and "Exclusive:", "Opinion:", "Live:" …; "Live-fire drills" and "Focus-group study" stay.
+  So "Tokyo" in "… – Modern Tokyo Times" no longer makes Japan central and "- National" no
+  longer makes the FIFA breach national-scale. The tagger reads the whole title, so a tag country
+  whose place text is found only in the dropped segment ("… - The Japan Times") does not count
+  either. The evidence snapshot keeps the full title.
+* **A. First place.** `countries[0]` is central only when neither the headline nor the tag names
+  any country, and GDELT located at most `first_place_max_countries = 3` countries
+  (`engine/config.py`). In the table, every must-keep article whose headline names no country
+  was located in **one** country ("In Manipur, … villagers risk ambushes …": IND; the Korean
+  school-meal and rail strikes: KOR), and every must-drop one in **four or more** ("The Revolt
+  Against Oligarchy": IND, BRA, FRA, SRB; "Port of Cork to Boulogne-sur-Mer ferry …": DEU, FRA,
+  CYP, IRL; "Wake-up call to economists …": JPN, CHN, LKA, GBR), the rest 5–10. Any limit from 1 to
+  3 separates them; 3 is the widest, so a local article that also mentions a neighbour or two
+  ("CHN, MYS, BRN") still has a first place. A headline that names a country makes the first
+  place irrelevant: in "Two Italians Killed in Kuwait; Iran Claims Hormuz Mine Strikes" Germany,
+  located first among ten countries, is a passing mention.
+* **C. A category cue.** A news item matched **only by country** counts only when its headline
+  has a cue word of its tag's category (`relevance.CATEGORY_CUES`, built from the tagger's own
+  label descriptions in `jobs/analyse/tagging.py` `EVENT_TYPES`), as cyber already needed a
+  national-scale word. Conflict: war, military, troops, navy, attack, terror…, fighting, killed,
+  missile, drone, ambush, clash, ceasefire, coup, conflict, spying, "live fire", "coast guard",
+  "maritime dispute" …; protest: protest, demonstrators, rally, riot, unrest, curfew …; labour:
+  strike, walkout, union, workers, "industrial action", "work to rule", picket, lockout …; trade
+  policy: tariff, export, import, quota, trade, controls, dumping, customs, subsidies, "import
+  duties" …; shipping: port, shipping, ship, vessel, cargo, freight, container, canal, strait,
+  maritime, tanker, terminal, harbour …; financial stress: crisis, default, collapse, crash,
+  "bank failure", bankrupt, insolvency, "capital controls", devaluation, bailout …; natural
+  hazard: earthquake, quake, storm, cyclone, typhoon, flood, wildfire, volcano, drought,
+  landslide, tsunami, "heavy rain" …. Words and phrases are whole tokens; "price war", "trade
+  war", "conflict of interest" and "heart attack" are no conflict cue; a "strike" within two
+  words of a military word ("missile strike", "drone strikes") is no labour cue, and after
+  "mass"/"massive" it is one only with another labour word ("Russia 'preparing new mass strike
+  soon'" is not; "mass strike by rail workers" is). Sanctions (the target) and cyber keep their
+  own checks. Chokepoint, port, position, company-name and commodity matches are unchanged. So
+  an election poll, a court judgment or a politician's remarks tagged conflict, and "Japan
+  services producer prices jump 4.2%" tagged trade policy, reach no one by country.
+* **D. Not current events.** A news item never counts through a country match when its headline
+  is an anniversary or remembrance piece (anniversary, remembers, remembering, remembrance,
+  commemorates, memorial — not "Memorial Hospital" —, "recalls (the) horror", "<number> years
+  later", "<number> years on") or a court-record listing ("<party> vs <party> on <day> <month>,
+  <year>", as indiankanoon.org titles its judgments). "Recalls ambassador", "recalls envoy" and
+  product recalls are current news.
+* **E. Cyber.** "police" left the national-scale words, and a crime bust (arrest, busted, raid,
+  rescue, nabbed, apprehended) is never national scale ("Noida cybercrime raid: Police rescue 164
+  foreigners"). A sector word right after a crime word (fraud, scam, crime, cybercrime, gang,
+  racket, syndicate, extortion, phishing, trafficking, laundering, ponzi) is no sector hit: the
+  "delivery fraud module" busted by Delhi Police is no power module, while "fraud ring targets
+  power module suppliers" still is one.
+* **F. Sanctions target.** A country in the possessive at most three words before an export
+  measure imposes it ("India's Export Restriction on Drugs", "China's new export controls"; a
+  country after "on" is still the target: "… on Japan"). After "to" or a modal a base-form
+  sanctions word is a verb whose object right after it is the target: "China to blacklist US
+  defence firms" → the US (1.3.1–1.3.3 found none); "Calls to ban TikTok in US" targets no country.
+* **G. Copies.** `dupes.title_key` (and so `copy_keys`, §5.6) compares headlines, so copies that
+  differ only by outlet name or wire tag count once: "US plans tariff hikes on China, EU and
+  others | The Arkansas Democrat-Gazette" and "… | Northwest Arkansas Democrat-Gazette";
+  "Analysis-Trump's new tariffs …" and "Trump's new tariffs …". Spelling variants (prise / pry,
+  subsidized / subsidised) stay separate items: there is no spelling table.
+
+What changes on the live platform: the version bump re-scores every workspace with a live risk on
+the worker's next run (§9). That run links only what 1.3.4 accepts and, since 1.3.3 (§13),
+deletes the rows it rejected while their feed row exists; a risk left with no evidence, or below
+the minimum score, resolves as usual (`resolved_by_engine`). Some live risks resolve; that is the
+intended result.
 
 ### 5.11 Places: city positions and port names
 
@@ -769,6 +863,7 @@ the inputs applied. It writes nothing; the API stores the result in `biz.scenari
   that memory is the rows of the latest run plus those whose feed row has gone.
 * The bump to 1.3.3 re-scores every workspace with a live risk on the worker's next run
   (§9), which prunes every live risk once: no migration was needed for the existing rows.
+  The bump to 1.3.4 does the same for the news §5.10 A–F now rejects.
 * The evidence trim keeps the rows linked in this run first, then the highest
   contributions.
 * **What the API shows (1.3.3).** `Risk.evidence_count` counts the rows linked by the risk's

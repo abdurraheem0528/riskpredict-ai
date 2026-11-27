@@ -72,7 +72,7 @@ def test_title_countries(title, countries):
     ("Chinese firms added to the entity list", {"CHN"}),  # was none
     ("US moves Russian banks onto blacklist", {"RUS"}),  # was RUS, USA
     ("Japan to tighten export controls on chipmaking equipment", set()),  # was JPN
-    ("China to blacklist US defence firms", set()),  # was CHN
+    ("China to blacklist US defence firms", {"USA"}),  # was CHN; 1.3.1–1.3.3 none; 1.3.4 (F) the US
     ("Netherlands and Japan agree to tighten chip export controls", set()),  # was JPN, NLD
     ("US and UK sanctions on Russia", {"RUS"}),  # was RUS, USA
     ("US, UK and Canada impose sanctions on Russia", {"RUS"}),
@@ -106,9 +106,15 @@ def test_a_passing_mention_inside_a_long_article_does_not_count():
     evil = news("x1", tag("conflict", 0.8), countries=["RUS", "BEL", "CHN"],
                 title="European Leaders Aren't Banal, They are Evil")  # fmt: skip
     assert by_entity(risks([PCB, RUS], [evil]), PCB) == []
-    # the first located place is central (its evidence says why)
-    [a] = by_entity(risks([PCB, RUS], [evil]), RUS)
-    assert a.evidence[0].snapshot["central"] == "first_place"
+    # 1.3.4 (C): no conflict word in the headline, so it reaches Russia (located first) no more either
+    assert risks([PCB, RUS], [evil]) == []
+    # the first located place of an article about few places is central (its evidence says why) ...
+    depot = news("x3", tag("conflict", 0.8), countries=["RUS", "BEL", "CHN"], title="Drone attack sets fuel depot ablaze")
+    [a] = risks([PCB, RUS], [depot])
+    assert a.entity_id == RUS.id and a.evidence[0].snapshot["central"] == "first_place"
+    # ... and (1.3.4, A) not of an article that GDELT located in more than three countries
+    wide = news("x4", tag("conflict", 0.8), countries=["RUS", "BEL", "CHN", "USA"], title="Drone attack sets fuel depot ablaze")
+    assert risks([PCB, RUS], [wide]) == []
     # and a country named in the title counts wherever GDELT located it
     named = news("x2", tag("conflict", 0.8), countries=["USA", "CHN"],
                  title="China holds live-fire drills near disputed islands")  # fmt: skip

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ago, initials, levelOf, outOf5, pct, signed } from '../../src/lib/format';
 import { __setGazetteer, cleanPortName, placeAll, placeLabel, placeOf, portName, portPoint, unplacedPorts } from '../../src/map/geo';
 import { backoffMs } from '../../src/api/stream';
-import { adviceSteps } from '../../src/screens/RiskView';
+import { adviceSteps, newestSignalAt } from '../../src/screens/RiskView';
 import { feedSummary } from '../../src/lib/feeds';
 
 describe('format', () => {
@@ -104,6 +104,26 @@ describe('advice', () => {
   it('splits lines, or sentences when it is one paragraph', () => {
     expect(adviceSteps('- Do this.\n- Then that.')).toEqual(['Do this.', 'Then that.']);
     expect(adviceSteps('Call them. Order early! Check terms')).toEqual(['Call them.', 'Order early!', 'Check terms']);
+  });
+});
+
+describe('since the last signal', () => {
+  // The engine sets last_seen_at (and each linked row's last_linked_at) on every run, every 30 min.
+  const run = '2026-11-27T15:33:00Z';
+  const row = (published_at: string | null, last_linked_at = run) =>
+    ({ snapshot: { title: 't', published_at }, last_linked_at }) as Parameters<typeof newestSignalAt>[0]['evidence'][number];
+
+  it('is the newest signal linked by the latest run, not the run itself', () => {
+    const r = { last_seen_at: run, evidence: [row('2026-11-25T08:00:00Z'), row('2026-11-26T21:10:00Z'), row(null)] };
+    expect(newestSignalAt(r)).toBe('2026-11-26T21:10:00Z');
+    expect(ago(newestSignalAt(r), Date.parse(run))).toBe('18 h ago');
+  });
+
+  it('leaves out rows an earlier run linked, and is null without any', () => {
+    const older = row('2026-11-27T09:00:00Z', '2026-11-20T10:00:00Z'); // feed row gone: kept, not counted
+    expect(newestSignalAt({ last_seen_at: run, evidence: [older, row('2026-11-24T10:00:00Z')] })).toBe('2026-11-24T10:00:00Z');
+    expect(newestSignalAt({ last_seen_at: run, evidence: [older] })).toBeNull();
+    expect(newestSignalAt({ last_seen_at: run, evidence: [] })).toBeNull();
   });
 });
 
