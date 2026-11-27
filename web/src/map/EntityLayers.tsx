@@ -473,11 +473,11 @@ function Pills({ data, top, show = true, onPick }: { data: EntityFc | null; top:
 /** Choose each pill's side: the first that stays in the open map and clear of the pills placed before it. */
 export function placePills(map: MlMap, recs: Map<string, PillRec>) {
   const area = safeArea(map);
-  // The labels already on the map (chokepoints, sites) are obstacles too, so a pill does not
-  // cover a name: read once per placement, only those showing.
+  // The labels and site squares already on the map are obstacles too, so a pill does not
+  // cover a name or another site: read once per placement, only those showing.
   const host = map.getContainer();
   const at = host.getBoundingClientRect();
-  const boxes: [number, number, number, number][] = [...host.querySelectorAll<HTMLElement>('.mcp .clab, .msite .slab:not(.hid)')]
+  const boxes: [number, number, number, number][] = [...host.querySelectorAll<HTMLElement>('.mcp .clab, .msite .slab:not(.hid), .msite > i')]
     .filter((el) => el.offsetWidth > 0 && getComputedStyle(el).opacity !== '0')
     .map((el) => {
       const r = el.getBoundingClientRect();
