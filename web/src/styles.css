@@ -529,3 +529,82 @@ html.rp-hidden *, html.rp-hidden *::before, html.rp-hidden *::after { animation-
 .how > summary .chev { color: var(--tx2); transition: transform var(--d2) var(--ease); }
 .how[open] > summary .chev { transform: rotate(90deg); }
 .how .step { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule); font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
+
+/* --- the score scale (ui/ScoreScale.tsx): 0–100 in four bands, 4 : 2 : 2 : 2 with 2 px gaps --- */
+.sbar { display: flex; gap: 2px; width: 100%; flex: none; }
+.sbar .bd { flex: 1 1 0; min-width: 0; height: 100%; border-radius: 1px; background: var(--low-fill); opacity: 0.4; }
+.sbar .bd.med { background: var(--med-fill); opacity: 0.5; }
+.sbar .bd.high { background: var(--high-fill); opacity: 0.45; }
+.sbar .bd.crit { background: var(--crit-fill); opacity: 0.4; }
+.sbar .bd:first-child { border-radius: 3px 1px 1px 3px; }
+.sbar .bd:last-child { border-radius: 1px 3px 3px 1px; }
+.scale { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.strack { position: relative; display: flex; align-items: center; }
+.scdot { position: absolute; top: 50%; border-radius: 50%; background: var(--low-fill); box-shadow: 0 0 0 2px var(--solid); transform: translate(-50%, -50%); }
+.scdot.med { background: var(--med-fill); }
+.scdot.high { background: var(--high-fill); }
+.scdot.crit { background: var(--crit-fill); }
+.scale.large .strack { height: 14px; }
+.scale.large .scdot { width: 14px; height: 14px; }
+.scale.mini { width: 38px; gap: 0; }
+.scale.mini .strack { height: 7px; }
+.scale.mini .scdot { width: 7px; height: 7px; box-shadow: 0 0 0 1.5px var(--solid); }
+.snames { display: flex; gap: 2px; font-size: 12px; line-height: 16px; color: var(--tx2); }
+.snames > span { flex: 1 1 0; min-width: 0; white-space: nowrap; }
+.snames > .on { color: var(--ink); font-weight: 600; }
+/* the Overview's strip: a tick per open story above the bands */
+.sstrip { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.sticks { position: relative; height: 34px; }
+.stk { position: absolute; bottom: 0; width: 2px; height: 14px; margin-left: -1px; border-radius: 1px; background: var(--tx2); }
+.stk.med { background: var(--med-fill); }
+.stk.high { background: var(--high-fill); }
+.stk.crit { background: var(--crit-fill); }
+.stop { position: absolute; top: 0; transform: translateX(-50%); font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* --- risk rows (the Risks list and the Overview): place, lead headline, reach, score --- */
+.rrow { display: grid; grid-template-columns: minmax(0, 1fr) 40px; gap: 14px; align-items: start; width: calc(100% + 24px); margin: 0 -12px; padding: 10px 12px; box-sizing: border-box; border: 0; border-radius: var(--r-row); background: transparent; color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: background-color var(--d1) var(--ease); }
+.rrow:hover, .rrow.hl, .rrow:focus-visible { background: var(--hover); color: var(--ink); }
+.rrow:active { background: var(--press); }
+.rrow.on { background: var(--accent-tint); cursor: default; }
+.rrow .rt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rrow .rp { font-size: 15px; line-height: 20px; font-weight: 600; letter-spacing: -0.006em; color: var(--ink); }
+.rrow .rh { font-size: 13px; line-height: 18px; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rrow .rr { font-size: 12px; line-height: 16px; color: var(--tx2); }
+.rrow .rs { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; padding-top: 1px; }
+.rrow .rs b { font-size: 17px; line-height: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* the opened row on the Overview: the receipt and its two buttons under the three lines */
+.ropen { display: flex; flex-direction: column; gap: 12px; margin: 0 -12px; padding: 0 12px 12px; border-radius: 0 0 var(--r-row) var(--r-row); background: var(--accent-tint); }
+.rrow.on:has(+ .ropen) { border-radius: var(--r-row) var(--r-row) 0 0; }
+
+/* the receipt: label, value, reason */
+.rcpt { display: flex; flex-direction: column; gap: 6px; }
+.rcpt .rl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 12px; }
+.rcpt .rl > :nth-child(1) { font-size: 13px; line-height: 18px; color: var(--tx2); }
+.rcpt .rl > :nth-child(2) { font-size: 13px; line-height: 18px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.rcpt .rl > :nth-child(3) { grid-column: 1 / -1; font-size: 12px; line-height: 16px; color: var(--tx2); }
+.rcpt.lg .rl > :nth-child(1), .rcpt.lg .rl > :nth-child(2) { font-size: 14px; line-height: 20px; }
+.rcpt.lg .rl > :nth-child(3) { font-size: 13px; line-height: 18px; }
+
+/* category chips on one scrolling row, fading at the right edge (a scroll edge, not decoration) */
+.chiprow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px; padding: 6px 20px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.chiprow::-webkit-scrollbar { display: none; }
+.chiprow .chip { flex: none; }
+
+/* the risk page */
+.rnews { display: flex; flex-direction: column; gap: 8px; }
+.rnews .ni { display: flex; flex-direction: column; gap: 2px; }
+.rnews .ni .src { font-size: 12px; line-height: 16px; color: var(--tx2); }
+.rnews .ni a, .rnews .ni b { font-size: 14px; line-height: 19px; font-weight: 500; color: var(--ink); text-decoration: none; border-radius: 4px; }
+.rnews .ni a:hover { text-decoration: underline; text-decoration-color: var(--sep); text-underline-offset: 3px; }
+.rsteps { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rsteps li { position: relative; padding-left: 14px; font-size: 13px; line-height: 18px; color: var(--ink); }
+.rsteps li::before { content: ''; position: absolute; left: 1px; top: 7px; width: 4px; height: 4px; border-radius: 2px; background: var(--tx2); }
+.shd { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.shd > :first-child { font-size: 15px; line-height: 20px; font-weight: 600; }
+.trend { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; line-height: 18px; color: var(--tx2); white-space: nowrap; }
+.more { position: relative; height: 32px; padding: 0 8px; margin: -6px -8px -6px 0; border: 0; border-radius: 16px; background: transparent; color: var(--accent); font: 500 13px/18px var(--font); cursor: pointer; }
+.more:hover { background: var(--accent-hover); color: var(--accent-press); }
+.more::after { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+/* the risk page's body: a little tighter, so the page fits one 1360 × 900 view */
+.sheet.w440 .sbody.rbody { gap: 14px; padding-top: 14px; }
+.rbody .how { border-top: 0; }

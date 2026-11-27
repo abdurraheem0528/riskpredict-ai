@@ -58,8 +58,8 @@ src/
   live/       the live sequence: what a poll plays, map effects, count-ups, list motion, live dot
   map/        the one MapLibre map (globe or flat), layers as components, camera, sea lanes,
               placing features, static lookups
-  screens/    SignIn, Empty, Connect, Confirm, Main (Overview and Register), RiskView, Scenario
-  ui/         icons (copied from System-Icons), shared parts
+  screens/    SignIn, Empty, Connect, Confirm, Main (Overview and the Risks list), RiskView, Scenario
+  ui/         icons (copied from System-Icons), shared parts, the score scale, risk rows
   styles.css  tokens (light and night) and parts; map/map.css and live/live.css beside their code
 ```
 
@@ -108,8 +108,13 @@ coast; the tint of countries with open stories; sea lanes; the risk heatmap; ent
 score (Low grey, Medium and up coloured), with feature-state tweens for hover, selection
 and dimming; labels; short-lived effects.
 
-The 3 highest-scored entities, and the hovered or selected one, show a glass pill (score
-and city). These, sites, chokepoints and the live effects are HTML markers that hide when
+Each story on screen (the Overview's three rows, the Risks list's first five, and a hovered
+or selected one) shows a glass pill at the place the trouble is (`map/StoryPills.tsx`): at the
+chokepoint for a chokepoint match ("34 Bab el-Mandeb", whose plain label then hides), else at
+the entity it reaches, by its city ("30 Eindhoven"). The ports and route ends a story reaches
+only through a chokepoint get no pill; a pill keeps clear of the other pills and of the
+chokepoint and site labels showing. These, sites, chokepoints and the live effects are HTML
+markers that hide when
 the globe turns them away; everything else (city labels, cluster counts on Connect and
 Confirm) is MapLibre symbols drawn from the self-hosted Inter with TinySDF, placed only
 where they stay inside the open map (`map/labels.ts`).
@@ -219,25 +224,41 @@ breakpoints and wording rules are followed as drawn. These are the deliberate di
 - A valid UN/LOCODE that `ports.json` does not have gets no map position and no lane, so the
   card names it: "2 port codes we cannot place: XXABC, YYDEF." (six named, then "+N").
 
+The risk cards were redesigned for plain reading (approved on the owner's design canvas,
+27 Nov 2026). One element carries the system: the **score scale**, 0–100 in four bands sized
+to the levels (Low 0–39, Medium 40–59, High 60–79, Critical 80–100: 4 : 2 : 2 : 2 with 2 px
+gaps), a dot marking the score (`ui/ScoreScale.tsx`): large on the risk page, mini under each
+row's number, as ticks on the Overview, and a 48 × 4 copy in the map legend ("Score out of
+100"). Every row is one **story**, a category at a place (`Risk.story`), in three lines: a
+place phrase ("Shipping through Bab el-Mandeb", `placePhrase` in `lib/format.ts`), the real
+headline of its strongest report (`Risk.lead`), and what it reaches ("8 routes and 7
+suppliers ship through it", `lib/story.ts`).
+
 **Main (Overview)**
-- The headline is the highest open score with the open count. The API has no portfolio
-  risk index or index history for the workspace, so there is no 30-day sparkline.
-- The layer chips are the categories that have open risks, from `risks/summary`.
-- The selected risk shows its explanation, likelihood and impact (out of 5). "% of spend"
-  and "open orders" style figures are not in the risk list.
+- A sentence title ("18 risks touch your business"), then the levels ("All are Low", "2 are
+  High, 16 Low") and when the scores were last checked, beside the live dot.
+- Every open story as a tick on the scale (`RiskSummary.story_scores`), the highest written
+  above it. The API has no portfolio index history, so there is no 30-day sparkline.
+- The top three stories; the selected one opens in place with the receipt (Likely, Impact,
+  each with its reason) and "Open risk" / "What if".
 - The legend says "N of M feeds live" from feed health, or names a broken source with Fix.
 
-**Register**
-- The phone design's list, used at every width, with Score / Newest sorting, category
-  chips with counts and "Show more" paging.
+**Risks** (the tab, at `/register` and `/risks`; `/overview` is `/`)
+- The phone design's list, used at every width: "Highest first" / "Newest first" in a menu,
+  category chips with counts on one scrolling row, and "Show more" paging.
 
 **Risk**
 - No "R-011" style reference: risks have UUIDs only.
-- "What to do" is the advice text split into steps. There is no "in your plan" checklist,
-  because the API cannot store a plan. "Assign" is left out, as risks have no owner field.
-- The three tiles are the exposure share (or criticality), signals matched, and time since
-  the last one. A "Why this reaches you" list shows the evidence with its source, match and
-  contribution.
+- The place phrase; one sentence on why it reaches you (from the story's entities, their
+  kind and criticality and the place, else the engine's explanation); the score with its
+  level and its move ("Up 3 since yesterday": against the latest history point at least 24 h
+  old); the scale; and the receipt: Likely (what the reports have in common: "4 reports in 2
+  days name the Netherlands") and Impact (as a percentage, so likely × impact = score, with
+  the category and the criticality or share of spend).
+- The news: two reports of the latest scoring, "All N" for the rest. Then "What to do": the
+  advice text as plain steps. There is no "in your plan" checklist, because the API cannot
+  store a plan. "Assign" is left out, as risks have no owner field.
+- The formula ("How this was scored") is one tap away: "···" → Show the working.
 - Status changes (acknowledge, mitigating, dismiss, reopen) use `PATCH /v1/risks/{id}`,
   with Undo in the toast.
 
@@ -254,6 +275,8 @@ breakpoints and wording rules are followed as drawn. These are the deliberate di
 
 ## Contract
 
-No change to `openapi.yaml` was needed. The gaps above (portfolio index history, risks in
-the mapping preview, sheet tabs, risk owners and plans, scenario duration and cost) are
-candidates for later contract changes.
+The redesign added `Risk.where`, `Risk.lead`, `story.entities[].kind/city/criticality`,
+`story.entity_count`, `story.kind_counts` and `RiskSummary.story_scores`, and the API now
+groups stories by category and place (additive: every earlier field is kept). The gaps above
+(portfolio index history, risks in the mapping preview, sheet tabs, risk owners and plans,
+scenario duration and cost) are candidates for later contract changes.

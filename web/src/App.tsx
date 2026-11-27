@@ -129,7 +129,7 @@ function Screen() {
   if ((m = match('/sources/:id/confirm', path))) return <Confirm key={m.id} id={m.id} />;
   if (path === '/connect') return <Connect />;
 
-  if (path === '/' || path === '/register' || path === '/scenarios') {
+  if (path === '/' || path === '/register' || path === '/risks' || path === '/scenarios') {
     if (sources.isPending || connections.isPending) return null;
     if (sources.isError || connections.isError)
       return (
@@ -147,7 +147,9 @@ function Screen() {
       );
     }
     if (path === '/scenarios') return <Scenario key={workspace.id} />;
-    return <Main key={`${workspace.id}:${path}`} mode={path === '/register' ? 'register' : 'overview'} />;
+    // The Risks list answers at /register (its first address) and at /risks.
+    const list = path === '/register' || path === '/risks';
+    return <Main key={`${workspace.id}:${list ? 'risks' : path}`} mode={list ? 'register' : 'overview'} />;
   }
   return (
     <Card title="Nothing here">

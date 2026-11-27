@@ -57,8 +57,9 @@ Redocly, generates TypeScript types with `openapi-typescript`, and type-checks t
    them) and word the advice text. It never produces a number that is stored as a score.
    A commodity, HS-chapter or currency match alone never creates a risk; it only
    strengthens a match on a place, port, chokepoint, company or sanctions name
-   (`risk-engine.md` §5.9). One feed item that reaches several entities is one *story*
-   (`Risk.story`); the Overview and the map count stories, not copies.
+   (`risk-engine.md` §5.9). Every open risk of one category at one place (what the strongest
+   item matched: a country, port, chokepoint…) is one *story* (`Risk.story`, grouped by the
+   API); the Overview, the Risks list and the map count stories, not copies.
 10. **Serverless API on Vercel Hobby, Neon free tier.** Each request may run on a
     different short-lived instance: no shared memory, no background loop, no stream,
     no long poll, and startup hooks may not run (the pool opens on first use; the

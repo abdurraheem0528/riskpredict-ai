@@ -39,6 +39,8 @@ from engine import (
     city_position, port_name, place_label,  # §5.11: the mapper's city positions, display names
     copy_keys,              # 1.3.3, §5.6: (source, type, title, url) → keys that make two news items one
                             # (1.3.4: compared on the headline, §5.10 B and G)
+    headline, country_name, # (title, url) → the headline as §5.10 B reads it; ISO3 → display name.
+                            # The API's `Risk.lead` and `Risk.where` wording; neither changes a score
 )
 
 # --- pure core: no I/O, deterministic for the same inputs -----------------------
@@ -490,6 +492,13 @@ that was too broad: a news story about chip export rules and China became a High
   risks the same key. Risks stay one per entity (the fingerprint is unchanged), and the
   API groups them: `Risk.story`, `GET /v1/risks?group=story`, `RiskSummary.story_count`
   and `stories_by_category`, and `story_count` on the map's risk places.
+  Since the API change of 27 Nov 2026 the API groups those by **category and place**
+  instead: the strongest item's `factors.explain.matched` (`match_type:match_value`), so
+  every route and supplier whose shipping risk is strongest at Bab el-Mandeb is one story,
+  whichever report is strongest for each (`api/core/serialize.py` `place_key_sql`). A
+  `geo_radius` match (its value is a distance) keeps `factors.story`. The engine's keys,
+  scores and `ENGINE_VERSION` are unchanged; the scenario's `story_count` (§12) still
+  counts `factors.story` keys.
 
 All of these constants live in `EngineConfig` (`engine/config.py`, the "anchoring"
 block): `support_match_types`, `support_weight`, `market_event_prefix`,

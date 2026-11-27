@@ -99,8 +99,15 @@ def test_workspace_to_map_through_the_real_engine(client, owner_db, settings):
         assert len(risks) == 5
         [inferred] = [r for r in risks if r["category"] == "logistics" and r["entity"]["name"] == "Kansai Precision Parts"]
         assert inferred["story"] == by_cat["logistics"]["story"]
-        assert inferred["story"]["risk_count"] == 2 and inferred["story"]["key"] == "logistics|event:portwatch:pw-e2e-1"
+        # A story is a category at a place (the strongest item's match): shipping through Suez.
+        assert inferred["story"]["risk_count"] == 2 and inferred["story"]["key"] == "logistics|chokepoint:suez"
         assert {e["name"] for e in inferred["story"]["entities"]} == {"Kansai Precision Parts", "Asia-Europe lane"}
+        assert {(e["name"], e["kind"], e["city"]) for e in inferred["story"]["entities"]} == {
+            ("Kansai Precision Parts", "supplier", None), ("Asia-Europe lane", "route", None)}
+        assert inferred["story"]["kind_counts"] == {"supplier": 1, "route": 1}
+        assert inferred["where"] == {"match_type": "chokepoint", "match_value": "suez", "label": "Suez Canal"}
+        assert inferred["lead"]["title"] == "Suez Canal transits halted" and inferred["lead"]["source"] == "portwatch"
+        assert by_cat["sanctions"]["where"]["match_type"] == "sanctions_name"
         assert inferred["score"] < by_cat["logistics"]["score"]  # inferred counts at half a declared route
         grouped = client.get("/v1/risks", headers=hdr(me), params={"group": "story"}).json()["items"]
         assert len(grouped) == 4 and by_cat["logistics"]["id"] in {r["id"] for r in grouped}

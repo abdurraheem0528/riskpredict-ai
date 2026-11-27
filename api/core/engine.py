@@ -148,6 +148,19 @@ def place_label(city: str | None, countries: list[str], ports: list[str]) -> str
     return fn(city, countries, ports) if fn is not None else None
 
 
+def headline(title: str | None, url: str | None = None) -> str:
+    """The feed title as the engine reads it (``engine.headline``: a trailing outlet segment and a
+    leading wire tag dropped), else the title as stored (no engine)."""
+    fn = _place_fn("headline")
+    return fn(title, url) if fn is not None else (title or "")
+
+
+def country_name(code: str) -> str:
+    """``"TWN"`` → ``"Taiwan"`` (``engine.country_name``: pycountry's common name), else the code."""
+    fn = _place_fn("country_name")
+    return (fn(code) if fn is not None else None) or code
+
+
 def copy_keys(source: str | None, type_: str | None, title: str | None, url: str | None) -> tuple[str, ...]:
     """The keys under which a stored news item is a copy of another (same normalised title or
     canonical URL, engine 1.3.3), or ``()``: not news, or no engine (then nothing is merged)."""

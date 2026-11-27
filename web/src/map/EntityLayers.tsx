@@ -208,7 +208,9 @@ function CountryTint({ data }: { data: EntityFc | null }) {
 
 /**
  * The entity layers. `dimmed`: ids kept bright (the rest fade to 25%), or null for none.
- * `pills`: how many of the highest scores get a pill at overview zoom.
+ * `pills`: how many of the highest scores get a pill at overview zoom; `false`: no entity
+ * pills at all, not even for the hovered or selected entity (the screen marks its stories
+ * with StoryPills instead, at the place the trouble is).
  */
 export function EntityMap({
   data,
@@ -220,7 +222,7 @@ export function EntityMap({
 }: {
   data: EntityFc | null;
   dimmed?: Set<string> | null;
-  pills?: number;
+  pills?: number | false;
   heat?: boolean;
   tint?: boolean;
   onPick?: (entityId: string) => void;
@@ -327,11 +329,11 @@ export function EntityMap({
     [],
   );
 
-  const top = useMemo(() => topEntities(fc, pills, dimmed), [fc, pills, dimmed]);
+  const top = useMemo(() => (pills === false ? [] : topEntities(fc, pills, dimmed)), [fc, pills, dimmed]);
   return (
     <>
       {tint && <CountryTint data={fc} />}
-      <Pills data={fc} top={top} onPick={(id) => pick.current?.(id)} />
+      <Pills data={fc} top={top} show={pills !== false} onPick={(id) => pick.current?.(id)} />
       <Sites data={fc} />
     </>
   );
@@ -339,16 +341,17 @@ export function EntityMap({
 
 // --- pills (HTML markers) -------------------------------------------------------------------------
 
-type PillRec = { m: Marker; root: HTMLDivElement; btn: HTMLButtonElement; at: [number, number]; gone: (() => void) | null; side: number };
+/** `sides`: the order its sides are tried in (default right, left, above, below). */
+export type PillRec = { m: Marker; root: HTMLDivElement; btn: HTMLButtonElement; at: [number, number]; gone: (() => void) | null; side: number; sides?: readonly number[] };
 const SIDES: [number, number][] = [[1, 0], [-1, 0], [0, -1], [0, 1]]; // right of the dot, left, above, below
 
-function pillOffset(side: number, w: number, h: number): [number, number] {
+export function pillOffset(side: number, w: number, h: number): [number, number] {
   const [x, y] = SIDES[side];
   return [x * (12 + w / 2), y * (18 + h / 2)];
 }
 
 /** Glass pills: the score in its level pill, then the city. Not in the tab order (the list has the same action). */
-function Pills({ data, top, onPick }: { data: EntityFc | null; top: string[]; onPick: (id: string) => void }) {
+function Pills({ data, top, show = true, onPick }: { data: EntityFc | null; top: string[]; show?: boolean; onPick: (id: string) => void }) {
   const { map, lib } = useMap();
   const recs = useRef(new Map<string, PillRec>());
   const focus = useFocus();
@@ -362,8 +365,8 @@ function Pills({ data, top, onPick }: { data: EntityFc | null; top: string[]; on
   useEffect(() => {
     if (!map || !lib) return;
     const want = new Set(top);
-    if (focus.hovered && byId.has(focus.hovered)) want.add(focus.hovered);
-    if (focus.selected && byId.has(focus.selected)) want.add(focus.selected);
+    if (show && focus.hovered && byId.has(focus.hovered)) want.add(focus.hovered);
+    if (show && focus.selected && byId.has(focus.selected)) want.add(focus.selected);
     for (const [id, r] of recs.current) {
       if (want.has(id) && byId.has(id)) continue;
       if (r.gone) continue;
@@ -433,8 +436,8 @@ function Pills({ data, top, onPick }: { data: EntityFc | null; top: string[]; on
       r.root.style.zIndex = force ? '6' : '4';
       setState(map, SRC, id, 'pill', 1);
     }
-    place(map, recs.current);
-  }, [map, lib, top, byId, focus.hovered, focus.selected]);
+    placePills(map, recs.current);
+  }, [map, lib, top, byId, focus.hovered, focus.selected, show]);
 
   // Keep pills inside the open map and off each other: re-place after moves (not every rotation frame).
   useEffect(() => {
@@ -442,7 +445,7 @@ function Pills({ data, top, onPick }: { data: EntityFc | null; top: string[]; on
     let t: ReturnType<typeof setTimeout> | null = null;
     const onEnd = (e: unknown) => {
       if (t) clearTimeout(t);
-      t = setTimeout(() => place(map, recs.current), (e as { rpSpin?: boolean })?.rpSpin ? 500 : 0);
+      t = setTimeout(() => placePills(map, recs.current), (e as { rpSpin?: boolean })?.rpSpin ? 500 : 0);
     };
     map.on('moveend', onEnd);
     map.on('resize', onEnd);
@@ -468,9 +471,18 @@ function Pills({ data, top, onPick }: { data: EntityFc | null; top: string[]; on
 }
 
 /** Choose each pill's side: the first that stays in the open map and clear of the pills placed before it. */
-function place(map: MlMap, recs: Map<string, PillRec>) {
+export function placePills(map: MlMap, recs: Map<string, PillRec>) {
   const area = safeArea(map);
-  const boxes: [number, number, number, number][] = [];
+  // The labels and site squares already on the map are obstacles too, so a pill does not
+  // cover a name or another site: read once per placement, only those showing.
+  const host = map.getContainer();
+  const at = host.getBoundingClientRect();
+  const boxes: [number, number, number, number][] = [...host.querySelectorAll<HTMLElement>('.mcp .clab, .msite .slab:not(.hid), .msite > i')]
+    .filter((el) => el.offsetWidth > 0 && getComputedStyle(el).opacity !== '0')
+    .map((el) => {
+      const r = el.getBoundingClientRect();
+      return [r.left - at.left, r.top - at.top, r.right - at.left, r.bottom - at.top];
+    });
   // selected and hovered first, so they get the best side
   const order = [...recs.entries()].filter(([, r]) => !r.gone).sort(([, a], [, b]) => Number(b.btn.classList.contains('force')) - Number(a.btn.classList.contains('force')));
   for (const [, r] of order) {
@@ -478,9 +490,10 @@ function place(map: MlMap, recs: Map<string, PillRec>) {
     const p = map.project(r.at);
     // The first side that stays in the open map and clear of the pills placed before it;
     // else the one that overlaps least.
-    let side = 0;
+    const tries = r.sides ?? [0, 1, 2, 3];
+    let side = tries[0];
     let best = Infinity;
-    for (let s = 0; s < SIDES.length; s++) {
+    for (const s of tries) {
       const [ox, oy] = pillOffset(s, w, h);
       const b: [number, number, number, number] = [p.x + ox - w / 2, p.y + oy - h / 2, p.x + ox + w / 2, p.y + oy + h / 2];
       let cost = fits(area, b) ? 0 : 1e6;

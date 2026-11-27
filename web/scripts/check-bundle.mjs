@@ -19,6 +19,7 @@ const SAMPLE = [
   'Excel stopped syncing', '31 of 38', '+€41k', 'Sun 23 Nov',
   // test fixtures and mock tooling (tests/ only)
   'Kestrel Components', 'kestrel.test', 'Anatolia Fasteners', 'Lumen Display Co', 'mswjs', 'setupWorker', 'FakeEventSource',
+  'Atlas Eindhoven Assembly Plant', 'Formosa Microcircuits', 'Penang Semicon Assembly', 'Pearl River PCB Works', 'news.example.test',
 ];
 
 function* files(dir) {

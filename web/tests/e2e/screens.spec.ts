@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { test, expect, mapSettled, shot } from './fixtures';
+import { test, expect, mapSettled, noSheetScroll, shot } from './fixtures';
 import { API, PENDING, entities, risks } from '../fixtures/data';
 
 test.describe('signed out', () => {
@@ -63,61 +63,78 @@ test.describe('active workspace', () => {
     await shot(page, '3-confirm', info.project.name);
   });
 
-  test('main', async ({ page }, info) => {
+  test('overview', async ({ page }, info) => {
     await page.goto('/');
-    await expect(page.getByRole('button', { name: /Name matches a sanctions entry/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '18 risks touch your business' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Shipping through Bab el-Mandeb/ })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Open risk' })).toBeVisible();
     await mapSettled(page);
-    await shot(page, '4-main', info.project.name);
+    // one pill for the story, at the chokepoint, with no plain label beside it
+    if (!info.project.name.startsWith('phone')) {
+      await expect(page.locator('.mpill.show', { hasText: 'Bab el-Mandeb' })).toHaveCount(1);
+      await expect(page.locator('.mpill.show', { hasText: /Busan|Kaohsiung/ })).toHaveCount(0);
+      await expect(page.locator('.clab', { hasText: 'Bab el-Mandeb' })).toHaveCount(0);
+    }
+    await shot(page, '4-overview', info.project.name);
+    await noSheetScroll(page, info.project.name, 'aside.sheet');
   });
 
-  test('register', async ({ page }, info) => {
-    await page.goto('/register');
-    await expect(page.getByText('6 open stories')).toBeVisible();
+  test('overview is at /', async ({ page }) => {
+    await page.goto('/overview');
+    await expect(page.getByRole('heading', { name: '18 risks touch your business' })).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+  });
+
+  test('risks', async ({ page }, info) => {
+    await page.goto('/risks');
+    await expect(page.getByRole('heading', { name: 'Risks', exact: true })).toBeVisible();
+    await expect(page.getByText('18 touch your business.', { exact: false })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Trade policy in the Netherlands/ })).toBeVisible();
     await mapSettled(page);
-    await shot(page, '5-register', info.project.name);
+    await shot(page, '5-risks', info.project.name);
   });
 
-  test('register for one entity', async ({ page }, info) => {
-    const e = entities.find((x) => x.name === 'Lumen Display Co')!;
+  test('risks for one entity', async ({ page }, info) => {
+    const e = entities.find((x) => x.name === 'Formosa Microcircuits')!;
     await page.goto(`/register?entity=${e.id}`);
-    await expect(page.getByLabel('Risk register').getByTitle('Lumen Display Co')).toBeVisible();
+    await expect(page.getByLabel('Risks').getByTitle('Formosa Microcircuits')).toBeVisible();
     await expect(page.getByText('One entity')).toHaveCount(0);
     await mapSettled(page);
-    await shot(page, '5-register-entity', info.project.name);
+    await shot(page, '5-risks-entity', info.project.name);
   });
 
-  test('register to a risk and back', async ({ page }, info) => {
+  test('risks to a risk and back', async ({ page }, info) => {
     // Going back while the risk screen's map work is still in flight removes its layers under
     // running tweens and pending writes: no console errors (the fixture fails the test on any).
     // The code is the same at every width, and three screens on SwiftShader are slow on CI.
     test.skip(info.project.name !== 'desktop', 'one width is enough');
     test.slow();
     await page.goto('/register');
-    await expect(page.getByText('6 open stories')).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Trade policy in the Netherlands/ })).toBeVisible();
     await mapSettled(page);
-    const row = page.getByRole('link', { name: /Name matches a sanctions entry/ });
+    const row = page.getByRole('link', { name: /^Trade policy in the Netherlands/ });
     await row.hover();
     await row.click();
     await expect(page.getByText('What to do')).toBeVisible();
     await page.goBack();
-    await expect(page.getByText('6 open stories')).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Trade policy in the Netherlands/ })).toBeVisible();
     await mapSettled(page);
   });
 
   test('risk', async ({ page }, info) => {
-    const r = risks.find((x) => x.category === 'logistics')!;
+    const r = risks[1]; // the live Atlas Eindhoven risk: 2 news items and 3 steps shown
     await page.goto(`/risks/${r.id}`);
-    await expect(page.getByRole('heading', { name: r.title })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Trade policy in the Netherlands' })).toBeVisible();
     await expect(page.getByText('What to do')).toBeVisible();
+    await expect(page.getByText('Up 3 since yesterday')).toBeVisible();
     await mapSettled(page);
+    // the whole page in one 1360 × 900 view: the sheet body does not scroll
     await shot(page, '6-risk', info.project.name);
-    // the numbers: a collapsed section under the evidence
-    const how = page.getByText('How this was scored');
-    await how.scrollIntoViewIfNeeded();
-    await how.click();
-    await expect(page.getByText(/noisy-OR of 2 items/)).toBeVisible();
-    // opening it scrolls the sheet so the numbers sit above the action bar, not behind it
+    await noSheetScroll(page, info.project.name, '.sbody');
+    // the numbers: one tap away, in place, above the action bar
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitem', { name: 'Show the working' }).click();
+    await expect(page.getByText(/noisy-OR of 4 items/)).toBeVisible();
     const inView = async () => {
       const [body, foot, steps] = await Promise.all([
         page.locator('.sbody').boundingBox(),
@@ -130,7 +147,17 @@ test.describe('active workspace', () => {
       return first.top >= body!.y - 1 && (whole ? last.bottom : first.bottom) <= foot!.y + 1;
     };
     await expect.poll(inView, { timeout: 5_000 }).toBe(true);
-    await shot(page, '6-risk-how-scored', info.project.name);
+    await shot(page, '6-risk-working', info.project.name);
+  });
+
+  test('risk at a chokepoint', async ({ page }, info) => {
+    test.skip(info.project.name.startsWith('phone') || info.project.name === 'tablet', 'the desktop map shows the pill');
+    await page.goto(`/risks/${risks[0].id}`);
+    await expect(page.getByRole('heading', { name: 'Shipping through Bab el-Mandeb' })).toBeVisible();
+    await mapSettled(page);
+    await expect(page.locator('.mpill.show', { hasText: 'Bab el-Mandeb' })).toHaveCount(1);
+    await shot(page, '6-risk-chokepoint', info.project.name);
+    await noSheetScroll(page, info.project.name, '.sbody');
   });
 
   test('scenario', async ({ page }, info) => {

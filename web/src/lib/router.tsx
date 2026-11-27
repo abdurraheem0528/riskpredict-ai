@@ -33,9 +33,10 @@ const subscribe = (l: () => void) => {
 
 /**
  * Other addresses for a route. The nav calls the Connect screen "Sources", so `/sources`
- * opens it too (web/public/_redirects sends it there on Cloudflare Pages as well).
+ * opens it too, and `/overview` is the Overview at `/` (web/public/_redirects sends both there
+ * on Cloudflare Pages as well). `/risks` and `/register` are both the Risks list.
  */
-export const ALIASES: Record<string, string> = { '/sources': '/connect' };
+export const ALIASES: Record<string, string> = { '/sources': '/connect', '/overview': '/' };
 
 /** `/sources?x=1` → `/connect?x=1`, `/register/` → `/register`; anything else unchanged. */
 export function canonical(href: string): string {

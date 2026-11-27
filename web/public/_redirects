@@ -1,5 +1,7 @@
 # Cloudflare Pages: the first rule that matches wins, so specific rules go above the
-# catch-all. `/sources` is the nav's name for the Connect screen (the router aliases it
-# too); it matches only that exact path, never `/sources/:id/confirm`.
+# catch-all. `/sources` is the nav's name for the Connect screen and `/overview` the Overview's
+# old name (the router aliases both too); each matches only that exact path, never
+# `/sources/:id/confirm`.
 /sources  /connect  302
+/overview  /  302
 /*  /index.html  200

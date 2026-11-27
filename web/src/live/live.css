@@ -41,6 +41,9 @@
 .rp-live.still > i { animation: none; }
 .rp-live.off { color: var(--tx2); }
 .rp-live.off > i { animation: none; background: var(--off); }
+/* the dot before a sentence (the Risks and Overview headers): the sentence in the secondary text */
+.rp-live.line { align-items: baseline; gap: 8px; color: var(--tx2); font-size: 13px; line-height: 18px; font-weight: 400; white-space: normal; }
+.rp-live.line > i { position: relative; top: -1px; }
 @keyframes rp-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.7); opacity: 0.45; } }
 
 /* --- the list: rows enter, leave and flash; FLIP sets transform inline --- */

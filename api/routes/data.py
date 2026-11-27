@@ -123,11 +123,11 @@ def list_risks(
         f" ORDER BY x.{col} DESC, x.id DESC LIMIT %(n)s"
     )
     if group == "story":
-        # One row per story: its highest-scored risk among those that match the filters.
+        # One row per story (a category at a place, serialize.place_key_sql): its highest-scored
+        # risk among those that match the filters.
         sql = (
-            f"SELECT * FROM (SELECT q.*, row_number() OVER (PARTITION BY q.story_key ORDER BY q.score DESC, q.id DESC)"
-            f" AS story_rank FROM (SELECT x.*, {ser.STORY_KEY.replace('r.', 'x.')} AS story_key"
-            f" FROM ({ser.RISK_SELECT}{where}) x) q) x WHERE x.story_rank = 1 AND" + page_sql
+            "SELECT * FROM (SELECT q.*, row_number() OVER (PARTITION BY q.place_key ORDER BY q.score DESC, q.id DESC)"
+            f" AS story_rank FROM ({ser.RISK_SELECT}{where}) q) x WHERE x.story_rank = 1 AND" + page_sql
         )
     else:
         sql = f"SELECT * FROM ({ser.RISK_SELECT}{where}) x WHERE" + page_sql
@@ -141,13 +141,18 @@ def list_risks(
     return pagination.page(rows, limit, [col, "id"], ser.risk)
 
 
+ENTITY_JOIN = "JOIN biz.entities e ON e.workspace_id = r.workspace_id AND e.id = r.entity_id"
+MAX_STORY_SCORES = 500
+
+
 @router.get("/v1/risks/summary", tags=["risks"])
 def risk_summary(ctx: WsCtx) -> dict:
     with ctx.tx() as conn:
         counts = conn.execute("SELECT category, status, count(*) AS n FROM biz.risks GROUP BY category, status").fetchall()
+        # Stories: one per category and place (serialize.place_key_sql), each with its highest score.
         stories = conn.execute(
-            f"SELECT r.category, count(DISTINCT {ser.STORY_KEY}) AS n FROM biz.risks r"
-            " WHERE r.status IN ('open', 'acknowledged', 'mitigating') GROUP BY r.category"
+            f"SELECT r.category, {ser.STORY_KEY} AS key, max(r.score) AS score FROM biz.risks r {ENTITY_JOIN}"
+            " WHERE r.status IN ('open', 'acknowledged', 'mitigating') GROUP BY 1, 2 ORDER BY 3 DESC, 2"
         ).fetchall()
         top = conn.execute(
             ser.RISK_SELECT + " WHERE r.status IN ('open', 'acknowledged', 'mitigating') ORDER BY r.score DESC, r.id LIMIT 5"
@@ -155,9 +160,7 @@ def risk_summary(ctx: WsCtx) -> dict:
         agg = conn.execute(
             "SELECT (SELECT max(score) FROM biz.risks WHERE status IN ('open', 'acknowledged', 'mitigating')) AS max_score,"
             " (SELECT max(last_scored_at) FROM biz.risks) AS last_scored_at,"
-            " (SELECT max(last_success_at) FROM feeds.source_health) AS feeds_as_of,"
-            f" (SELECT count(DISTINCT {ser.STORY_KEY}) FROM biz.risks r"
-            "   WHERE r.status IN ('open', 'acknowledged', 'mitigating')) AS story_count"
+            " (SELECT max(last_success_at) FROM feeds.source_health) AS feeds_as_of"
         ).fetchone()
     by_category = {c: 0 for c in ser.CATEGORIES}
     by_status = {s: 0 for s in ser.RISK_STATUSES}
@@ -167,15 +170,16 @@ def risk_summary(ctx: WsCtx) -> dict:
             by_category[r["category"]] += r["n"]
     stories_by_category = {c: 0 for c in ser.CATEGORIES}
     for r in stories:
-        stories_by_category[r["category"]] = r["n"]
+        stories_by_category[r["category"]] += 1
     return {
         "open_count": sum(by_status[s] for s in ser.OPEN_STATUSES),
-        "story_count": int(agg["story_count"] or 0),
+        "story_count": len(stories),
         "by_category": by_category,
         "stories_by_category": stories_by_category,
         "by_status": by_status,
         "max_score": ser.r1(agg["max_score"]),
         "top": [ser.risk(r) for r in top],
+        "story_scores": [ser.r1(r["score"]) for r in stories[:MAX_STORY_SCORES]],
         "last_scored_at": ser.ts(agg["last_scored_at"]),
         "feeds_as_of": ser.ts(agg["feeds_as_of"]),
     }

@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import type { StreamStatus } from '../api/stream';
 import { STALE_MS, scoredText } from './plan';
+import { ago } from '../lib/format';
 
 const STATUS: Record<StreamStatus, string> = { live: 'Live', connecting: 'Connecting', retrying: 'Reconnecting', off: 'Offline' };
 
@@ -41,6 +42,23 @@ export function LiveDot({ status, scoredAt }: { status: StreamStatus; scoredAt?:
     <span className={`rp-live${live ? (stale ? ' still' : '') : ' off'}`} role="status" aria-live="off" title={live ? STATUS.live : undefined}>
       <i aria-hidden="true" />
       {text}
+    </span>
+  );
+}
+
+/**
+ * The live dot before a sentence: "18 touch your business. Checked 4 min ago." The dot
+ * breathes as LiveDot's does; when polling is not live the second sentence says so instead.
+ */
+export function LiveLine({ status, scoredAt, lead }: { status: StreamStatus; scoredAt?: string | null; lead: string }) {
+  const now = useNow(scoredAt);
+  const live = status === 'live';
+  const stale = !scoredAt || now - new Date(scoredAt).getTime() > STALE_MS;
+  const tail = !live ? `${STATUS[status]}.` : scoredAt ? `Checked ${ago(scoredAt, now)}.` : scoredAt === null ? 'Not checked yet.' : '';
+  return (
+    <span className={`rp-live line${live ? (stale ? ' still' : '') : ' off'}`} role="status" aria-live="off">
+      <i aria-hidden="true" />
+      <span>{lead}{tail ? ` ${tail}` : ''}</span>
     </span>
   );
 }

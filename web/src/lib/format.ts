@@ -117,3 +117,112 @@ const FEED_NAMES: Record<string, string> = {
   currents: 'Currents', eia: 'EIA', epss: 'EPSS', tiingo: 'Tiingo', ofac_sdn: 'OFAC',
 };
 export const feedName = (id: string) => FEED_NAMES[id] ?? FEED_NAMES[id.split(/[._:]/)[0]] ?? id;
+
+// --- places in running text (the Risks list, the risk page) ------------------------------------
+
+/**
+ * Countries English names with "the", and Natural Earth's short forms ("Dem. Rep. Congo",
+ * "Marshall Is.") written out. Everything else is the gazetteer's name.
+ */
+const PROSE_COUNTRIES: Record<string, string> = {
+  NLD: 'the Netherlands', USA: 'the United States', GBR: 'the United Kingdom', PHL: 'the Philippines',
+  ARE: 'the United Arab Emirates', CZE: 'the Czech Republic', DOM: 'the Dominican Republic', BHS: 'the Bahamas',
+  GMB: 'the Gambia', MDV: 'the Maldives', MHL: 'the Marshall Islands', SLB: 'the Solomon Islands',
+  CAF: 'the Central African Republic', COM: 'the Comoros', COD: 'the Democratic Republic of the Congo',
+  SSD: 'South Sudan', BIH: 'Bosnia and Herzegovina', GNQ: 'Equatorial Guinea', ESH: 'Western Sahara',
+  ATG: 'Antigua and Barbuda', VCT: 'Saint Vincent and the Grenadines', KNA: 'Saint Kitts and Nevis',
+};
+/** "NLD" → "the Netherlands", "TWN" → "Taiwan". `name` is the gazetteer's name for the code. */
+export function countryProse(iso3: string, name?: string): string {
+  return PROSE_COUNTRIES[iso3] ?? (name ?? iso3).replace(/\bIs\.$/, 'Islands');
+}
+
+/** Chokepoints that take "the" in a sentence ("the Suez Canal"); Bab el-Mandeb does not. */
+const THE_CHOKEPOINTS = new Set(['suez', 'panama', 'hormuz', 'malacca', 'singapore', 'bosporus', 'gibraltar', 'dover', 'taiwan_strait', 'cape_of_good_hope']);
+export const chokeProse = (id: string, name: string) => (THE_CHOKEPOINTS.has(id) ? `the ${name}` : name);
+
+export type Where = { match_type: string; match_value: string; label: string };
+
+/**
+ * The words for where a match is: a country as running text names it, a chokepoint with
+ * "the" where it takes one, else the API's label. `country` is the gazetteer lookup.
+ */
+export function placeWords(w: Where, country: (iso3: string) => string = (c) => c): string {
+  if (w.match_type === 'country' && /^[A-Z]{3}$/.test(w.match_value)) {
+    // the API's label already reads as prose; the gazetteer is used only when it has the code
+    const name = country(w.match_value);
+    return countryProse(w.match_value, name !== w.match_value ? name : w.label.replace(/^the /, ''));
+  }
+  if (w.match_type === 'chokepoint') return chokeProse(w.match_value, w.label);
+  return w.label;
+}
+
+const HAZARDS: Record<string, string> = {
+  earthquake: 'Earthquake', tropical_cyclone: 'Tropical cyclone', flood: 'Flood', volcano: 'Volcanic activity',
+  drought: 'Drought', wildfire: 'Wildfire', tsunami: 'Tsunami', severe_storm: 'Severe storm', landslide: 'Landslide',
+  temperature_extreme: 'Extreme temperature',
+};
+/** "hazard.tropical_cyclone" → "Tropical cyclone"; anything else → "Natural hazard". */
+export function hazardName(type: string | null | undefined): string {
+  const h = (type ?? '').replace(/^hazard\./, '');
+  return HAZARDS[h] ?? (type?.startsWith('hazard.') && h ? h.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'Natural hazard');
+}
+
+/**
+ * The row's first line: what is happening, and where. "Shipping through Bab el-Mandeb",
+ * "Trade policy in the Netherlands", "Cyber threats in Taiwan", "Earthquake near Hsinchu".
+ * `ctx.city` is the reached entity's city (hazards), `ctx.leadType` the lead report's type.
+ */
+export function placePhrase(
+  category: RiskCategory,
+  w: Where | null | undefined,
+  ctx: { city?: string | null; leadType?: string | null; country?: (iso3: string) => string; fallback?: string } = {},
+): string {
+  if (!w) return ctx.fallback ?? CATEGORIES[category].name;
+  const at = placeWords(w, ctx.country);
+  const mt = w.match_type;
+  const near = mt === 'chokepoint' || mt === 'geo_radius';
+  switch (category) {
+    case 'logistics':
+      if (mt === 'chokepoint') return `Shipping through ${at}`;
+      if (mt === 'port') return `Shipping at ${at}`;
+      if (mt === 'country') return `Shipping in ${at}`;
+      break;
+    case 'geopolitical':
+      if (mt === 'chokepoint') return `Conflict near ${at}`;
+      if (mt === 'country') return `Conflict in ${at}`;
+      break;
+    case 'trade_policy':
+      if (mt === 'country') return `Trade policy in ${at}`;
+      break;
+    case 'sanctions':
+      if (mt === 'sanctions_name') return `${w.label} on a sanctions list`;
+      if (mt === 'country') return `Sanctions in ${at}`;
+      break;
+    case 'labour':
+      if (mt === 'country') return `Labour unrest in ${at}`;
+      break;
+    case 'cyber':
+      if (mt === 'software') return `A flaw in ${w.label}`;
+      if (mt === 'country') return `Cyber threats in ${at}`;
+      break;
+    case 'natural_hazard':
+      if (mt === 'geo_radius') return `${hazardName(ctx.leadType)} near ${ctx.city || w.label}`;
+      return `${hazardName(ctx.leadType)} ${near ? 'near' : 'in'} ${at}`;
+    case 'financial':
+      if (mt === 'currency') return `${w.match_value.split('/').pop()} swings`;
+      break;
+  }
+  if (mt === 'company_name') return `${CATEGORIES[category].name} news about ${w.label}`;
+  if (mt === 'commodity') return `${CATEGORIES[category].name} news on ${w.label}`;
+  return `${CATEGORIES[category].name} ${near ? 'near' : 'in'} ${at}`;
+}
+
+/** Lower-case kind words: "site" / "sites". */
+export const kindWord = (kind: EntityKind, n: number) => (n === 1 ? KINDS[kind].one.toLowerCase() : KINDS[kind].many);
+
+/** "A", "A and B", "A, B and C". */
+export function listWords(items: readonly string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
