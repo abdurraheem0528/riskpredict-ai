@@ -112,6 +112,7 @@ class FakeHttp:
     def __init__(self) -> None:
         self.routes: list[tuple[str, str, Callable[[httpx.Request], httpx.Response]]] = []
         self.calls: list[httpx.Request] = []
+        self.slept: list[float] = []  # google.sleep: the waits, without waiting
 
     def on(self, method: str, prefix: str, handler: Callable | dict | list, status: int = 200) -> None:
         if not callable(handler):
@@ -138,8 +139,10 @@ def fake_http():
     fake = FakeHttp()
     http.transport = httpx.MockTransport(fake)
     google.access_tokens._tokens.clear()
+    sleep, google.sleep = google.sleep, fake.slept.append
     yield fake
     http.transport = None
+    google.sleep = sleep
     google.access_tokens._tokens.clear()
 
 

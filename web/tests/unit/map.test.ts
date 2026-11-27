@@ -3,7 +3,10 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import type { FeatureCollection, Point, Polygon } from 'geojson';
 import { graticule, splitBorders, skyFor, basePaint } from '../../src/map/basemap';
 import { densestGroup, globeFraming, rampsFor, sheetPadding, wrap180, boxOfPoints, type LonLat } from '../../src/map/camera';
-import { countryScores, pillPlace, shownLevel, shownScore, tintOpacity, topEntities, withAlpha, type EntityProps } from '../../src/map/EntityLayers';
+import {
+  countryScores, pillPlace, placeSiteLabels, shownLevel, shownScore, siteLabelBox, siteLabelOrder, tintOpacity, topEntities, withAlpha,
+  type EntityProps,
+} from '../../src/map/EntityLayers';
 import { chokeLabel } from '../../src/map/Chokepoints';
 import { PROJECTION_KEY, __reloadProjection, getProjection, parseProjection, setProjection } from '../../src/map/projection';
 import { palette } from '../../src/lib/theme';
@@ -84,6 +87,42 @@ describe('entities on the map', () => {
   it('adds alpha to token colours for the heat ramp', () => {
     expect(withAlpha('#e9a190', 0.3)).toBe('rgba(233,161,144,0.3)');
     expect(withAlpha('rgb(1, 2, 3)', 0)).toBe('rgba(1,2,3,0)');
+  });
+});
+
+describe('site labels', () => {
+  // Two sites about 90 km apart (Rotterdam and Eindhoven): one spot at world zoom.
+  const site = (name: string, criticality: string | null, at: [number, number]) => ({ properties: { name, criticality }, at });
+  const rotterdam = site('Rotterdam Distribution Centre', 'high', [4.48, 51.92]);
+  const eindhoven = site('Eindhoven Assembly Plant', 'critical', [5.47, 51.44]);
+  // Web Mercator at zoom z, in px (512 px world at z = 0, as MapLibre)
+  const project = ([lon, lat]: [number, number], z: number) => {
+    const w = 512 * 2 ** z;
+    const y = Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+    return [((lon + 180) / 360) * w, (0.5 - y / (2 * Math.PI)) * w] as const;
+  };
+  const shownAt = (z: number, sites = [rotterdam, eindhoven]) =>
+    placeSiteLabels(siteLabelOrder(sites).map((s) => {
+      const [x, y] = project(s.at, z);
+      return { id: s.properties.name, box: siteLabelBox(x, y, 7 * s.properties.name.length) };
+    }));
+
+  it('orders labels by criticality, then by name', () => {
+    const order = siteLabelOrder([site('B', null, [0, 0]), site('C', 'low', [0, 0]), site('A', null, [0, 0]), site('D', 'critical', [0, 0]), site('E', 'medium', [0, 0])]);
+    expect(order.map((s) => s.properties.name)).toEqual(['D', 'E', 'C', 'A', 'B']);
+  });
+
+  it('keeps the more critical label where two would overlap, and shows both once zoomed in', () => {
+    expect([...shownAt(1.8)]).toEqual(['Eindhoven Assembly Plant']);
+    expect([...shownAt(3)]).toEqual(['Eindhoven Assembly Plant']);
+    expect(shownAt(6).size).toBe(2);
+    // the same criticality: the first by name
+    const level = [site('Rotterdam Distribution Centre', 'high', [4.48, 51.92]), site('Eindhoven Assembly Plant', 'high', [5.47, 51.44])];
+    expect([...shownAt(1.8, level)]).toEqual(['Eindhoven Assembly Plant']);
+  });
+
+  it('shows labels that do not touch', () => {
+    expect(placeSiteLabels([{ id: 'a', box: [0, 0, 100, 16] }, { id: 'b', box: [0, 30, 100, 46] }, { id: 'c', box: [50, 10, 150, 26] }])).toEqual(new Set(['a', 'b']));
   });
 });
 

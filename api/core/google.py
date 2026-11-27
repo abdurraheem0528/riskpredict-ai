@@ -29,6 +29,12 @@ SHEETS = "https://sheets.googleapis.com/v4/spreadsheets"
 DRIVE = "https://www.googleapis.com/drive/v3"
 WATCH_SECONDS = 7 * 24 * 3600  # changes.watch channels last at most one week
 SERVICE = "Google"
+# A spreadsheet picked within a minute of being created can return 404 for a few seconds while
+# Google grants the app its drive.file access (the 27 Nov live test). Adding a source waits that
+# out (spreadsheet(waits=...)): the seconds between four reads, about 5 s in all. Nothing else
+# waits, the worker least of all.
+FIRST_PICK_WAITS = (1.0, 1.5, 2.5)
+sleep = time.sleep  # tests replace it
 
 
 def redirect_uri(settings: Settings) -> str:
@@ -207,13 +213,19 @@ class Spreadsheet:
         return next((t for t in self.tabs if t.gid == gid), None)
 
 
-def spreadsheet(access_token: str, spreadsheet_id: str) -> Spreadsheet:
-    resp = _send(
-        "GET",
-        f"{SHEETS}/{quote(spreadsheet_id, safe='')}",
-        params={"fields": "properties.title,sheets.properties(sheetId,title,index)"},
-        headers=_auth(access_token),
-    )
+def spreadsheet(access_token: str, spreadsheet_id: str, *, waits: tuple[float, ...] = ()) -> Spreadsheet:
+    """The spreadsheet's title and tabs. On a 404 it reads again after each of ``waits`` seconds
+    (only when a source is added: ``FIRST_PICK_WAITS``); any other answer is final at once."""
+    for wait in (*waits, None):
+        resp = _send(
+            "GET",
+            f"{SHEETS}/{quote(spreadsheet_id, safe='')}",
+            params={"fields": "properties.title,sheets.properties(sheetId,title,index)"},
+            headers=_auth(access_token),
+        )
+        if resp.status_code != 404 or wait is None:
+            break
+        sleep(wait)
     _raise_for(resp, "The spreadsheet")
     data = resp.json()
     sheets = sorted(data.get("sheets") or [], key=lambda s: s.get("properties", {}).get("index", 0))

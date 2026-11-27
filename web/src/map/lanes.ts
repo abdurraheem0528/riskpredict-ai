@@ -270,7 +270,12 @@ function kmToLine(p: LonLat, line: LonLat[]): number {
     return [dx * k, (q[1] - p[1]) * ky];
   };
   for (let i = 0; i < line.length - 1; i++) {
-    const [ax, ay] = rel(line[i]), [bx, by] = rel(line[i + 1]);
+    // The far end relative to the near one: wrapping each end on its own would read a segment
+    // across the point's antimeridian as one round the world, through the point.
+    const [ax, ay] = rel(line[i]);
+    let step = line[i + 1][0] - line[i][0];
+    step -= 360 * Math.round(step / 360);
+    const bx = ax + step * k, by = (line[i + 1][1] - p[1]) * ky;
     const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
     const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
     best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));

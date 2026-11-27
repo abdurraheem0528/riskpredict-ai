@@ -63,14 +63,38 @@ PASSIVE = frozenset({
 # "<country> imposes / widens / adds ...": the country imposes the measure. (A sanctions verb
 # right after a country makes it the actor only when another country follows as the object:
 # "US sanctions Chinese firms", but "Iran sanctions squeeze ..." is about sanctions on Iran.)
+# The plain forms are for two or more countries ("The Netherlands and China plan ..."); every
+# country joined by "and", "or" or a comma shares the verb that follows the last one (1.3.1).
 ACTOR_VERBS = frozenset({
-    "imposes", "impose", "imposed", "widens", "expands", "adds", "add", "added", "announces",
-    "unveils", "slaps", "levies", "tightens", "extends", "approves", "agrees", "adopts",
-    "introduces", "considers", "mulls", "weighs", "plans", "readies", "threatens", "warns", "places", "puts",
-    "issues", "prepares", "eyes", "drafts", "proposes", "says", "urges", "calls", "lifts", "eases",
+    "imposes", "impose", "imposed", "widens", "widen", "expands", "expand", "adds", "add", "added",
+    "announces", "announce", "unveils", "unveil", "slaps", "slap", "levies", "levy", "tightens", "tighten",
+    "extends", "extend", "approves", "approve", "agrees", "agree", "adopts", "adopt", "introduces",
+    "introduce", "considers", "consider", "mulls", "mull", "weighs", "weigh", "plans", "plan", "readies",
+    "ready", "threatens", "threaten", "warns", "warn", "places", "place", "puts", "put", "issues", "issue",
+    "prepares", "prepare", "eyes", "eye", "drafts", "draft", "proposes", "propose", "says", "say", "urges",
+    "urge", "calls", "call", "lifts", "lift", "eases", "ease", "coordinate", "coordinates", "align", "aligns",
+    "join", "joins", "placed", "moves", "move", "moved",
 })  # fmt: skip
 # "... under / by <country> sanctions": the imposer.
 ACTOR_BEFORE = frozenset({"under", "by", "from"})
+# "<country> ... to <term>" puts the country on a list only with a placing verb before the
+# country ("adds Chinese firms to entity list"), a placed-verb right before "to" ("China added
+# to US entity list": then the country is no actor), or the term straight after "to" ("Chinese
+# firms to the entity list"). Never an infinitive: in "The Netherlands and China plan to
+# coordinate export controls" both impose the measure, and "China to blacklist US firms" is China
+# acting. A country between "to" and the term owns the list ("to US entity list").
+PLACING_VERBS = frozenset({
+    "add", "adds", "added", "adding", "put", "puts", "putting", "place", "places", "placed", "placing",
+    "move", "moves", "moved", "moving",
+})  # fmt: skip
+PLACED = frozenset({"added", "placed", "put", "moved"})
+# Words that may stand between "to" and the term: "to the entity list", "to its blacklist".
+DETERMINERS = frozenset({"the", "a", "an", "its", "their", "new"})
+# Terms that right after "to" are a verb ("to sanction", "to ban"), not the list.
+INFINITIVE_TERMS = frozenset({"sanction", "blacklist", "ban", "embargo", "curb", "designate"})
+# A country (or list of countries) right after one of these is no subject, so a verb after it is
+# not its own: in "Sanctions on China and Russia widen" the sanctions widen.
+NOT_SUBJECT = TARGET_PREPOSITIONS | {"of", "to", "with", "for", "over", "into"}
 
 # --- cyber (§5.10) ----------------------------------------------------------------------
 # A country-level cyber match needs a national-scale incident ...
@@ -258,7 +282,10 @@ def sanction_targets(title: str, window: int = 5) -> frozenset[str]:
 
     * ``<term> [on|against …] <country>``: "sanctions on Chinese chipmakers", "export curbs
       on China"; a verb-form term may take the country directly ("US sanctions Chinese firms").
-    * ``<country> … to <term>``: "adds Chinese circuit board makers to export blacklist".
+    * ``<country> … to <term>`` with a placing verb (add, put, place, move) before the country
+      or between it and "to", or with the term straight after "to" (articles and the
+      imposer's name aside): "adds Chinese circuit board makers to export blacklist", "China
+      added to US entity list"; never an infinitive ("China plans to tighten export controls").
     * ``<country> hit with / faces / protests … <term>``: "China hit with EU sanctions",
       "Beijing protests new US sanctions"; a country between such a word and the term is the
       imposer, not the target.
@@ -266,7 +293,9 @@ def sanction_targets(title: str, window: int = 5) -> frozenset[str]:
     * ``<country> sanctioned / blacklisted``.
 
     A country followed by an imposing verb ("US imposes", "Washington adds") or preceded by
-    "under" / "by" is the actor. Windows are ``window`` tokens and never cross ``; : | ?``.
+    "under" / "by" is the actor, and so is every country joined to it by "and", "or" or a
+    comma ("The Netherlands and China plan …"). Windows are ``window`` tokens and never cross
+    ``; : | ?``.
     """
     facts = title_facts(title)
     w, ms = facts.words, facts.mentions
@@ -280,15 +309,30 @@ def sanction_targets(title: str, window: int = 5) -> frozenset[str]:
     def clean(a: int, b: int) -> bool:
         return not any(x in BREAKS for x in w[a:b])
 
+    # Lists of countries ("The Netherlands and China", "US, UK and Canada"): first[k] is the
+    # first country of k's list. A verb after the last one is the whole list's.
+    first = list(range(len(ms)))
+    for k in range(1, len(ms)):
+        between = w[ms[k - 1].end : ms[k].start]
+        if between and all(x in JOINS for x in between):
+            first[k] = first[k - 1]
     actors: set[int] = set()
     for k, m in enumerate(ms):
-        after = w[m.end : m.end + 2]
-        if any(x in ACTOR_VERBS for x in after) and not any(x in PASSIVE or x in RECEIVING for x in after[:1]):
-            actors.add(k)
         if m.start > 0 and w[m.start - 1] in ACTOR_BEFORE:
             actors.add(k)
+        head = ms[first[k]]
+        if head.start > 0 and w[head.start - 1] in NOT_SUBJECT:
+            continue
+        after = w[m.end : m.end + 2]
+        verb = next((i for i, x in enumerate(after) if x in ACTOR_VERBS), None)
+        # "China added to …", "Chinese firms added to …": put on the list, not putting
+        nxt_word = w[m.end + verb + 1] if verb is not None and m.end + verb + 1 < len(w) else ""
+        placed = verb is not None and after[verb] in PLACED and nxt_word in ("to", "onto")
+        acts = verb is not None and not placed and not any(x in PASSIVE or x in RECEIVING for x in after[:1])
         if m.end < len(w) and w[m.end] in SANCTION_VERBS and any(m.end < o.start <= m.end + 3 for o in ms):
-            actors.add(k)
+            acts = True
+        if acts:
+            actors.update(j for j in range(first[k], k + 1))
     targets: set[int] = set()
     for k, m in enumerate(ms):
         # <country> hit with / faces / protests ... <term>
@@ -304,18 +348,32 @@ def sanction_targets(title: str, window: int = 5) -> frozenset[str]:
                     targets.add(k)
                     actors.update(j for j, o in enumerate(ms) if r < o.start < t_end and j != k)
                     break
-        # <country> [x [y]] <term>
+        # <country> [x [y]] <term> (not "China to blacklist …", an infinitive: China acts)
         nxt = next(((s, e) for s, e in terms if s >= m.end), None)
         if nxt is not None and nxt[0] - m.end <= 2 and clean(m.end, nxt[0]):
-            if not any(x in ACTOR_VERBS and x not in in_term for x in w[m.end : nxt[0]]):
+            filler = w[m.end : nxt[0]]
+            if not any((x in ACTOR_VERBS and x not in in_term) or x in ("to", "onto") for x in filler):
                 targets.add(k)
-        # <country> ... to <term>
+        # <country> ... to <term>, with a placing verb ("adds Chinese firms to entity list")
         for r in range(m.end, min(len(w), m.end + window + 1)):
             if w[r] in BREAKS:
                 break
-            if w[r] in ("to", "onto") and any(r < s <= r + 3 for s, _ in terms):
+            if w[r] not in ("to", "onto"):
+                continue
+            s = next((s for s, _ in terms if r < s <= r + 3), None)
+            if s is None:
+                continue
+            lead = range(max(0, m.start - (window - 1)), m.start)
+            placed = any(w[j] in PLACING_VERBS and clean(j, m.start) for j in lead) or (
+                r > m.end and w[r - 1] in PLACED)
+            owners = [j for j, o in enumerate(ms) if r < o.start < s]
+            in_owner = {i for j in owners for i in range(ms[j].start, ms[j].end)}
+            straight = all(w[i] in DETERMINERS or i in in_owner for i in range(r + 1, s)) and not (
+                s == r + 1 and w[s] in INFINITIVE_TERMS)
+            if placed or straight:
                 targets.add(k)
-                break
+                actors.update(owners)
+            break
     # <term> [on|against ...] <country> [and <country>]
     for s, e in terms:
         verb = w[e - 1] in SANCTION_VERBS

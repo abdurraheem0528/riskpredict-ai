@@ -263,6 +263,79 @@ def test_sheet_to_entities_to_risks(client, owner_db, fake_http, settings):
     assert owner_db.execute("SELECT count(*) AS n FROM biz.entities").fetchone()["n"] == 0
 
 
+META_PATH = f"/v4/spreadsheets/{SHEET_ID}"
+META = {"properties": {"title": "Suppliers"}, "sheets": [{"properties": {"sheetId": 0, "title": "Sheet1", "index": 0}}]}
+
+
+def answers(fake, statuses: list[int]) -> None:
+    """The spreadsheet's metadata answers these statuses in turn, then 200."""
+    left = list(statuses)
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if left:
+            return httpx.Response(left.pop(0), json={"error": {"code": 404, "status": "NOT_FOUND"}})
+        return httpx.Response(200, json=META)
+
+    fake.on("GET", f"sheets.googleapis.com{META_PATH}", handler)
+
+
+def meta_reads(fake) -> int:
+    return sum(1 for r in fake.calls if r.url.host == "sheets.googleapis.com" and r.url.path == META_PATH)
+
+
+def test_a_sheet_picked_moments_after_it_was_made_is_added(client, owner_db, fake_http):
+    # 27 Nov: a spreadsheet picked within a minute of being created answered 404 for a moment,
+    # until Google's drive.file grant came through. Adding it waits that out.
+    Google(fake_http)
+    groq(fake_http)
+    me = sign_up(client)
+    conn_id, _ = connect_google(client, owner_db, me)
+    answers(fake_http, [404, 404])
+    r = client.post("/v1/sources", headers=hdr(me), json={"connection_id": conn_id, "external_id": SHEET_ID})
+    assert r.status_code == 201, r.text
+    assert r.json()["name"] == "Suppliers"
+    assert meta_reads(fake_http) == 3 and fake_http.slept == [1.0, 1.5]
+
+
+def test_a_sheet_still_not_found_after_5_s_fails_as_before(client, owner_db, fake_http):
+    Google(fake_http)
+    me = sign_up(client)
+    conn_id, _ = connect_google(client, owner_db, me)
+    answers(fake_http, [404] * 4)
+    r = client.post("/v1/sources", headers=hdr(me), json={"connection_id": conn_id, "external_id": SHEET_ID})
+    assert r.status_code == 404
+    assert r.json()["detail"] == "The spreadsheet was not found, or was not picked with the Google Picker"
+    assert meta_reads(fake_http) == 4 and fake_http.slept == list(google.FIRST_PICK_WAITS)
+    assert sum(google.FIRST_PICK_WAITS) == 5.0
+    assert owner_db.execute("SELECT count(*) AS n FROM biz.sources").fetchone()["n"] == 0
+    # A sheet that was not picked (403) is refused at once, as before.
+    fake_http.slept.clear()
+    r = client.post("/v1/sources", headers=hdr(me), json={"connection_id": conn_id, "external_id": "unpicked"})
+    assert r.status_code == 404
+    assert fake_http.slept == []
+
+
+def test_the_worker_never_waits_for_a_sheet(client, owner_db, fake_http, settings):
+    from worker.main import Worker
+
+    Google(fake_http)
+    groq(fake_http)
+    me = sign_up(client)
+    conn_id, _ = connect_google(client, owner_db, me)
+    src = client.post("/v1/sources", headers=hdr(me), json={"connection_id": conn_id, "external_id": SHEET_ID}).json()
+    assert client.post(f"/v1/sources/{src['id']}/mapping/confirm", headers=hdr(me), json=SPEC).status_code == 200
+    worker = Worker(settings)
+    worker.db.open()
+    try:
+        worker.workspace_pass(UUID(me["workspace_id"]))
+        answers(fake_http, [404] * 4)
+        before = meta_reads(fake_http)
+        worker.recheck()
+        assert meta_reads(fake_http) == before + 1 and fake_http.slept == []
+    finally:
+        worker.db.close()
+
+
 def test_groq_down_falls_back_to_heuristics(client, owner_db, fake_http):
     Google(fake_http)
     groq(fake_http, mapping_status=429)

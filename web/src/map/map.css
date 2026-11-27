@@ -38,7 +38,7 @@
   text-shadow: 0 0 2px var(--halo), 0 0 2px var(--halo), 0 0 4px var(--halo);
   transition: opacity var(--d2) var(--ease);
 }
-.mapbox:not(.zp) .msite .slab { opacity: 0; }
+.mapbox:not(.zp) .msite .slab, .msite .slab.hid { opacity: 0; }
 
 /* chokepoints: a diamond; watched or disrupted ones get a slow ring and a label */
 .mcp { position: relative; display: block; width: 8px; height: 8px; transition: opacity var(--d3) var(--ease); }

@@ -129,7 +129,9 @@ def create_source(body: NewSource, ctx: WsCtx) -> dict:
     kind = "google_sheet" if ref.provider == "google_sheets" else "composio_table"
     if kind == "composio_table" and not body.external_table_id:
         raise invalid([{"field": "/external_table_id", "message": "pick a table"}])
-    table = providers.read(ctx.settings, ref, kind, body.external_id, body.external_table_id, body.header_row, SAMPLE_ROWS)
+    # The first read of a sheet picked moments after it was made may 404 for a few seconds.
+    table = providers.read(ctx.settings, ref, kind, body.external_id, body.external_table_id, body.header_row,
+                           SAMPLE_ROWS, first_pick=True)  # fmt: skip
     table_id = body.external_table_id
     try:
         with ctx.tx("editor") as conn:

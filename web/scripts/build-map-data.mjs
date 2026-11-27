@@ -122,7 +122,8 @@ async function addPortNames(ports) {
 // Kept: the largest connected part, with the ±180° meridian joined, the Arctic passages
 // (MARNET `pass` northwest / northeast) and lines reaching south of 60°S left out; one
 // node is added on the network at each chokepoint of engine/data/chokepoints.json (a "gate",
-// so a path through the gate goes through the strait or canal); then only the edges on a
+// on a lane that goes on both ways, so a path through the gate goes through the strait or
+// canal; segments across ±180° are unwrapped first); then only the edges on a
 // shortest path between two of the network's port ends or gates (the main lanes, not the
 // open-ocean lattice between them); coordinates in 1/100°, the vertices inside an edge
 // simplified (Douglas–Peucker, 0.05°).
@@ -140,6 +141,12 @@ const LANE_DROP_PASS = new Set(['northwest', 'northeast']);
 const LANE_MIN_LAT = -60;
 const GATE_SNAP_KM = 25; // a node this close to a chokepoint's centre is its gate; else one is added
 const VIA_EPS = 5; // Douglas–Peucker tolerance, 1/100°
+// Checks on the result. The longest real edge is 3,611 km (MARNET's Southern Ocean lane from
+// 150°W 50°S toward Cape Horn), and a gate's edges are short legs through its strait or canal
+// (393 km at most). A segment across ±180° read as flat lon/lat makes edges of 6,000 km or more
+// (the chokepoint nearest the date line, the Taiwan Strait, is 60° of longitude from it).
+const MAX_EDGE_KM = 4000;
+const MAX_GATE_EDGE_KM = 1000;
 
 const kmBetween = (a, b) => {
   const r = Math.PI / 18000;
@@ -148,6 +155,16 @@ const kmBetween = (a, b) => {
   return 12742 * Math.asin(Math.min(1, Math.sqrt(h)));
 };
 const lengthOf = (pts) => pts.reduce((s, p, i) => (i ? s + kmBetween(pts[i - 1], p) : 0), 0);
+// Longitudes in 1/100°. The network is folded onto [−180°, 180°), so a lane crossing the
+// meridian has a segment whose two ends look 360° apart in flat lon/lat; anything that works on
+// flat coordinates (the gate search, simplification) first unwraps it to its short self.
+const dLon = (a, b) => { const d = b - a; return d - 36000 * Math.round(d / 36000); }; // b − a, the short way
+const wrapLon = (x) => ((((x + 18000) % 36000) + 36000) % 36000) - 18000;
+const unwrapLine = (pts) => {
+  const out = [];
+  for (const [x, y] of pts) out.push([out.length ? out[out.length - 1][0] + dLon(out[out.length - 1][0], x) : x, y]);
+  return out;
+};
 
 async function readMarnet(path) {
   let sqlite;
@@ -229,24 +246,32 @@ function buildLanes(lines, chokepoints) {
   const main = [...size].sort((x, y) => y[1] - x[1])[0][0];
   edges = edges.filter((e) => find(e.a) === main);
 
-  // Gates: the network point nearest each chokepoint's centre, made a node.
+  // Gates: the network point nearest each chokepoint's centre, made a node. Only lanes that go on
+  // at both ends are searched: on a spur into a port (Cape Town's, by the Cape of Good Hope) every
+  // route through the gate would turn into the harbour and back.
   const gates = {};
   for (const cp of chokepoints) {
     const c = [Math.round(cp.lon * 100), Math.round(cp.lat * 100)];
     const k = Math.cos((cp.lat * Math.PI) / 180);
+    const degree = new Map();
+    for (const e of edges) for (const n of [e.a, e.b]) degree.set(n, (degree.get(n) ?? 0) + 1);
     let best = null;
     edges.forEach((e, ei) => {
+      if (degree.get(e.a) === 1 || degree.get(e.b) === 1) return;
       for (let s = 0; s < e.pts.length - 1; s++) {
         const [p, r] = [e.pts[s], e.pts[s + 1]];
-        const ax = (p[0] - c[0]) * k, ay = p[1] - c[1], dx = (r[0] - p[0]) * k, dy = r[1] - p[1];
+        // The segment's longitudes relative to the centre, unwrapped: one that crosses ±180° is
+        // a short hop over the date line, not a line round the world past every chokepoint.
+        const px = dLon(c[0], p[0]), rx = px + dLon(p[0], r[0]);
+        const ax = px * k, ay = p[1] - c[1], dx = (rx - px) * k, dy = r[1] - p[1];
         const L = dx * dx + dy * dy;
         const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
-        const at = [Math.round(p[0] + t * (r[0] - p[0])), Math.round(p[1] + t * (r[1] - p[1]))];
+        const at = [wrapLon(Math.round(c[0] + px + t * (rx - px))), Math.round(p[1] + t * (r[1] - p[1]))];
         const d = kmBetween(c, at);
         if (!best || d < best.d) best = { d, ei, s, at };
       }
     });
-    if (!best) continue;
+    if (!best) throw new Error(`lanes: no lane for the gate of ${cp.id}`);
     const e = edges[best.ei];
     const ends = [e.pts[0], e.pts[e.pts.length - 1]];
     const near = ends.map((p, i) => [kmBetween(c, p), i === 0 ? e.a : e.b]).sort((x, y) => x[0] - y[0])[0];
@@ -337,7 +362,8 @@ function buildLanes(lines, chokepoints) {
   for (const e of edges) {
     const [a, b] = [order.get(e.a), order.get(e.b)];
     const pts = a < b ? e.pts : [...e.pts].reverse();
-    fwd[Math.min(a, b)].push([Math.max(a, b), simplify(pts, VIA_EPS).slice(1, -1)]);
+    const mid = simplify(unwrapLine(pts), VIA_EPS).slice(1, -1).map(([x, y]) => [wrapLon(x), y]);
+    fwd[Math.min(a, b)].push([Math.max(a, b), mid]);
   }
   const adjOut = [];
   const viaOut = {};
@@ -355,6 +381,19 @@ function buildLanes(lines, chokepoints) {
   for (const [id, g] of Object.entries(gates)) gatesOut[id] = [order.get(g.node), g.centre[0], g.centre[1], g.radius];
   const missing = Object.entries(gates).filter(([, g]) => !order.has(g.node)).map(([id]) => id);
   if (missing.length) throw new Error(`lanes: gates left off the network: ${missing.join(', ')}`);
+  const problems = [];
+  for (const e of edges) {
+    if (e.len > MAX_EDGE_KM) problems.push(`an edge of ${e.len.toFixed(0)} km near (${nodes[e.a].map((v) => v / 100)}) (over ${MAX_EDGE_KM} km)`);
+  }
+  for (const [id, g] of Object.entries(gates)) {
+    if (g.km > g.radius) problems.push(`gate ${id} is ${g.km.toFixed(0)} km from the centre (radius ${g.radius} km)`);
+    const own = edges.filter((e) => e.a === g.node || e.b === g.node);
+    if (own.length < 2) problems.push(`gate ${id} has ${own.length} edge (a lane must pass through it)`);
+    for (const e of own) {
+      if (e.len > MAX_GATE_EDGE_KM) problems.push(`gate ${id} has an edge of ${e.len.toFixed(0)} km (over ${MAX_GATE_EDGE_KM} km)`);
+    }
+  }
+  if (problems.length) throw new Error(`lanes: ${problems.join('; ')}`);
   return {
     json: {
       about: 'Sea-lane network for drawing declared routes (web/src/map/lanes.ts). Derived from Eurostat SeaRoute MARNET, 100 km resolution, licensed under the EUPL-1.2 (text in EUPL-1.2.txt beside this file; see ATTRIBUTION.md); built by web/scripts/build-map-data.mjs. Approximate: for drawing, not navigation.',
@@ -365,7 +404,11 @@ function buildLanes(lines, chokepoints) {
       via: viaOut,
       gates: gatesOut,
     },
-    stats: { nodes: used.length, edges: k, via: Object.values(viaOut).reduce((s, v) => s + v.length / 2, 0), dropped, gates },
+    stats: {
+      nodes: used.length, edges: k, via: Object.values(viaOut).reduce((s, v) => s + v.length / 2, 0), dropped,
+      gates: Object.fromEntries(Object.entries(gates).map(([id, g]) => [id, { ...g, edges: edges.filter((e) => e.a === g.node || e.b === g.node).map((e) => e.len) }])),
+      longest: Math.max(...edges.map((e) => e.len)),
+    },
   };
 }
 
@@ -376,7 +419,8 @@ async function writeLanes() {
   const text = JSON.stringify(json);
   writeFileSync(join(out, 'lanes.json'), text);
   console.log(`lanes.json: ${stats.nodes} nodes, ${stats.edges} edges, ${stats.via} inner vertices; ${(text.length / 1024).toFixed(1)} KiB (${(gzipSync(text, { level: 9 }).length / 1024).toFixed(1)} KiB gzip)`);
-  for (const [id, g] of Object.entries(stats.gates)) console.log(`  gate ${id}: ${g.km.toFixed(0)} km from the centre`);
+  for (const [id, g] of Object.entries(stats.gates)) console.log(`  gate ${id}: ${g.km.toFixed(0)} km from the centre; edges ${g.edges.map((v) => v.toFixed(0)).join(', ')} km`);
+  console.log(`  longest edge: ${stats.longest.toFixed(0)} km`);
 }
 
 if (process.argv.includes('--lanes-only')) {

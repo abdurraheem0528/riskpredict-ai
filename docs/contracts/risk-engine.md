@@ -143,7 +143,7 @@ and no full scans of `feeds.series`.
                             "match_confidence": 0.88, "contribution": 0.58, "weight": 1.0}]},
   "impact": {"value": 0.68, "criticality": "high", "criticality_weight": 0.75,
              "exposure_share": 0.12, "exposure_norm": 0.48, "category_multiplier": 0.9},
-  "engine_version": "1.3.0",
+  "engine_version": "1.3.1",
   "story": "natural_hazard|event:usgs:us6000abcd",
   "explain": {"matched": {"match_type": "geo_radius", "match_value": "12 km", "label": "distance: 12 km",
                           "matched_text": null, "inferred_from": null, "supported_by": null},
@@ -508,13 +508,21 @@ article, so a passing mention counted like a headline. Implemented in `engine/re
   words that never cross `; : | ? !`:
   `<sanctions word> [on|against|targeting …] <country>` ("sanctions on Chinese
   chipmakers", "export curbs on China"; a verb form may take it directly: "US sanctions
-  Chinese firms"); `<country> … to <sanctions word>` ("adds Chinese circuit board makers
-  to export blacklist"); `<country> hit with / faces / protests … <sanctions word>`
+  Chinese firms"); `<country> … to <sanctions word>` with a placing verb (add, put,
+  place, move) before the country or right before "to", or the sanctions word straight
+  after "to" (articles and the list's owner aside): "adds Chinese circuit board makers to
+  export blacklist", "China added to US entity list" (1.3.1: never an infinitive, so in
+  "The Netherlands and China plan to coordinate export controls" neither is a target, and
+  in "China to blacklist US defence firms" China is not); `<country> hit with / faces /
+  protests … <sanctions word>`
   ("China hit with EU sanctions", "Beijing protests new US sanctions"; a country between
   the two is the imposer); `<country> [one or two words] <sanctions word>` ("Iran oil
   sanctions", "North Korea sanctions evasion"); `<country> sanctioned / blacklisted`.
   A country followed by an imposing verb ("US imposes", "Washington adds") or preceded by
-  "under" / "by" is the actor, not the target. So "EU agrees new sanctions package
+  "under" / "by" is the actor, not the target; since 1.3.1 so is every country of a list
+  joined by "and", "or" or commas before such a verb ("The Netherlands and China plan …"),
+  and a country after "on", "against", "of", "to" … is never read as the subject of the
+  verb after it ("Sanctions on Russia widen" targets Russia). So "EU agrees new sanctions package
   against Russia" reaches a Russian supplier and not a Chinese one, even when GDELT
   located China in the text. Sanctions **name** screening (`sanctions_name`, §5.8) is a
   separate rule and is unchanged.

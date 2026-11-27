@@ -49,7 +49,10 @@ uvicorn api.main:app --port 8000 --no-access-log
 * **Google (7).** `drive.file` + PKCE + Picker. Refresh tokens are AES-256-GCM encrypted
   with the first `TOKEN_ENCRYPTION_KEYS` key (the id goes in `refresh_token_key_id`; every
   key decrypts, so keys can be rotated), with the workspace and connection ids as
-  associated data. Access tokens are cached in memory only.
+  associated data. Access tokens are cached in memory only. A sheet picked moments after it
+  was created can answer `404` until Google's `drive.file` grant comes through, so adding a
+  source (`POST /v1/sources`, and only there) reads it again over about 5 s
+  (`google.FIRST_PICK_WAITS`) before it answers `404`; the worker never waits.
 * **Composio (7).** Connect link from `POST /connected_accounts/link`; we store only the
   connected-account id; Composio's user id is `ws_<workspace id>`. The webhook signature
   was checked against Composio's current docs; see the `composioTrigger` operation.
