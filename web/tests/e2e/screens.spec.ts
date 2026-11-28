@@ -12,6 +12,44 @@ async function allSteps(page: Page) {
   await expect(page.getByRole('button', { name: /^\d more steps?$/ })).toHaveCount(0);
 }
 
+/** The toggle under the advice steps: "1 more step" or "2 more steps", then "Fewer" once pressed. */
+const stepsToggle = (page: Page) => page.locator('.rsteps ~ button.more');
+const moreSteps = (n: number) => `${n} more ${n === 1 ? 'step' : 'steps'}`;
+
+/**
+ * Where the sheet has a fixed height, how many steps and news items show depends on how the text
+ * wraps, which differs by a few px between machines (CI's Chromium sets some lines a little wider
+ * than a local run). What holds whatever the page decided: at least one step and one news item
+ * show, and steps held back wait behind the toggle under the last one shown, which says how many;
+ * with none held back there is no toggle. Returns how many steps show and how many wait.
+ */
+async function heldBack(page: Page, total: number) {
+  const shown = await page.locator('.rsteps li').count();
+  expect(shown, 'advice steps shown').toBeGreaterThanOrEqual(1);
+  expect(shown, 'advice steps shown').toBeLessThanOrEqual(total);
+  expect(await page.locator('.rnews .ni').count(), 'news items shown').toBeGreaterThanOrEqual(1);
+  const held = total - shown;
+  const toggle = page.getByRole('button', { name: /^\d+ more steps?$/ });
+  if (!held) {
+    await expect(toggle).toHaveCount(0);
+  } else {
+    await expect(toggle).toHaveText(moreSteps(held));
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  }
+  return { shown, held };
+}
+
+/** Pressed, the toggle shows every step and says so. */
+async function showAllSteps(page: Page, total: number) {
+  await stepsToggle(page).click();
+  await expect(page.locator('.rsteps li')).toHaveCount(total);
+  await expect(stepsToggle(page)).toHaveText('Fewer');
+  await expect(stepsToggle(page)).toHaveAttribute('aria-expanded', 'true');
+}
+
+/** A news item's headline link, by its whole headline. */
+const headline = (page: Page, text: string) => page.getByRole('link', { name: `${text} (opens the source)` });
+
 test.describe('signed out', () => {
   test.use({ signedIn: false });
   test('sign in', async ({ page }, info) => {
@@ -177,9 +215,14 @@ test.describe('active workspace', () => {
   test('risk at the limits', async ({ page }, info) => {
     // The worst case real data can reach (tests/fixtures/data.ts `worstCase`): a two-line place,
     // a why-sentence on three long-named critical sites, a trend line, two three-line headlines
-    // clamped to two, and three advice steps of 20 long words. With all three steps it needs more
-    // sheet body than 1360 × 900 has, so where the sheet has a fixed height the last steps wait
-    // behind "2 more steps" and the page fits; the phone's bottom sheet scrolls and shows them all.
+    // clamped to two, and three advice steps of 20 long words. With every step it needs far more
+    // sheet body than 1360 × 900 has (over 800 px in 720), so where the sheet has a fixed height
+    // steps wait behind "N more steps", then a news item behind "All N" if the page needs it, and
+    // the page fits; the phone's bottom sheet scrolls and shows every step. How many of each show
+    // turns on a few px (6 px to spare in one run, a line short in another), so this checks what
+    // holds whatever the page decided, not the counts.
+    const desktop = info.project.name.startsWith('desktop');
+    const total = worstCase.advice!.text.split('\n').length;
     await page.goto(`/risks/${worstCase.id}`);
     const title = page.getByRole('heading', { name: 'Labour unrest in the Democratic Republic of the Congo' });
     await expect(title).toBeVisible();
@@ -187,54 +230,65 @@ test.describe('active workspace', () => {
     await expect(page.getByText('Kolwezi Northern Copper and Cobalt Refining Complex, a critical site, and 2 other sites are in the Democratic Republic of the Congo.')).toBeVisible();
     await mapSettled(page);
     // what the fixture claims: the title on two lines
-    if (info.project.name.startsWith('desktop')) expect(lines(await title.boundingBox(), 28)).toBe(2);
+    if (desktop) expect(lines(await title.boundingBox(), 28)).toBe(2);
     await shot(page, '6-risk-worst-case', info.project.name);
     await sheetBodyHeight(page, info.project.name);
     await noSheetScroll(page, info.project.name, '.sbody');
     if (info.project.name.startsWith('phone')) return allSteps(page);
-    // desktop and tablet: steps held back, the toggle under the last one shown; pressed, all three show
-    const shown = await page.locator('.rsteps li').count();
-    const toggle = page.getByRole('button', { name: `${3 - shown} more ${3 - shown === 1 ? 'step' : 'steps'}` });
-    if (info.project.name.startsWith('desktop')) expect(shown).toBeLessThan(3);
-    if (shown === 3) return expect(page.locator('.rsteps + .more')).toHaveCount(0);
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    test.info().annotations.push({ type: 'shown', description: `${info.project.name}: ${shown} of 3 steps, ${await page.locator('.rnews .ni').count()} news items` });
-    await toggle.click();
-    await expect(page.locator('.rsteps li')).toHaveCount(3);
-    await sheetBodyHeight(page, info.project.name, '.sbody', 'sheet-body, all steps');
-    const fewer = page.getByRole('button', { name: 'Fewer' }).last();
-    await expect(fewer).toHaveAttribute('aria-expanded', 'true');
-    // a 44 px hit area (the button and its ::after), and the keyboard's focus ring on it
-    expect(await fewer.evaluate((el) => { const a = getComputedStyle(el, '::after'); return el.getBoundingClientRect().height - parseFloat(a.top) - parseFloat(a.bottom); })).toBeGreaterThanOrEqual(44);
-    await shot(page, '6-risk-worst-case-steps', info.project.name);
-    await page.keyboard.press('Tab');
-    await page.keyboard.press('Shift+Tab');
-    await expect(fewer).toBeFocused();
-    expect(await fewer.evaluate((el) => [el.matches(':focus-visible'), getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth])).toEqual([true, 'solid', '3px']);
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.rsteps li')).toHaveCount(shown);
-    await expect(page.getByRole('button', { name: `${3 - shown} more ${3 - shown === 1 ? 'step' : 'steps'}` })).toBeFocused();
-    if (!info.project.name.startsWith('desktop')) return;
-    // what the fixture claims, with every report shown (a news item may be held back for room too):
-    // the two strongest headlines are clamped from three lines to two
-    await page.getByRole('button', { name: 'All 3' }).click();
-    for (const text of WORST_HEADLINES) {
-      const link = page.getByRole('link', { name: `${text} (opens the source)` });
-      await expect(link).toHaveAttribute('title', text);
-      const { shown: seen, full } = await link.evaluate((el) => ({ shown: el.clientHeight, full: el.scrollHeight }));
-      expect(Math.round(seen / 19), text).toBe(2);
-      expect(Math.round(full / 19), text).toBeGreaterThanOrEqual(3);
+    // desktop and tablet: at least one step and one news item, the rest behind their toggles
+    const { shown, held } = await heldBack(page, total);
+    // every step with both news items needs over 100 px more than the 720 px body, so some always wait there
+    if (desktop) expect(held, 'steps held back at 1360 × 900').toBeGreaterThan(0);
+    // what the fixture claims for each headline shown: clamped from three lines to two, the
+    // whole headline its tooltip. One held back for room is checked under "All N" below.
+    const hidden: string[] = [];
+    if (desktop) {
+      for (const text of WORST_HEADLINES) {
+        const link = headline(page, text);
+        if (!(await link.count())) {
+          hidden.push(text);
+          continue;
+        }
+        await expect(link).toHaveAttribute('title', text);
+        const { seen, full } = await link.evaluate((el) => ({ seen: el.clientHeight, full: el.scrollHeight }));
+        expect(Math.round(seen / 19), text).toBe(2);
+        expect(Math.round(full / 19), text).toBeGreaterThanOrEqual(3);
+      }
+      expect(hidden.length, 'headlines checked in place').toBeLessThan(WORST_HEADLINES.length);
+    }
+    if (held) {
+      // pressed, every step shows; then the toggle's hit area, focus ring, and Enter to collapse
+      await showAllSteps(page, total);
+      await sheetBodyHeight(page, info.project.name, '.sbody', 'sheet-body, all steps');
+      const fewer = stepsToggle(page);
+      // a 44 px hit area (the button and its ::after), and the keyboard's focus ring on it
+      expect(await fewer.evaluate((el) => { const a = getComputedStyle(el, '::after'); return el.getBoundingClientRect().height - parseFloat(a.top) - parseFloat(a.bottom); })).toBeGreaterThanOrEqual(44);
+      await shot(page, '6-risk-worst-case-steps', info.project.name);
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Shift+Tab');
+      await expect(fewer).toBeFocused();
+      expect(await fewer.evaluate((el) => [el.matches(':focus-visible'), getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth])).toEqual([true, 'solid', '3px']);
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.rsteps li')).toHaveCount(shown);
+      await expect(page.getByRole('button', { name: moreSteps(held) })).toBeFocused();
+    }
+    // a headline held back for room is a tap away: "All N" shows it, the whole headline its tooltip
+    if (hidden.length) {
+      await page.getByRole('button', { name: /^All \d+$/ }).click();
+      for (const text of hidden) await expect(headline(page, text)).toHaveAttribute('title', text);
     }
   });
 
   // Pages real data comes close to (tests/fixtures/data.ts `hormuzCase`, `capeCase`): three advice
   // steps of three lines each, and the place on one line (Hormuz, 379 of 392 px here) or two (the
-  // Cape of Good Hope). Each must fit one 1360 × 900 view.
+  // Cape of Good Hope). Each must fit one 1360 × 900 view; how many steps that leaves turns on a
+  // few px of text wrapping (Hormuz has 12 px to spare with 2 steps), so it is not fixed here.
   for (const [name, d, place, titleLines] of [
     ['hormuz', hormuzCase, 'the Strait of Hormuz', 1],
     ['cape', capeCase, 'the Cape of Good Hope', 2],
   ] as const)
     test(`risk near the limits: ${place}`, async ({ page }, info) => {
+      const total = d.advice!.text.split('\n').length;
       await page.goto(`/risks/${d.id}`);
       const title = page.getByRole('heading', { name: `Shipping through ${place}` });
       await expect(title).toBeVisible();
@@ -243,12 +297,12 @@ test.describe('active workspace', () => {
       await shot(page, `6-risk-${name}`, info.project.name);
       await sheetBodyHeight(page, info.project.name);
       await noSheetScroll(page, info.project.name, '.sbody');
-      const shown = await page.locator('.rsteps li').count();
-      test.info().annotations.push({ type: 'shown', description: `${info.project.name}: ${shown} of 3 steps, ${await page.locator('.rnews .ni').count()} news items` });
       if (info.project.name.startsWith('phone')) return allSteps(page);
-      if (shown < 3) await page.getByRole('button', { name: `${3 - shown} more ${3 - shown === 1 ? 'step' : 'steps'}` }).click();
-      await expect(page.locator('.rsteps li')).toHaveCount(3);
-      await sheetBodyHeight(page, info.project.name, '.sbody', 'sheet-body, all steps');
+      const { held } = await heldBack(page, total);
+      if (held) {
+        await showAllSteps(page, total);
+        await sheetBodyHeight(page, info.project.name, '.sbody', 'sheet-body, all steps');
+      }
       if (info.project.name.startsWith('desktop')) {
         // what the fixture claims: the title's lines, and each step on three
         expect(lines(await title.boundingBox(), 28)).toBe(titleLines);
