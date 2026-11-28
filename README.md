@@ -109,8 +109,8 @@ expose to the browser.
 | `WORKER_DB_INTERVAL_SECONDS` / `SOURCE_RECHECK_SECONDS` | | | optional | | The loop's database pass (default 1800) and re-read (default 900), docker compose only |
 | `WORKER_ONCE_BUDGET_SECONDS` | | | optional | | Time budget of `python -m worker --once` (default 480; the job's timeout is 10 min) |
 | `INLINE_BUDGET_SECONDS` / `WEBHOOK_BUDGET_SECONDS` | | optional | | | Work done inside a request: sync and scoring (default 240, under Vercel's 300 s) and webhook processing (default 20) |
-| `ADVICE_PER_RUN` | | | optional | | Groq advice calls per engine run (default 20) |
-| `EXPECTED_SCHEMA_VERSION` / `DB_MAX_CONNECTIONS` | | optional | | | Lazy schema check on an instance's first database use (default `050_serverless_state`); pool size (default 5) |
+| `ADVICE_PER_RUN` | | | optional | | Groq advice calls per engine run (default 20); on the worker's runs, advice of an older prompt version is worded again in the calls left |
+| `EXPECTED_SCHEMA_VERSION` / `DB_MAX_CONNECTIONS` | | optional | | | Lazy schema check on an instance's first database use (default `060_advice_version`); pool size (default 5) |
 | `VITE_API_URL` | | | | ✓ (public) | The API base URL baked into the dashboard build (the older name `VITE_API_BASE_URL` also works) |
 
 ## Public sources (step 1, no API keys)

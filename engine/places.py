@@ -9,6 +9,9 @@
   by ``clean_port_name`` (``engine/data/ports.tsv``, built from ``web/public/map/ports.json``).
 * ``place_label(city, countries, ports)``: ``"Hsinchu, Taiwan"``, ``"Kaohsiung, Taiwan"``
   or ``"Taiwan and Japan"``: the place line the API serves with entities and risks.
+* ``where_label(match_type, match_value, …)``: what a risk's strongest item matched, in words
+  ("the Netherlands", "Bab el-Mandeb"): the API's ``Risk.where.label`` and the advice prompt's
+  ``Place:`` line (risk-engine.md §8).
 
 Both tables are read lazily from files shipped with the engine; nothing is fetched.
 """
@@ -184,3 +187,50 @@ def _alpha3(cc: str) -> str | None:
 
     c = pycountry.countries.get(alpha_2=cc)
     return c.alpha_3 if c else None
+
+
+# --- the place a risk's strongest item matched, in words --------------------------------------
+
+# Countries English names with "the", and pycountry names that read like a form ("Russian
+# Federation"). Others are the engine's name (pycountry's common name).
+PROSE_COUNTRIES = {
+    "NLD": "the Netherlands", "USA": "the United States", "GBR": "the United Kingdom", "PHL": "the Philippines",
+    "ARE": "the United Arab Emirates", "CZE": "the Czech Republic", "DOM": "the Dominican Republic",
+    "BHS": "the Bahamas", "GMB": "the Gambia", "MDV": "the Maldives", "MHL": "the Marshall Islands",
+    "SLB": "the Solomon Islands", "CAF": "the Central African Republic", "COM": "the Comoros",
+    "COD": "the Democratic Republic of the Congo", "RUS": "Russia", "SYR": "Syria", "VEN": "Venezuela",
+    "BOL": "Bolivia", "TZA": "Tanzania", "LAO": "Laos", "MDA": "Moldova", "PRK": "North Korea", "VAT": "Vatican City",
+}  # fmt: skip
+
+
+def country_prose(code: str) -> str:
+    """``"NLD"`` → ``"the Netherlands"``, ``"TWN"`` → ``"Taiwan"``: a country as running text names it."""
+    from engine.texts import country_name
+
+    return PROSE_COUNTRIES.get(code) or country_name(code)
+
+
+def where_label(match_type: str, match_value: str, *, city: str | None = None, countries: Iterable[str] = (),
+                ports: Iterable[str] = (), name: str | None = None) -> str:  # fmt: skip
+    """The place or thing a match names, in words: "the Netherlands", "Bab el-Mandeb", "Rotterdam".
+
+    The API serves it as ``Risk.where.label`` and the advice prompt says it as ``Place:``. For a
+    hazard matched by distance (``geo_radius``, whose value is a distance) the place is the
+    entity's: its ``city``, else the risk's first port and countries, else its ``name``."""
+    from engine.reference import chokepoint_by_id
+
+    if match_type == "country" and re.fullmatch(r"[A-Z]{3}", match_value):
+        return country_prose(match_value)
+    if match_type == "port":
+        return port_label(match_value)
+    if match_type == "chokepoint":
+        cp = chokepoint_by_id(match_value)
+        return cp.name if cp else match_value.replace("_", " ").capitalize()
+    if match_type == "geo_radius":
+        return city or place_label(None, countries, list(ports)[:1]) or name or match_value
+    if match_type == "software":  # "PyPI:requests", "cpe:2.3:a:vendor:product:1.0"
+        if match_value.startswith("cpe:"):
+            parts = match_value.split(":")
+            return parts[4].replace("_", " ") if len(parts) > 4 else match_value
+        return match_value.split(":", 1)[-1]
+    return match_value

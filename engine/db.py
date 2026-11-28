@@ -136,7 +136,7 @@ def clean_entity(e: Entity) -> tuple[Entity, int]:
 
 ENTITY_SQL = """
 SELECT id, kind, name, countries, ports, currencies, hs_codes, commodities, software,
-       lat, lon, annual_spend, spend_currency, revenue_share, criticality, attrs
+       lat, lon, annual_spend, spend_currency, revenue_share, criticality, attrs, city
 FROM biz.entities
 WHERE workspace_id = biz.current_workspace_id()
 ORDER BY id
@@ -150,7 +150,7 @@ def _load_entities(conn) -> tuple[list[Entity], int]:
             id=r[0], kind=r[1], name=r[2], countries=tuple(r[3] or ()), ports=tuple(r[4] or ()),
             currencies=tuple(r[5] or ()), hs_codes=tuple(r[6] or ()), commodities=tuple(r[7] or ()),
             software=tuple(r[8] or ()), lat=r[9], lon=r[10], annual_spend=r[11], spend_currency=r[12],
-            revenue_share=r[13], criticality=r[14], attrs=r[15] or {},
+            revenue_share=r[13], criticality=r[14], attrs=r[15] or {}, city=r[16],
         )  # fmt: skip
         e, d = clean_entity(e)
         out.append(e)

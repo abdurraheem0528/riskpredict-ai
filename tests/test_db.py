@@ -52,7 +52,7 @@ def dsn():
     known = [
         "001_feeds_schema", "002_seed_watch_terms", "003_analysis", "004_maintenance",
         "005_roles", "006_biz_schema", "007_biz_lookups", "030_sanctions_entries",
-        "040_comtrade_world_totals", "041_gdelt_theme_watch_terms", "050_serverless_state",
+        "040_comtrade_world_totals", "041_gdelt_theme_watch_terms", "050_serverless_state", "060_advice_version",
     ]  # fmt: skip
     assert [v for v in applied if v in known] == known
     return DSN

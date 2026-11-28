@@ -64,6 +64,22 @@ export async function noSheetScroll(page: Page, project: string, selector: strin
   expect(scroll, `${selector} scrolls: ${scroll} px of content in ${client} px`).toBeLessThanOrEqual(client);
 }
 
+/**
+ * How tall the sheet body's content is, and the body itself, in px: the content from the body's
+ * top to its last child's bottom plus the bottom padding (scrollHeight cannot say it when the
+ * content fits). Recorded on the test as a `sheet-body` annotation, for the PR's numbers.
+ */
+export async function sheetBodyHeight(page: Page, project: string, selector = '.sbody') {
+  const m = await page.locator(selector).first().evaluate((e) => {
+    const box = e.getBoundingClientRect();
+    const last = e.lastElementChild?.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(e).paddingBottom) || 0;
+    return { content: Math.ceil((last ? last.bottom - box.top + e.scrollTop : 0) + pad), body: Math.round(e.clientHeight) };
+  });
+  test.info().annotations.push({ type: 'sheet-body', description: `${project}: ${m.content} px of content in ${m.body} px` });
+  return m;
+}
+
 export async function shot(page: Page, name: string, project: string) {
   // SHOT_DIR lets a private run (another port and outDir) keep its screenshots apart.
   await page.screenshot({ path: `${process.env.SHOT_DIR ?? 'screenshots'}/${project}/${name}.png`, animations: 'disabled' });

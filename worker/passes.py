@@ -67,6 +67,7 @@ def workspace_pass(
     sources: bool = True,
     housekeeping: bool = False,
     score: bool = False,
+    reword_advice: bool = False,
     budget: Budget | None = None,
 ) -> PassResult:
     budget = budget or Budget(None)
@@ -103,7 +104,7 @@ def workspace_pass(
                 out.incomplete = True
                 set_score_pending(ctx, ws, True)
             else:
-                ok, _ = _step("engine run", scoring.run_workspace, ctx, ws)
+                ok, _ = _step("engine run", lambda: scoring.run_workspace(ctx, ws, reword_advice=reword_advice))
                 out.scored = ok
                 set_score_pending(ctx, ws, not ok)
     finally:

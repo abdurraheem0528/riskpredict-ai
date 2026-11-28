@@ -41,6 +41,9 @@ from engine import (
                             # (1.3.4: compared on the headline, §5.10 B and G)
     headline, country_name, # (title, url) → the headline as §5.10 B reads it; ISO3 → display name.
                             # The API's `Risk.lead` and `Risk.where` wording; neither changes a score
+    where_label,            # §5.11: (match type, value, …) → "the Netherlands", "Bab el-Mandeb": the API's
+                            # `Risk.where.label` and the advice prompt's `Place:` line (§8)
+    ADVICE_VERSION,         # §8: the advice prompt's version, stored with every advice text
 )
 
 # --- pure core: no I/O, deterministic for the same inputs -----------------------
@@ -80,6 +83,7 @@ def needs_new_advice(old_score: float | None, new_score: float, old_evidence: se
 Entity:       id: UUID; kind: str; name: str; countries/ports/currencies/hs_codes/commodities/software: tuple[str, ...]
               lat/lon: float | None; annual_spend: Decimal | None; spend_currency: str | None
               revenue_share: Decimal | None; criticality: str | None; attrs: Mapping[str, Any]
+              city: str | None   # only for the advice prompt's Place: line (§8); never matched on
               # exactly the biz.entities columns of the same name
 
 EventTag:     event_type: str; type_confidence: float | None; type_source: str; entities: Mapping[str, Any]
@@ -265,7 +269,14 @@ Name matching is the only fuzzy match. Every other key is an exact code comparis
 * **Chokepoints:** `id`, name, aliases, centre and radius (km). Initial set: `suez`,
   `panama`, `hormuz`, `bab_el_mandeb`, `malacca`, `singapore`, `bosporus`,
   `gibraltar`, `dover`, `taiwan_strait`, `cape_of_good_hope`. The API serves this
-  table on the `disruptions` map layer.
+  table on the `disruptions` map layer. `detour` (wording only, §8): the usual way round
+  when it is closed, which the advice prompt gives as its `Usual detour:` line. `suez`,
+  `bab_el_mandeb` → around the Cape of Good Hope; `panama` → through the Suez Canal, or by
+  rail between US West Coast and East Coast ports; `malacca`, `singapore` → through the
+  Sunda Strait or the Lombok Strait; `taiwan_strait` → east of Taiwan, through the open
+  Pacific; `cape_of_good_hope` → through the Red Sea and the Suez Canal, when they are safe;
+  `hormuz`, `bosporus`, `gibraltar`, `dover` → `none by sea`. Empty for a chokepoint added
+  later without one: then no line is sent.
 * **HS → commodity keywords** (`engine/data/hs_chapters.json`). `headings` (4 digits,
   engine 1.3.0) are what a 4- or 6-digit code is matched on, e.g. 8534 → printed circuit
   board(s), circuit board(s), pcb; 8542 → chip(s), semiconductor(s), integrated
@@ -705,6 +716,13 @@ worker's next run, as above.
 * `place_label(city, countries, ports) -> str | None`: `Hsinchu, Taiwan` with a city, else
   the first port's name and up to two countries (`Kaohsiung, Taiwan`). The API serves it
   as `Entity.place` and `Risk.place`.
+* `where_label(match_type, match_value, *, city, countries, ports, name) -> str`: what the
+  risk's strongest item matched, in words. A country as running text names it ("the
+  Netherlands", "Russia"; `PROSE_COUNTRIES`, else `country_name`), a port by `port_name`, a
+  chokepoint by its name, a hazard matched by distance by the entity's city, else the
+  risk's first port and countries, else the entity's name; a software key by its package or
+  CPE product; anything else as stored. The API serves it as `Risk.where.label`, and the
+  advice prompt says it as `Place:` (§8): one table, so the two never disagree.
 
 ## 6. Impact
 
@@ -751,24 +769,70 @@ the rows the previous scoring linked (`last_linked_at ≥ last_scored_at`), neve
 earlier run left behind, whose old contributions would make the advice look out of date on
 every run (1.3.3). The steps:
 
-1. `advice_messages(risk, entity)` builds the chat messages. They contain the entity
-   kind and name, the category, the title and explanation, up to 5 evidence titles
-   and dates, and L, I and score as given numbers. Nothing else from the workspace.
-   The system prompt says: plain text, at most 120 words, 2–3 concrete mitigation
-   steps, no new numbers or probabilities, no links, and do not restate the score.
+1. `advice_messages(risk, entity)` builds the chat messages. The user message holds the
+   entity kind and name, the category, **where the trouble is**, the title and
+   explanation, up to 5 evidence titles and dates, and L, I and score as given numbers.
+   Nothing else from the workspace. Where the trouble is, right after `Category:`:
+   * `Place: <label>`: `where_label` (§5.11) of `factors.explain.matched` (else the first
+     evidence item), the same words the API serves as `Risk.where.label` ("Bab el-Mandeb",
+     "the Netherlands", "Rotterdam"; for a hazard matched by distance the entity's city).
+     Only for a place: country, port, chokepoint and distance matches. A currency,
+     commodity, software or company match has no `Place:` line (the risk texts name it).
+   * `Usual detour: <detour>`: chokepoint matches only, the chokepoint's `detour` (§5.3),
+     e.g. `Usual detour: around the Cape of Good Hope` for Bab el-Mandeb, and
+     `Usual detour: none by sea` for Hormuz, the Bosporus, Gibraltar and Dover. No line when
+     the table gives none.
+
+   The system prompt (`SYSTEM_PROMPT`, `ADVICE_VERSION = "2"`):
+
+   ```text
+   You write risk-mitigation advice for a business risk dashboard. Reply in plain text with
+   exactly 3 steps the business can take, one step per line, with no numbering, bullets or
+   headings. Each step is one sentence of at most 16 words and starts with a verb. Name no
+   place, route, port or company unless it appears in the message. If a step suggests
+   rerouting, name only the route given as the usual detour; if the message gives none or
+   says there is none, do not name a route. Do not add any new numbers, percentages or
+   probabilities. Do not include links. Do not restate the score. Do not invent facts beyond
+   the risk described.
+   ```
+
+   (Version 1, before ui-2, asked for "at most 120 words, with 2-3 concrete mitigation
+   steps" and said nothing about where the trouble was, so the model guessed the geography:
+   "a route through the Gulf of Aden" for Bab el-Mandeb.)
 2. The worker calls Groq (`GROQ_ADVICE_MODEL`, default `openai/gpt-oss-20b`; a reasoning
    model, called with `reasoning_effort = "low"`, `include_reasoning = false` and a
    1,000-token completion budget so the reasoning cannot use up the answer), then
-   validates the reply: ≤ 1,200 characters, no URLs, and no digits other than those in
-   the input. An empty reply is a fallback with reason `empty reply (finish_reason=…)`.
-3. If it passes, the worker sets `advice`, `advice_source = 'groq'`,
-   `advice_model` and `advice_generated_at`.
+   validates the reply (`worker/scoring.py` `valid_advice`): ≤ 1,200 characters, no URLs,
+   no digits other than those in the input, **at most 3 non-empty lines, at most 20 words
+   on a line** (a leading bullet or number not counted, as the dashboard drops it) **and at
+   most 60 words in all**. The prompt asks for 16 words a step, so a good reply has room;
+   three such steps are what the risk page has room for. An empty reply is a
+   fallback with reason `empty reply (finish_reason=…)`.
+3. If it passes, the worker sets `advice`, `advice_source = 'groq'`, `advice_model`,
+   `advice_version = ADVICE_VERSION` and `advice_generated_at`.
 4. If it fails, or Groq is unavailable or rate-limited, the worker stores
    `template_advice(...)` (deterministic per category × entity kind: a supplier or
    customer is asked, a site, route, port, currency, commodity or software gets advice
    for that kind of thing, and only software is told to patch; a sanctions risk driven
    by a list name match gets the compliance-review text) with
-   `advice_source = 'template'`.
+   `advice_source = 'template'` and `advice_version = ADVICE_VERSION`. Every template is at
+   most 3 sentences of at most 20 words (`{name}` counted as one), so the page shows it as
+   at most 3 steps, like Groq's.
+
+**Wording again after a prompt change.** `biz.risks.advice_version` (migration
+`060_advice_version`) records the prompt each advice text was written under; rows written
+before it have none. On each worker run (`python -m worker --once`; not inside an API
+request, so a request does not spend its time budget on it), the open, acknowledged and
+mitigating risks whose advice is Groq's and whose `advice_version` differs from
+`ADVICE_VERSION` (or is null) join the advice queue after the run's own changes, highest
+score first, in the Groq calls the run has left within `ADVICE_PER_RUN`. A workspace that
+has such risks is scored on the worker's run even when the feeds did not move, while a Groq
+key is set. The old text stays until a new one replaces it: while Groq is unavailable it is
+kept as it is and asked for again on the next run. A reply that fails the checks is replaced
+by the template (with the version), as for any advice. Template advice is never worded
+again for a version change: it records the version too. `ADVICE_VERSION` changes with the
+prompt, the user message or the checks; it changes no number, so it is not an
+`ENGINE_VERSION` bump.
 
 Groq output never changes `likelihood`, `impact`, `score`, `status` or the evidence.
 

@@ -116,6 +116,24 @@ export function latestRun(r: Pick<Detail, 'evidence' | 'last_seen_at'>) {
 /** The reports the latest scoring linked, strongest first (the evidence list's own order). */
 export const latestReports = (r: Pick<Detail, 'evidence' | 'last_seen_at'>) => latestRun(r).filter((e) => e.kind === 'event');
 
+type Report = Pick<S['Evidence'], 'headline' | 'cut' | 'snapshot'>;
+
+/**
+ * The reports the risk page shows before "All N": the `n` strongest whole headlines, and when
+ * fewer than `n` are whole, the strongest ones the feed cut off after them. `reports` is
+ * strongest first, as `latestReports` gives it.
+ */
+export function shownReports<T extends Pick<Report, 'cut'>>(reports: readonly T[], n = 2): T[] {
+  const whole = reports.filter((e) => !e.cut);
+  return [...whole.slice(0, n), ...reports.filter((e) => e.cut).slice(0, Math.max(0, n - whole.length))];
+}
+
+/** A report's headline as shown: the API's reading of the title, else the title as stored; one the feed cut off always ends in "…". */
+export function headlineText(e: Report): string {
+  const text = (e.headline?.trim() || e.snapshot.title || '').trim();
+  return e.cut ? `${text.replace(/\s*(?:…|\.{3})$/, '')}…` : text;
+}
+
 /** The calendar day of a time, as the dates on screen show it (local, like fmtDate). */
 const dayOf = (iso: string) => {
   const d = new Date(iso);

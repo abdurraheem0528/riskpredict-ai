@@ -19,6 +19,9 @@ class Chokepoint:
     lon: float
     radius_km: float
     aliases: tuple[str, ...]
+    # The usual detour when it is closed, as the advice prompt's "Usual detour:" line says it
+    # (risk-engine.md §8): a route, "none by sea", or "" when the table gives none.
+    detour: str = ""
 
 
 @lru_cache(maxsize=1)
@@ -27,7 +30,7 @@ def chokepoints() -> tuple[Chokepoint, ...]:
     raw = json.loads((DATA / "chokepoints.json").read_text(encoding="utf-8"))["chokepoints"]
     out = tuple(
         Chokepoint(c["id"], c["name"], float(c["lat"]), float(c["lon"]), float(c["radius_km"]),
-                   tuple(a.casefold() for a in c["aliases"]))
+                   tuple(a.casefold() for a in c["aliases"]), str(c.get("detour") or "").strip())
         for c in raw
     )  # fmt: skip
     if len({c.id for c in out}) != len(out):

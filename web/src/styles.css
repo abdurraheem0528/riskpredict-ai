@@ -596,6 +596,8 @@ html.rp-hidden *, html.rp-hidden *::before, html.rp-hidden *::after { animation-
 .rnews .ni .src { font-size: 12px; line-height: 16px; color: var(--tx2); }
 .rnews .ni a, .rnews .ni b { font-size: 14px; line-height: 19px; font-weight: 500; color: var(--ink); text-decoration: none; border-radius: 4px; }
 .rnews .ni a:hover { text-decoration: underline; text-decoration-color: var(--sep); text-underline-offset: 3px; }
+/* a headline keeps to two lines, cut with an ellipsis (the whole one is in its title) */
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .rsteps { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .rsteps li { position: relative; padding-left: 14px; font-size: 13px; line-height: 18px; color: var(--ink); }
 .rsteps li::before { content: ''; position: absolute; left: 1px; top: 7px; width: 4px; height: 4px; border-radius: 2px; background: var(--tx2); }

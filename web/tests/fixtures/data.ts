@@ -290,8 +290,13 @@ const MULT: Record<S['RiskCategory'], number> = { logistics: 1, natural_hazard: 
 const ADVICE: Record<string, string> = {
   // the Groq advice of the live Atlas Eindhoven risk, as stored (three steps)
   trade_policy: 'Ask the Eindhoven plant’s equipment suppliers which tools or spares would need a new export licence under the bill.\nCheck how many weeks of chip-tool spares the plant holds, and order ahead for any with a single source.\nName one person to follow the bill and the Dutch government’s response, and to brief the plant manager each week.',
-  logistics: 'Ask the carriers on these lanes for a quote and transit time around the Cape of Good Hope.\nOrder four weeks of the parts that run out first at the Eindhoven plant.\nCheck which contracts put the cost of late delivery on you.',
+  // Bab el-Mandeb: three steps of the length the advice prompt asks for (at most 16 words), with
+  // the usual detour the prompt gives (risk-engine.md §8)
+  logistics: 'Ask your carriers for transit times and surcharges on the detour around the Cape of Good Hope.\nOrder ahead the parts that would run short first if deliveries arrive weeks late.\nCheck which supplier and customer contracts put the cost of late delivery on you.',
 };
+
+/** Whether the feed cut a fixture headline off, as the API's `serialize.is_cut` says for these. */
+const cutOff = (title: string) => /(?:…|\.\.\.)$/.test(title) || /: 'We Will$/.test(title);
 
 /** The risk page's data for a row (GET /v1/risks/{id}), modelled on the live risks. Test fixture. */
 export function riskDetail(r: R): S['RiskDetail'] {
@@ -306,18 +311,25 @@ export function riskDetail(r: R): S['RiskDetail'] {
       ? [{ at: 5 * D, score: 36, reason: 'created' as const }, { at: 2 * H, score: 34, reason: 'rescored' as const }]
       : [{ at: 10 * H, score: Math.max(1, r.score - 2), reason: 'created' as const }];
   const [mt, mv] = st.where;
-  const reports: { title: string; source: string; h: number; url: string | null; type: string; p: number }[] = st.lead
+  type Report = { title: string; source: string; h: number; url: string | null; type: string; p: number };
+  const reports: Report[] = st.lead
     ? [{ title: st.lead[0], source: st.lead[1], h: st.lead[2], url: st.lead[3], type: st.lead[4], p: 0.45 }]
     : [];
-  if (atlas)
+  if (atlas) {
+    // As on the live page: the strongest report's title was cut off by the feed (Currents), so the
+    // lead is the next one, and the page shows the two strongest whole headlines first.
+    reports.unshift({ title: "ASML Caught in US-China Chip Battle as Netherlands Vows to Resist Trump's Proposed Export Curbs: 'We Will", source: 'currents', h: 7, url: 'https://news.example.test/asml-curbs', type: 'news', p: 0.5 });
     reports.push(
       { title: 'Dutch cabinet weighs wider licence rules for chipmaking tool exports', source: 'gdelt', h: 15, url: 'https://news.example.test/nl-licence', type: 'news', p: 0.2 },
       { title: 'Netherlands and US at odds over curbs on chip equipment sales', source: 'gdelt', h: 26, url: 'https://news.example.test/nl-us', type: 'news', p: 0.12 },
-      { title: 'Dutch exporters warn of delays under new export checks', source: 'currents', h: 31, url: 'https://news.example.test/nl-delays', type: 'news', p: 0.08 },
     );
+  } else if (i === 0)
+    // As on the live page: a second headline long enough to wrap to three lines (clamped to two).
+    // Its opening is the live headline's; the rest is test text of the same length.
+    reports.push({ title: "Ethiopia: 'Stop Arming Ethiopia's Enemies' - Abiy Tells Eritrea, Warning of a Wider Crisis Along the Red Sea Coast and Its Shipping Lanes", source: 'newsdata', h: 14, url: 'https://news.example.test/et-er', type: 'news', p: 0.1 });
   else if (st.lead) reports.push({ title: `${st.lead[0].split(' ').slice(0, 4).join(' ')} prompts second warning`, source: 'gdelt', h: st.lead[2] + 8, url: 'https://news.example.test/second', type: 'news', p: 0.1 });
   const evidence: S['Evidence'][] = reports.map((x, k) => ({
-    evidence_key: `event:${x.source}:${i}-${k}`, kind: 'event', event: { source: x.source, raw_id: `${i}-${k}` }, match_type: mt, match_value: mv,
+    evidence_key: `event:${x.source}:${i}-${k}`, kind: 'event', event: { source: x.source, raw_id: `${i}-${k}` }, headline: x.title, cut: cutOff(x.title), match_type: mt, match_value: mv,
     match_confidence: 0.9, signal: 0.6, recency: 0.9, contribution: x.p,
     snapshot: { title: x.title, url: x.url, type: x.type, published_at: iso(x.h * H), severity: null, lat: null, lon: null, countries: mt === 'country' ? [mv] : [], ports: [] },
     still_in_feeds: true, last_linked_at: SCORED,
@@ -357,6 +369,75 @@ export function riskDetail(r: R): S['RiskDetail'] {
     engine_version: 'test',
   };
 }
+// --- the worst case the risk page must fit at 1360 × 900 (e2e "risk at the limits") ---------------
+// Every part at the longest real data makes it: a place title on two lines, the longest
+// why-sentence (three entities with long names, each "a critical site"), a trend line, two
+// headlines of three lines (clamped to two) and three advice steps of 20 words (the most
+// worker valid_advice lets through) with long words. Served only by GET /v1/risks/{id}: it is
+// in no list, so the other screens are unchanged. Test fixture.
+const WORST_SITES = [
+  { id: '7d1f3c2a-0000-4000-8000-00000000e901', name: 'Kolwezi Northern Copper and Cobalt Refining Complex' },
+  { id: '7d1f3c2a-0000-4000-8000-00000000e902', name: 'Lubumbashi Electrolytic Cathode Processing Works' },
+  { id: '7d1f3c2a-0000-4000-8000-00000000e903', name: 'Likasi Hydrometallurgical Concentrate Storage Facility' },
+];
+export const WORST_ADVICE = [
+  'Contact Kolwezi Northern Copper and Cobalt Refining Complex management regarding transportation interruptions, warehousing constraints and contractual compensation for delayed consignments.',
+  'Reconfirm outstanding consignments, documentation requirements, insurance certificates and customs authorisations with international forwarders handling southbound overland transportation from Katanga Province.',
+  'Establish contingency procurement arrangements with alternative concentrate suppliers, prioritising manufacturing components whose replenishment schedules depend entirely on uninterrupted overland deliveries.',
+];
+export const WORST_HEADLINES = [
+  'Congolese Transport Unions Announce Indefinite Nationwide Strike Over Unpaid Wages, Paralysing Mining Corridors Between Kolwezi, Likasi and Lubumbashi',
+  'Mining Companies Warn Prolonged Labour Disruption Across Haut-Katanga and Lualaba Provinces Threatens Copper and Cobalt Concentrate Shipments to Southern Ports',
+];
+export const worstCase: S['RiskDetail'] = (() => {
+  const id = riskId(99);
+  const L = 0.62, I = 0.9;
+  const score = Math.round(1000 * L * I) / 10;
+  const sites = WORST_SITES.map((x) => ({ ...x, kind: 'site' as const, city: null, criticality: 'critical' as const }));
+  const evidence: S['Evidence'][] = [...WORST_HEADLINES, 'Strike talks in Lubumbashi end without agreement'].map((title, k) => ({
+    evidence_key: `event:gdelt:worst-${k}`, kind: 'event', event: { source: 'gdelt', raw_id: `worst-${k}` }, headline: title, cut: false,
+    match_type: 'country', match_value: 'COD', match_confidence: 0.9, signal: 0.6, recency: 0.9, contribution: [0.45, 0.3, 0.1][k],
+    snapshot: { title, url: `https://news.example.test/worst-${k}`, type: 'news', published_at: iso((6 + 20 * k) * H), severity: null, lat: null, lon: null, countries: ['COD'], ports: [] },
+    still_in_feeds: true, last_linked_at: SCORED,
+  }));
+  return {
+    id,
+    entity: { id: sites[0].id, kind: 'site', name: sites[0].name, city: null },
+    category: 'labour', title: 'Labour action news in Democratic Republic of the Congo affecting Kolwezi Northern Copper and Cobalt Refining Complex',
+    likelihood: L, impact: I, score, status: 'open', countries: ['COD'], ports: [], lat: null, lon: null, place: null, evidence_count: evidence.length,
+    first_seen_at: iso(3 * D), last_seen_at: SCORED, status_changed_at: iso(3 * D),
+    story: { key: 'labour|country:COD', risk_count: 3, entity_count: 3, kind_counts: { site: 3 }, entities: sites },
+    where: { match_type: 'country', match_value: 'COD', label: 'the Democratic Republic of the Congo' },
+    lead: { title: WORST_HEADLINES[0], source: 'gdelt', published_at: evidence[0].snapshot.published_at ?? null, url: evidence[0].snapshot.url ?? null, type: 'news' },
+    explanation: `Recent news reports about labour action in Democratic Republic of the Congo reach ${sites[0].name}.`,
+    factors: {
+      likelihood: { method: 'noisy_or', value: L, decay: 0.5, items: evidence.map((x, k) => ({ evidence_key: x.evidence_key, signal: x.signal, recency: x.recency, match_confidence: x.match_confidence, contribution: x.contribution, weight: 0.5 ** k })) },
+      impact: { value: I, criticality: 'critical', criticality_weight: 1, exposure_share: null, exposure_norm: null, category_multiplier: 0.9 },
+      engine_version: 'test',
+      story: `labour|${evidence[0].evidence_key}`,
+      explain: {
+        matched: { match_type: 'country', match_value: 'COD', label: 'country: Congo, The Democratic Republic of the (COD)', matched_text: null, inferred_from: null, supported_by: null },
+        strongest: { evidence_key: evidence[0].evidence_key, title: WORST_HEADLINES[0], source: 'gdelt', published_at: evidence[0].snapshot.published_at ?? null },
+        item_count: evidence.length,
+        steps: [
+          { label: 'Strongest signal', formula: 'signal 0.600 × recency 0.900 × match 0.900 = 0.450', value: 0.45 },
+          { label: 'Likelihood', formula: `noisy-OR of ${evidence.length} items, each further item counting 0.5× the one before = ${L.toFixed(3)}`, value: L },
+          { label: 'Impact', formula: `0.9 (labour) × criticality 1 (critical; exposure unknown) = ${I.toFixed(3)}`, value: I },
+          { label: 'Score', formula: `100 × ${L.toFixed(3)} × ${I.toFixed(3)} = ${score.toFixed(1)}`, value: score },
+        ],
+      },
+    },
+    advice: { text: WORST_ADVICE.join('\n'), source: 'groq', model: 'llama-test', generated_at: iso(2 * H) },
+    evidence,
+    history: [
+      { recorded_at: iso(3 * D), likelihood: 0.5, impact: I, score: 45, status: 'open', reason: 'created' },
+      { recorded_at: iso(2 * H), likelihood: L, impact: I, score, status: 'open', reason: 'rescored' },
+    ],
+    status_note: null,
+    engine_version: 'test',
+  };
+})();
+
 const CATEGORIES_TEXT: Record<S['RiskCategory'], string> = {
   logistics: 'shipping disruption', trade_policy: 'trade policy', sanctions: 'sanctions', cyber: 'cyber incidents', geopolitical: 'conflict',
   natural_hazard: 'natural hazards', labour: 'labour action', financial: 'currency moves', other: 'events',

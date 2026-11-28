@@ -175,12 +175,29 @@ describe('screens', () => {
     expect(screen.getByText(/^4 reports (in \d days|on \d+ \w+) name the Netherlands$/)).toBeInTheDocument();
     expect(screen.getByText('60%')).toBeInTheDocument();
     expect(screen.getByText('Trade policy, at a site you rated critical')).toBeInTheDocument();
-    // two news items, strongest first; "All 4" shows the rest in place
+    // the two strongest whole headlines; the stronger one the feed cut off waits for "All 4"
     const lead = screen.getByRole('link', { name: /Dutch Government Lobbies Against US Chip Export Bill/ });
     expect(lead).toHaveAttribute('href', 'https://news.example.test/dutch-lobby');
-    expect(screen.queryByText(/Dutch exporters warn of delays/)).not.toBeInTheDocument();
+    // two lines at most, cut with an ellipsis; the whole headline is the link's name and its tooltip
+    expect(lead).toHaveClass('clamp2');
+    expect(lead).toHaveAttribute('title', 'Dutch Government Lobbies Against US Chip Export Bill');
+    expect(lead).toHaveAccessibleName('Dutch Government Lobbies Against US Chip Export Bill (opens the source)');
+    expect(document.querySelectorAll('.rnews .ni')).toHaveLength(2);
+    expect(document.querySelectorAll('.rnews .ni .clamp2')).toHaveLength(2);
+    expect(screen.queryByText(/ASML Caught in US-China Chip Battle/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'All 4' }));
-    expect(screen.getByText(/Dutch exporters warn of delays/)).toBeInTheDocument();
+    // strongest first; the cut headline ends in "…"
+    const all = [...document.querySelectorAll('.rnews .ni a')].map((x) => x.getAttribute('title'));
+    expect(all).toEqual([
+      "ASML Caught in US-China Chip Battle as Netherlands Vows to Resist Trump's Proposed Export Curbs: 'We Will…",
+      'Dutch Government Lobbies Against US Chip Export Bill',
+      'Dutch cabinet weighs wider licence rules for chipmaking tool exports',
+      'Netherlands and US at odds over curbs on chip equipment sales',
+    ]);
+    expect(screen.getByRole('link', { name: /'We Will… \(opens the source\)$/ })).toHaveClass('clamp2');
+    await userEvent.click(screen.getByRole('button', { name: 'Fewer' }));
+    expect(document.querySelectorAll('.rnews .ni')).toHaveLength(2);
+    await userEvent.click(screen.getByRole('button', { name: 'All 4' }));
     expect(screen.getByText('Written by AI from these reports')).toBeInTheDocument();
     expect(screen.getByText(/which tools or spares would need a new export licence/)).toBeInTheDocument();
     expect(document.querySelectorAll('.rsteps li')).toHaveLength(3);

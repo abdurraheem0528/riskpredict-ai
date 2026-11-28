@@ -56,6 +56,7 @@ export function handlers(state: FixtureState = 'active', opts: { slow?: boolean 
       return HttpResponse.json(page(items));
     }),
     http.get(u('/v1/risks/:id'), ({ params }) => {
+      if (params.id === F.worstCase.id) return HttpResponse.json(F.worstCase); // in no list: the fit check's worst case
       const r = F.risks.find((x) => x.id === params.id);
       return r ? HttpResponse.json(F.riskDetail(r)) : problem(404, 'not_found', 'Not found');
     }),
