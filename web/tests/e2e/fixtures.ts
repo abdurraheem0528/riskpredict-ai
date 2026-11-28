@@ -67,7 +67,7 @@ export async function noSheetScroll(page: Page, project: string, selector: strin
 /**
  * How tall the sheet body's content is, and the body itself, in px: the content from the body's
  * top to its last child's bottom plus the bottom padding (scrollHeight cannot say it when the
- * content fits). Recorded on the test as a `sheet-body` annotation (or `type`), for the PR's numbers.
+ * content fits). Recorded on the test as a `sheet-body` annotation (or `type`) and in the log, for the PR's numbers.
  */
 export async function sheetBodyHeight(page: Page, project: string, selector = '.sbody', type = 'sheet-body') {
   const m = await page.locator(selector).first().evaluate((e) => {
@@ -76,7 +76,10 @@ export async function sheetBodyHeight(page: Page, project: string, selector = '.
     const pad = parseFloat(getComputedStyle(e).paddingBottom) || 0;
     return { content: Math.ceil((last ? last.bottom - box.top + e.scrollTop : 0) + pad), body: Math.round(e.clientHeight) };
   });
-  test.info().annotations.push({ type, description: `${project}: ${m.content} px of content in ${m.body} px` });
+  const description = `${project}: ${m.content} px of content in ${m.body} px`;
+  test.info().annotations.push({ type, description });
+  // also in the run's log, where CI's numbers can be read without the report
+  console.log(`${type} · ${test.info().title} · ${description}`);
   return m;
 }
 

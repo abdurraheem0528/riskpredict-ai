@@ -186,17 +186,8 @@ test.describe('active workspace', () => {
     await expect(page.getByText('Up 11 since yesterday')).toBeVisible();
     await expect(page.getByText('Kolwezi Northern Copper and Cobalt Refining Complex, a critical site, and 2 other sites are in the Democratic Republic of the Congo.')).toBeVisible();
     await mapSettled(page);
-    if (info.project.name.startsWith('desktop')) {
-      // what the fixture claims: the title on two lines, each headline clamped from three lines to two
-      expect(lines(await title.boundingBox(), 28)).toBe(2);
-      for (const text of WORST_HEADLINES) {
-        const link = page.getByRole('link', { name: `${text} (opens the source)` });
-        await expect(link).toHaveAttribute('title', text);
-        const { shown, full } = await link.evaluate((el) => ({ shown: el.clientHeight, full: el.scrollHeight }));
-        expect(Math.round(shown / 19), text).toBe(2);
-        expect(Math.round(full / 19), text).toBeGreaterThanOrEqual(3);
-      }
-    }
+    // what the fixture claims: the title on two lines
+    if (info.project.name.startsWith('desktop')) expect(lines(await title.boundingBox(), 28)).toBe(2);
     await shot(page, '6-risk-worst-case', info.project.name);
     await sheetBodyHeight(page, info.project.name);
     await noSheetScroll(page, info.project.name, '.sbody');
@@ -223,6 +214,17 @@ test.describe('active workspace', () => {
     await page.keyboard.press('Enter');
     await expect(page.locator('.rsteps li')).toHaveCount(shown);
     await expect(page.getByRole('button', { name: `${3 - shown} more ${3 - shown === 1 ? 'step' : 'steps'}` })).toBeFocused();
+    if (!info.project.name.startsWith('desktop')) return;
+    // what the fixture claims, with every report shown (a news item may be held back for room too):
+    // the two strongest headlines are clamped from three lines to two
+    await page.getByRole('button', { name: 'All 3' }).click();
+    for (const text of WORST_HEADLINES) {
+      const link = page.getByRole('link', { name: `${text} (opens the source)` });
+      await expect(link).toHaveAttribute('title', text);
+      const { shown: seen, full } = await link.evaluate((el) => ({ shown: el.clientHeight, full: el.scrollHeight }));
+      expect(Math.round(seen / 19), text).toBe(2);
+      expect(Math.round(full / 19), text).toBeGreaterThanOrEqual(3);
+    }
   });
 
   // Pages real data comes close to (tests/fixtures/data.ts `hormuzCase`, `capeCase`): three advice
