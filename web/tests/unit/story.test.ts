@@ -1,10 +1,10 @@
 // The words and the scale of the redesigned risk cards: place phrases, the reach line, the
 // trend, the receipt, and where a score sits on the 0–100 bands. Test fixtures only.
 import { describe, expect, it } from 'vitest';
-import { countryProse, levelOf, placePhrase, type Where } from '../../src/lib/format';
+import { countryProse, levelOf, placePhrase, type EntityKind, type Where } from '../../src/lib/format';
 import { headlineText, impactReason, latestReports, latestRun, levelsLine, likelyReason, reachLine, receipt, shownReports, trendText, whySentence } from '../../src/lib/story';
 import { scalePlace } from '../../src/ui/ScoreScale';
-import { riskDetail, risks, worstCase } from '../fixtures/data';
+import { capeCase, hormuzCase, riskDetail, risks, worstCase } from '../fixtures/data';
 
 const w = (match_type: string, match_value: string, label: string): Where => ({ match_type, match_value, label });
 const names: Record<string, string> = { NLD: 'Netherlands', TWN: 'Taiwan', USA: 'United States of America', MHL: 'Marshall Is.', COD: 'Dem. Rep. Congo', MYS: 'Malaysia' };
@@ -65,15 +65,102 @@ describe('the reach line', () => {
 });
 
 describe('why it reaches you', () => {
+  type E = { name: string; kind: EntityKind; criticality?: 'low' | 'medium' | 'high' | 'critical' | null };
+  /** A risk page whose story reaches `list` (the first is the risk's own unless `own` says), at `where`. */
+  const why = (where: Where, list: E[], o: { total?: number; kinds?: Record<string, number>; own?: number } = {}) => {
+    const base = riskDetail(risks[1]);
+    const ents = list.map((e, i) => ({ id: `e${i}`, name: e.name, kind: e.kind, city: null, criticality: e.criticality ?? null }));
+    const kinds: Record<string, number> = o.kinds ?? {};
+    if (!o.kinds) for (const e of list) kinds[e.kind] = (kinds[e.kind] ?? 0) + 1;
+    const me = ents[o.own ?? 0];
+    return whySentence({
+      ...base,
+      entity: { id: me.id, kind: me.kind, name: me.name, city: null },
+      where: { match_type: where.match_type as 'country', match_value: where.match_value, label: where.label },
+      story: { ...base.story, entity_count: o.total ?? list.length, risk_count: o.total ?? list.length, kind_counts: kinds, entities: ents.slice(0, 10) },
+    }, country);
+  };
+  const NL = w('country', 'NLD', 'the Netherlands');
+  const COD = w('country', 'COD', 'the Democratic Republic of the Congo');
+  const RTM = w('port', 'NLRTM', 'Rotterdam');
+  const BAB = w('chokepoint', 'bab_el_mandeb', 'Bab el-Mandeb');
+  const site = (name: string, criticality: E['criticality'] = null): E => ({ name, kind: 'site', criticality });
+  const supplier = (name: string, criticality: E['criticality'] = null): E => ({ name, kind: 'supplier', criticality });
+  const route = (name: string): E => ({ name, kind: 'route' });
+
   it('names the entities, their kind when critical, and the place', () => {
     expect(whySentence(riskDetail(risks[1]), country)).toEqual({
       text: 'Atlas Eindhoven Assembly Plant, a critical site, and Atlas Rotterdam Distribution Centre are in the Netherlands.',
       named: true,
     });
   });
-  it('counts what ships through a chokepoint', () => {
+  it('names one or two in a country, and closes a final critical aside with a comma before the verb', () => {
+    expect(why(NL, [site('Atlas Rotterdam Distribution Centre')])).toEqual({ text: 'Atlas Rotterdam Distribution Centre is in the Netherlands.', named: true });
+    expect(why(NL, [site('Atlas Eindhoven Assembly Plant', 'critical')]).text).toBe('Atlas Eindhoven Assembly Plant, a critical site, is in the Netherlands.');
+    expect(why(NL, [site('Atlas Eindhoven Assembly Plant', 'critical'), site('Atlas Rotterdam Distribution Centre', 'critical')]).text).toBe(
+      'Atlas Eindhoven Assembly Plant, a critical site, and Atlas Rotterdam Distribution Centre, a critical site, are in the Netherlands.',
+    );
+    expect(why(NL, [site('Atlas Rotterdam Distribution Centre'), supplier('Rhein Sensorik GmbH', 'critical')]).text).toBe(
+      'Atlas Rotterdam Distribution Centre and Rhein Sensorik GmbH, a critical supplier, are in the Netherlands.',
+    );
+  });
+  it('names only the risk’s own entity from three on, and counts the others: "other sites" when all are sites', () => {
+    expect(why(COD, [site('Kolwezi Refinery', 'critical'), site('Lubumbashi Works', 'critical'), site('Likasi Store', 'critical')])).toEqual({
+      text: 'Kolwezi Refinery, a critical site, and 2 other sites are in the Democratic Republic of the Congo.',
+      named: true,
+    });
+    // the risk's own entity, wherever the list puts it
+    expect(why(NL, [site('Atlas Eindhoven Assembly Plant', 'critical'), site('Atlas Rotterdam Distribution Centre'), site('Atlas Venlo Warehouse')], { own: 1 }).text).toBe(
+      'Atlas Rotterdam Distribution Centre and 2 other sites are in the Netherlands.',
+    );
+  });
+  it('says "others" when their kinds differ', () => {
+    const list = [supplier('Rhein Sensorik GmbH', 'critical'), site('Atlas Eindhoven Assembly Plant'), site('Atlas Rotterdam Distribution Centre'), supplier('Delft Optics')];
+    expect(why(NL, list)).toEqual({ text: 'Rhein Sensorik GmbH, a critical supplier, and 3 others are in the Netherlands.', named: true });
+  });
+  it('counts every entity the story reaches, not only the ten listed', () => {
+    const list = Array.from({ length: 10 }, (_, i) => supplier(`Supplier ${i + 1}`));
+    expect(why(NL, list, { total: 14, kinds: { supplier: 14 } }).text).toBe('Supplier 1 and 13 other suppliers are in the Netherlands.');
+    expect(why(NL, list, { total: 14, kinds: { supplier: 12, site: 2 } }).text).toBe('Supplier 1 and 13 others are in the Netherlands.');
+  });
+  it('says what uses a port, named or counted', () => {
+    expect(why(RTM, [site('Atlas Rotterdam Distribution Centre')]).text).toBe('Atlas Rotterdam Distribution Centre uses the port of Rotterdam.');
+    expect(why(RTM, [site('Atlas Rotterdam Distribution Centre', 'critical'), supplier('Delft Optics')]).text).toBe(
+      'Atlas Rotterdam Distribution Centre, a critical site, and Delft Optics use the port of Rotterdam.',
+    );
+    expect(why(RTM, [site('Atlas Rotterdam Distribution Centre', 'critical'), site('Atlas Venlo Warehouse'), site('Atlas Tilburg Depot')]).text).toBe(
+      'Atlas Rotterdam Distribution Centre, a critical site, and 2 other sites use the port of Rotterdam.',
+    );
+    expect(why(RTM, [site('Atlas Rotterdam Distribution Centre'), supplier('Delft Optics'), route('Busan to Rotterdam')]).text).toBe(
+      'Atlas Rotterdam Distribution Centre and 2 others use the port of Rotterdam.',
+    );
+  });
+  it('says a route runs through a country, and falls back when routes and other kinds mix', () => {
+    expect(why(NL, [route('Busan to Rotterdam')]).text).toBe('Busan to Rotterdam runs through the Netherlands.');
+    expect(why(NL, [route('Busan to Rotterdam'), route('Osaka to Rotterdam')]).text).toBe('Busan to Rotterdam and Osaka to Rotterdam run through the Netherlands.');
+    expect(why(NL, [route('Busan to Rotterdam'), route('Osaka to Rotterdam'), route('Penang to Rotterdam')]).text).toBe(
+      'Busan to Rotterdam and 2 other routes run through the Netherlands.',
+    );
+    const base = riskDetail(risks[1]);
+    expect(why(NL, [route('Busan to Rotterdam'), site('Atlas Rotterdam Distribution Centre')])).toEqual({ text: base.explanation, named: false });
+    expect(why(NL, [route('Busan to Rotterdam'), site('Atlas Rotterdam Distribution Centre'), site('Atlas Venlo Warehouse')])).toEqual({ text: base.explanation, named: false });
+    // counted beyond the ten listed: a route among the others that are not listed still mixes
+    const sites = Array.from({ length: 10 }, (_, i) => site(`Site ${i + 1}`));
+    expect(why(NL, sites, { total: 11, kinds: { site: 10, route: 1 } })).toEqual({ text: base.explanation, named: false });
+  });
+  it('counts what ships through a chokepoint, naming one or two only', () => {
     // counted, not named: it still accounts for every one, so the page lists no others
     expect(whySentence(riskDetail(risks[0]), country)).toEqual({ text: '8 of your routes and 7 of your suppliers ship through Bab el-Mandeb.', named: true });
+    expect(why(BAB, [route('Penang to Rotterdam')]).text).toBe('Penang to Rotterdam ships through Bab el-Mandeb.');
+    expect(why(BAB, [supplier('Chennai Connector Works', 'critical'), route('Chennai to Rotterdam')]).text).toBe(
+      'Chennai Connector Works, a critical supplier, and Chennai to Rotterdam ship through Bab el-Mandeb.',
+    );
+    expect(why(BAB, [route('Penang to Rotterdam'), route('Chennai to Rotterdam'), route('Singapore to Antwerp')])).toEqual({
+      text: '3 of your routes ship through Bab el-Mandeb.',
+      named: true,
+    });
+    const list = Array.from({ length: 10 }, (_, i) => route(`Route ${i + 1}`));
+    expect(why(BAB, list, { total: 12, kinds: { route: 9, supplier: 3 } }).text).toBe('9 of your routes and 3 of your suppliers ship through Bab el-Mandeb.');
   });
   it('falls back to the engine’s explanation', () => {
     const d = riskDetail(risks.find((r) => r.where?.match_type === 'geo_radius')!);
@@ -192,11 +279,21 @@ describe('the news on the risk page', () => {
   });
   it('the worst-case fixture is at the limits it claims', () => {
     expect(whySentence(worstCase, country)).toEqual({
-      text: 'Kolwezi Northern Copper and Cobalt Refining Complex, a critical site, Lubumbashi Electrolytic Cathode Processing Works, a critical site, and Likasi Hydrometallurgical Concentrate Storage Facility, a critical site are in the Democratic Republic of the Congo.',
+      text: 'Kolwezi Northern Copper and Cobalt Refining Complex, a critical site, and 2 other sites are in the Democratic Republic of the Congo.',
       named: true,
     });
     const steps = worstCase.advice!.text.split('\n');
     expect(steps.map((x) => x.split(/\s+/).length)).toEqual([20, 20, 20]);
     expect(latestReports(worstCase)).toHaveLength(3);
+  });
+  it('the pages near the limits are what they claim: chokepoint stories with three steps of at most 20 words', () => {
+    for (const [d, place, at] of [[hormuzCase, 'Shipping through the Strait of Hormuz', 'the Strait of Hormuz'], [capeCase, 'Shipping through the Cape of Good Hope', 'the Cape of Good Hope']] as const) {
+      expect(placePhrase(d.category, d.where as Where)).toBe(place);
+      expect(whySentence(d, country)).toEqual({ text: `3 of your routes and 2 of your suppliers ship through ${at}.`, named: true });
+      const steps = d.advice!.text.split('\n');
+      expect(steps).toHaveLength(3);
+      for (const step of steps) expect(step.split(/\s+/).length, step).toBeLessThanOrEqual(20);
+      expect(latestReports(d)).toHaveLength(2);
+    }
   });
 });

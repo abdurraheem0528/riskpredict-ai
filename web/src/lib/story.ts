@@ -46,48 +46,76 @@ export function reachLine(r: Pick<Risk, 'entity' | 'story' | 'where'>): string {
   return `${counts}, in ${named.length > 3 ? `${named.slice(0, 2).join(', ')} and ${named.length - 2} more places` : listWords(named)}`;
 }
 
+type Part = { text: string; aside: boolean };
 /** "Atlas Eindhoven Assembly Plant, a critical site" (only a critical entity is called that). */
-function named(e: StoryEntity): { text: string; aside: boolean } {
+function named(e: Pick<StoryEntity, 'name' | 'kind' | 'criticality'>): Part {
   return e.criticality === 'critical' && e.kind ? { text: `${e.name}, a critical ${kindWord(e.kind, 1)}`, aside: true } : { text: e.name, aside: false };
 }
-/** Names joined as a sentence subject; an aside before "and" keeps its closing comma. */
-function subject(list: StoryEntity[]): string {
-  const parts = list.map(named);
-  if (parts.length === 1) return parts[0].text;
-  const head = parts.slice(0, -1).map((p, i, a) => (i === a.length - 1 && p.aside ? `${p.text},` : p.text));
-  return `${head.join(', ')} and ${parts[parts.length - 1].text}`;
+/**
+ * Parts joined as the subject of a sentence whose verb follows it. An aside always closes
+ * with a comma, whatever comes next ("and", another name or the verb): "X, a critical site,
+ * and Y, a critical site, are in the Netherlands".
+ */
+function subject(parts: Part[]): string {
+  return parts
+    .map((p, i) => {
+      const text = p.aside ? `${p.text},` : p.text;
+      if (i === parts.length - 1) return text;
+      return text + (i === parts.length - 2 ? ' and ' : p.aside ? ' ' : ', ');
+    })
+    .join('');
 }
+
+/** The most entities the sentence names; a story that reaches more names only its own entity and counts the rest. */
+const MOST_NAMED = 2;
 
 /**
  * One sentence on why the story reaches you, from its entities, their kind and criticality
  * and the place: "Atlas Eindhoven Assembly Plant, a critical site, and Atlas Rotterdam
- * Distribution Centre are in the Netherlands." `named` says whether it accounts for every
- * entity the story reaches, by name or by count ("8 of your routes and 7 of your suppliers");
+ * Distribution Centre are in the Netherlands." It names at most two entities. A story that
+ * reaches three or more names the risk's own entity and counts the others ("Kolwezi …, a
+ * critical site, and 2 other sites are in …"; "… and 3 others …" when their kinds differ); at a
+ * chokepoint it counts them all by kind ("8 of your routes and 7 of your suppliers ship through
+ * Bab el-Mandeb"). Counts are of every entity the story reaches (`entity_count`), not only the
+ * ten listed. `named` says whether the sentence accounts for every entity, by name or by count;
  * when it does not, the page lists the others. Falls back to the engine's explanation when it
- * cannot be built.
+ * cannot be built (no place, a match it has no words for, or routes mixed with other kinds in a
+ * country).
  */
 export function whySentence(r: Pick<Detail, 'entity' | 'story' | 'where' | 'explanation'>, country?: CountryName): { text: string; named: boolean } {
   const w = r.where;
   const fallback = { text: r.explanation, named: false };
   if (!w) return fallback;
-  const ents = r.story.entities.length ? r.story.entities : [{ id: r.entity.id, name: r.entity.name, kind: r.entity.kind, city: r.entity.city ?? null }];
-  const listed = allListed(r.story) && ents.length <= 3;
-  const one = entityTotal(r.story) <= 1;
+  const own = { id: r.entity.id, name: r.entity.name, kind: r.entity.kind, city: r.entity.city ?? null };
+  const ents = r.story.entities.length ? r.story.entities : [own];
+  const total = entityTotal(r.story);
+  const one = total <= 1;
+  const listed = allListed(r.story) && total <= MOST_NAMED;
   const counts = kindCounts(r.story, r.entity);
   const at = placeWords(w as Where, country);
   if (w.match_type === 'chokepoint') {
-    const who = listed ? subject(ents) : listWords(counts.map(([k, n]) => `${n} of your ${kindWord(k, n)}`));
+    const who = listed ? subject(ents.map(named)) : listWords(counts.map(([k, n]) => `${n} of your ${kindWord(k, n)}`));
     return { text: `${who} ${one ? 'ships' : 'ship'} through ${chokeProse(w.match_value, w.label)}.`, named: true };
   }
-  if (!listed) return fallback;
-  if (w.match_type === 'country') {
-    // a route runs through a country; the others are in it
-    if (ents.every((e) => e.kind === 'route')) return { text: `${subject(ents)} ${one ? 'runs' : 'run'} through ${at}.`, named: true };
-    if (ents.some((e) => e.kind === 'route')) return fallback;
-    return { text: `${subject(ents)} ${one ? 'is' : 'are'} in ${at}.`, named: true };
+  if (w.match_type !== 'country' && w.match_type !== 'port') return fallback;
+  // Named, or the risk's own entity and a count of the others ("and 2 other sites", "and 3 others").
+  let who: string;
+  let routes: 'all' | 'some' | 'none';
+  if (listed) {
+    who = subject(ents.map(named));
+    routes = ents.every((e) => e.kind === 'route') ? 'all' : ents.some((e) => e.kind === 'route') ? 'some' : 'none';
+  } else {
+    const others = total - 1;
+    const kinds = counts.map(([k]) => k);
+    const same = kinds.length === 1;
+    who = subject([named(ents.find((e) => e.id === r.entity.id) ?? own), { text: same ? `${others} other ${kindWord(kinds[0], others)}` : `${others} others`, aside: false }]);
+    routes = same && kinds[0] === 'route' ? 'all' : kinds.includes('route') ? 'some' : 'none';
   }
-  if (w.match_type === 'port') return { text: `${subject(ents)} ${one ? 'uses' : 'use'} the port of ${at}.`, named: true };
-  return fallback;
+  if (w.match_type === 'port') return { text: `${who} ${one ? 'uses' : 'use'} the port of ${at}.`, named: true };
+  // a route runs through a country; the others are in it
+  if (routes === 'all') return { text: `${who} ${one ? 'runs' : 'run'} through ${at}.`, named: true };
+  if (routes === 'some') return fallback;
+  return { text: `${who} ${one ? 'is' : 'are'} in ${at}.`, named: true };
 }
 
 /**
