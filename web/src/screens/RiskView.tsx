@@ -14,7 +14,7 @@ import { useToast } from '../app/Toast';
 import { useDismiss } from '../app/TopBar';
 import { navigate } from '../lib/router';
 import { LEVELS, levelOf, fmtDate, fmtInt, feedName, scoreText } from '../lib/format';
-import { latestReports, receipt, trendText, whySentence } from '../lib/story';
+import { headlineText, latestReports, receipt, shownReports, trendText, whySentence } from '../lib/story';
 import { placeOf, countryName, portName } from '../map/geo';
 import { useMap, reducedMotion } from '../map/MapRoot';
 import { sheetPadding, useFit, boxOfPoints, type LonLat } from '../map/camera';
@@ -170,7 +170,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
   const trend = trendText(r.history, r.score);
   const lvl = levelOf(r.score);
   const news = latestReports(r);
-  const shownNews = allNews ? news : news.slice(0, 2);
+  const shownNews = allNews ? news : shownReports(news);
   const others = r.story.entities.filter((e) => e.id !== r.entity.id);
   const workingRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -257,19 +257,23 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
             )}
           </div>
           <div className="rnews">
-            {shownNews.map((e) => (
-              <div className="ni" key={e.evidence_key}>
-                <span className="src">{[e.event ? feedName(e.event.source) : null, e.snapshot.published_at ? fmtDate(e.snapshot.published_at) : null].filter(Boolean).join(', ')}</span>
-                {e.snapshot.url ? (
-                  <a href={e.snapshot.url} target="_blank" rel="noopener noreferrer">
-                    {e.snapshot.title}
-                    <span className="vh"> (opens the source)</span>
-                  </a>
-                ) : (
-                  <b>{e.snapshot.title}</b>
-                )}
-              </div>
-            ))}
+            {shownNews.map((e) => {
+              // At most two lines, cut with an ellipsis; the whole headline is the link's name and its tooltip.
+              const text = headlineText(e);
+              return (
+                <div className="ni" key={e.evidence_key}>
+                  <span className="src">{[e.event ? feedName(e.event.source) : null, e.snapshot.published_at ? fmtDate(e.snapshot.published_at) : null].filter(Boolean).join(', ')}</span>
+                  {e.snapshot.url ? (
+                    <a className="clamp2" href={e.snapshot.url} target="_blank" rel="noopener noreferrer" title={text}>
+                      {text}
+                      <span className="vh"> (opens the source)</span>
+                    </a>
+                  ) : (
+                    <b className="clamp2" title={text}>{text}</b>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

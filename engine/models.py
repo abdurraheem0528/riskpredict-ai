@@ -41,6 +41,7 @@ class Entity:
     revenue_share: Decimal | None = None
     criticality: str | None = None
     attrs: Mapping[str, Any] = EMPTY
+    city: str | None = None  # only words the advice prompt's Place: line (risk-engine.md §8); never matched on
 
     @property
     def has_position(self) -> bool:

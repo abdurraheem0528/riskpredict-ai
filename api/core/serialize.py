@@ -323,50 +323,16 @@ def place_key(row: dict) -> str:
     return f"risk:{row['id']}"
 
 
-# Countries English names with "the", and pycountry names that read like a form ("Russian
-# Federation"). Others are the engine's name (pycountry's common name).
-PROSE_COUNTRIES = {
-    "NLD": "the Netherlands", "USA": "the United States", "GBR": "the United Kingdom", "PHL": "the Philippines",
-    "ARE": "the United Arab Emirates", "CZE": "the Czech Republic", "DOM": "the Dominican Republic",
-    "BHS": "the Bahamas", "GMB": "the Gambia", "MDV": "the Maldives", "MHL": "the Marshall Islands",
-    "SLB": "the Solomon Islands", "CAF": "the Central African Republic", "COM": "the Comoros",
-    "COD": "the Democratic Republic of the Congo", "RUS": "Russia", "SYR": "Syria", "VEN": "Venezuela",
-    "BOL": "Bolivia", "TZA": "Tanzania", "LAO": "Laos", "MDA": "Moldova", "PRK": "North Korea", "VAT": "Vatican City",
-}  # fmt: skip
-
-
-def country_prose(code: str) -> str:
-    """``"NLD"`` → ``"the Netherlands"``, ``"TWN"`` → ``"Taiwan"``: a country as running text names it."""
-    from api.core import engine as engine_iface
-
-    return PROSE_COUNTRIES.get(code) or engine_iface.country_name(code)
-
-
-@functools.lru_cache(maxsize=1)
-def _chokepoint_names() -> dict[str, str]:
-    from api.core import engine as engine_iface
-
-    return {cp.id: cp.name for cp in engine_iface.chokepoints()}
-
-
 def where_label(match_type: str, match_value: str, row: dict) -> str:
-    """The place or thing a match names, in words: "the Netherlands", "Bab el-Mandeb", "Rotterdam"."""
+    """The place or thing a match names, in words: "the Netherlands", "Bab el-Mandeb", "Rotterdam"
+    (``engine.where_label``, which the advice prompt's ``Place:`` line uses too). For a hazard
+    matched by distance the place is the entity's: its city, else the risk's first port and
+    countries, else its name."""
     from api.core import engine as engine_iface
 
-    if match_type == "country" and re.fullmatch(r"[A-Z]{3}", match_value):
-        return country_prose(match_value)
-    if match_type == "port":
-        return engine_iface.port_name(match_value)
-    if match_type == "chokepoint":
-        return _chokepoint_names().get(match_value) or match_value.replace("_", " ").capitalize()
-    if match_type == "geo_radius":  # the value is a distance; the place is the entity's
-        return row.get("entity_city") or risk_place(row) or row["entity_name"]
-    if match_type == "software":  # "PyPI:requests", "cpe:2.3:a:vendor:product:1.0"
-        if match_value.startswith("cpe:"):
-            parts = match_value.split(":")
-            return parts[4].replace("_", " ") if len(parts) > 4 else match_value
-        return match_value.split(":", 1)[-1]
-    return match_value
+    return engine_iface.where_label(match_type, match_value, city=row.get("entity_city"),
+                                    countries=list(row.get("countries") or ()), ports=list(row.get("ports") or ()),
+                                    name=row.get("entity_name"))  # fmt: skip
 
 
 def where(row: dict) -> dict | None:
@@ -404,17 +370,23 @@ def is_cut(title: str) -> bool:
     return len(_OPEN_QUOTE.findall(t)) > len(_CLOSE_QUOTE.findall(t))
 
 
+def event_headline(item: dict) -> str:
+    """A stored report's title as its headline: outlet and wire tags dropped (``engine.headline``),
+    else the title as stored."""
+    from api.core import engine as engine_iface
+
+    raw = str(item.get("title") or "").strip()
+    return (engine_iface.headline(raw, item.get("url")) or raw).strip()
+
+
 def lead(row: dict) -> dict | None:
     """``{title, source, published_at, url, type}``: the strongest report linked by the latest run, as
     its headline (outlet and wire tags dropped, ``engine.headline``); a cut headline is skipped
     for the next strongest, and when every one is cut the strongest is used. Null when the risk
     has no news or other event (a market anomaly)."""
-    from api.core import engine as engine_iface
-
     picks = []
     for it in row.get("lead_items") or []:
-        raw = (it.get("title") or "").strip()
-        title = (engine_iface.headline(raw, it.get("url")) or raw).strip()
+        title = event_headline(it)
         if title:
             picks.append((title, it))
     if not picks:
@@ -531,6 +503,10 @@ def evidence(row: dict) -> dict:
     }
     if row["kind"] == "event":
         out["event"] = {"source": row["event_source"], "raw_id": row["event_raw_id"]}
+        # The title as the engine reads it (``Risk.lead.title`` uses the same), and whether the
+        # feed cut it off; the dashboard shows a cut one with an ellipsis, after the uncut ones.
+        out["headline"] = event_headline(out["snapshot"])
+        out["cut"] = is_cut(out["headline"])
     else:
         out["anomaly"] = {"series": row["anomaly_series"], "key": row["anomaly_key"], "ts": ts(row["anomaly_ts"]),
                           "method": row["anomaly_method"]}  # fmt: skip

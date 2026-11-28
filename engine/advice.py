@@ -1,32 +1,50 @@
 """Advice wording (risk-engine.md §8). Groq only words it; nothing here changes a number.
 
-``advice_messages`` builds the chat messages for the worker's Groq call;
-``template_advice`` is the deterministic fallback; ``needs_new_advice`` says
-when existing advice is stale.
+``advice_messages`` builds the chat messages for the worker's Groq call (with where the
+trouble is and, for a chokepoint, its usual detour, so the model names no other place);
+``template_advice`` is the deterministic fallback; ``needs_new_advice`` says when existing
+advice is stale; ``ADVICE_VERSION`` names the prompt the advice was written under.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 
 from engine.models import Assessment, Entity
 
+# The prompt and the checks the advice is written under (§8). The worker stores it with every
+# advice text and re-words open risks whose Groq advice has another version (or none), so a
+# change to SYSTEM_PROMPT, the user message or the worker's checks is a bump. It changes no
+# number, so it is not an ENGINE_VERSION bump.
+ADVICE_VERSION = "2"
+
 SYSTEM_PROMPT = (
-    "You write short risk-mitigation advice for a business risk dashboard. "
-    "Reply in plain text, at most 120 words, with 2-3 concrete mitigation steps the business can take. "
+    "You write risk-mitigation advice for a business risk dashboard. "
+    "Reply in plain text with exactly 3 steps the business can take, one step per line, "
+    "with no numbering, bullets or headings. "
+    "Each step is one sentence of at most 16 words and starts with a verb. "
+    "Name no place, route, port or company unless it appears in the message. "
+    "If a step suggests rerouting, name only the route given as the usual detour; "
+    "if the message gives none or says there is none, do not name a route. "
     "Do not add any new numbers, percentages or probabilities. Do not include links. "
     "Do not restate the score. Do not invent facts beyond the risk described."
 )
+
+# Match types whose value is a place; for a currency, commodity, software or company match the
+# risk texts already name the thing, and no Place: line is sent.
+PLACE_MATCH_TYPES = ("country", "port", "chokepoint", "geo_radius")
 
 # Deterministic advice by risk category × entity kind (§8). Each kind is a different thing to
 # act on: a supplier or customer is a company you can ask, a site is your own location, a
 # route or port is how goods move, a currency or commodity is a market, software is a product
 # you run. Only software gets patching advice. No digits (the Groq check allows none either).
+# The dashboard shows one step per sentence: at most 3 sentences of at most 20 words each
+# (``{name}`` counted as one word), the limits of Groq's reply (worker ``valid_advice``).
 TEMPLATES: dict[str, dict[str, str]] = {
     "natural_hazard": {
         "supplier": "Contact {name} to confirm its status and any damage or delays. Check safety stock and lead times "
-                    "for what you buy from it, and line up an alternative source in case its operations stay "
-                    "disrupted.",
+                    "for what you buy from it. Line up an alternative source in case its operations stay disrupted.",
         "customer": "Contact {name} to ask whether the event affects its operations or its orders with you. Review "
                     "open orders and deliveries to it, and expect changes to demand or delivery dates.",
         "site": "Confirm the safety of staff at {name} and check the site and its equipment for damage. Follow your "
@@ -58,7 +76,7 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "commodity": "Ask your suppliers whether shipping delays affect deliveries of {name}. Review stock and lead "
                      "times, and consider ordering early or from a closer source.",
         "software": "Ask the vendor of {name} whether the disruption delays hardware, licences or services you are "
-                    "waiting for, and plan around the delay.",
+                    "waiting for. Plan around the delay.",
     },
     "geopolitical": {
         "supplier": "Monitor the situation around {name} and ask it whether operations or deliveries are affected. "
@@ -87,8 +105,8 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "site": "Check whether the new sanctions affect {name}: its suppliers, banks and service providers. Ask "
                 "compliance which transactions need a review.",
         "route": "Check whether the sanctions restrict carriers, vessels, ports or goods on {name}. Ask your "
-                 "forwarder to confirm the carriers and ports on this route are not affected, and keep the checks "
-                 "on file.",
+                 "forwarder to confirm the carriers and ports on this route are not affected. Keep the checks on "
+                 "file.",
         "port": "Check whether the sanctions apply to {name}, its operators or ships calling there. Ask your "
                 "forwarder to confirm shipments through it are allowed, and keep the checks on file.",
         "currency": "Check whether the sanctions restrict payments in {name} or the banks that clear them. Ask your "
@@ -108,8 +126,8 @@ TEMPLATES: dict[str, dict[str, str]] = {
                 "about classification and timing, and review sourcing for affected inputs.",
         "route": "Check whether the policy change adds tariffs, checks or licences for goods on {name}. Ask your "
                  "customs broker about timing and plan for longer clearance.",
-        "port": "Ask your customs broker whether the policy change adds checks or delays for goods cleared at {name}, "
-                "and plan for longer clearance times.",
+        "port": "Ask your customs broker whether the policy change adds checks or delays for goods cleared at {name}. "
+                "Plan for longer clearance times.",
         "currency": "Trade policy changes can move {name}. Review open orders and contracts in it, and consider "
                     "hedging larger payments.",
         "commodity": "Check whether the policy change affects tariffs, quotas or licences for {name}. Ask your customs "
@@ -119,8 +137,8 @@ TEMPLATES: dict[str, dict[str, str]] = {
     },
     "cyber": {
         "supplier": "Ask {name} whether the incident affects its systems, its deliveries or data it holds about you. "
-                    "Check what data and system access you share with it and limit it until it confirms it is safe, "
-                    "and plan for delays to its orders.",
+                    "Check the data and system access you share with it, and limit it until it confirms it is safe. "
+                    "Plan for delays to its orders.",
         "customer": "Ask {name} whether the incident affects its systems, its orders or its payments to you. Treat "
                     "changed bank details or unusual requests in its name with care, and review the data you share.",
         "site": "Have your IT or security team check the systems at {name} for signs of the incident. Make sure "
@@ -143,12 +161,12 @@ TEMPLATES: dict[str, dict[str, str]] = {
                     "large prepayments.",
         "customer": "Review open invoices and credit terms for {name}, including what it pays you in another currency. "
                     "Consider hedging, shorter payment terms or credit insurance, and watch for late payments.",
-        "site": "Review the costs of {name} that are paid in the affected currency or market, such as wages, rent and "
-                "local suppliers. Consider hedging and update the budget.",
+        "site": "Review the costs of {name} paid in the affected currency or market, such as wages, rent and local "
+                "suppliers. Consider hedging and update the budget.",
         "route": "Check whether freight rates, surcharges or carrier finances on {name} are affected. Review your "
                  "carrier contracts and keep an alternative carrier in mind.",
-        "port": "Check whether port fees, surcharges or the finances of operators at {name} are affected, and review "
-                "the contract with your forwarder.",
+        "port": "Check whether port fees, surcharges or the finances of operators at {name} are affected. Review the "
+                "contract with your forwarder.",
         "currency": "Review open orders, invoices and contracts in {name}. Consider hedging larger payments or "
                     "agreeing prices in another currency, and update budgets for the new rate.",
         "commodity": "Check how the price move in {name} affects your costs and contracts. Consider fixing prices or "
@@ -195,12 +213,44 @@ SANCTIONS_NAME = {
 }  # fmt: skip
 
 
+def _matched(risk: Assessment) -> tuple[str, str] | None:
+    """(match type, value) of the risk's strongest item, as ``factors.explain.matched`` gives it
+    (what the API's ``Risk.where`` reads), else the first evidence item's."""
+    explain = risk.factors.get("explain") if isinstance(risk.factors, Mapping) else None
+    m = explain.get("matched") if isinstance(explain, Mapping) else None
+    if isinstance(m, Mapping) and m.get("match_type") and m.get("match_value"):
+        return str(m["match_type"]), str(m["match_value"])
+    if risk.evidence:
+        return risk.evidence[0].match_type, risk.evidence[0].match_value
+    return None
+
+
+def place_lines(risk: Assessment, entity: Entity) -> list[str]:
+    """``Place: <where the trouble is>`` (the label the API shows as ``Risk.where.label``) and,
+    for a chokepoint, ``Usual detour: <its detour from chokepoints.json>``, or nothing."""
+    from engine.places import where_label
+    from engine.reference import chokepoint_by_id
+
+    m = _matched(risk)
+    if m is None or m[0] not in PLACE_MATCH_TYPES:
+        return []
+    mt, mv = m
+    label = where_label(mt, mv, city=entity.city, countries=risk.countries, ports=risk.ports, name=entity.name)
+    out = [f"Place: {label}"] if label else []
+    cp = chokepoint_by_id(mv) if mt == "chokepoint" else None
+    if cp is not None and cp.detour:
+        out.append(f"Usual detour: {cp.detour}")
+    return out
+
+
 def advice_messages(risk: Assessment, entity: Entity) -> list[dict]:
-    """Chat messages for Groq. Only the entity kind and name, the risk texts, up to 5
-    evidence titles and dates, and L, I and score go in; nothing else from the workspace."""
+    """Chat messages for Groq. Only the entity kind and name, the category, where the trouble
+    is (and a chokepoint's usual detour), the risk texts, up to 5 evidence titles and dates, and
+    L, I and score go in; nothing else from the workspace."""
     lines = [
         f"Entity: {entity.kind} \"{entity.name}\"",
         f"Category: {risk.category}",
+        *place_lines(risk, entity),
         f"Risk: {risk.title}",
         f"Explanation: {risk.explanation}",
         f"Likelihood: {risk.likelihood:.3f}; impact: {risk.impact:.3f}; score: {risk.score:.1f}",

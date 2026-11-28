@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import { test, expect, mapSettled, noSheetScroll, shot } from './fixtures';
-import { API, PENDING, entities, risks } from '../fixtures/data';
+import { test, expect, mapSettled, noSheetScroll, sheetBodyHeight, shot } from './fixtures';
+import { API, PENDING, WORST_HEADLINES, entities, risks, worstCase } from '../fixtures/data';
 
 test.describe('signed out', () => {
   test.use({ signedIn: false });
@@ -130,6 +130,7 @@ test.describe('active workspace', () => {
     await mapSettled(page);
     // the whole page in one 1360 × 900 view: the sheet body does not scroll
     await shot(page, '6-risk', info.project.name);
+    await sheetBodyHeight(page, info.project.name);
     await noSheetScroll(page, info.project.name, '.sbody');
     // the numbers: one tap away, in place, above the action bar
     await page.getByRole('button', { name: 'More actions' }).click();
@@ -157,7 +158,38 @@ test.describe('active workspace', () => {
     await mapSettled(page);
     await expect(page.locator('.mpill.show', { hasText: 'Bab el-Mandeb' })).toHaveCount(1);
     await shot(page, '6-risk-chokepoint', info.project.name);
+    await sheetBodyHeight(page, info.project.name);
     await noSheetScroll(page, info.project.name, '.sbody');
+  });
+
+  test('risk at the limits', async ({ page }, info) => {
+    // The worst case real data can reach (tests/fixtures/data.ts `worstCase`): a two-line place,
+    // the longest why-sentence, a trend line, two three-line headlines clamped to two, and three
+    // advice steps of 20 long words. It does NOT fit one 1360 × 900 view under the ui-1 design
+    // rules: it needs 882 px of sheet body where there are 720 (the title and why-sentence alone
+    // take 88 px more than the Netherlands page's). Fitting it needs a design decision (smaller
+    // type, a clamp on the sentence or the steps, or a shorter receipt), which the ui-2 brief left
+    // to the owner, so the fit is measured and recorded here, not asserted; the fixture's claims are.
+    await page.goto(`/risks/${worstCase.id}`);
+    const title = page.getByRole('heading', { name: 'Labour unrest in the Democratic Republic of the Congo' });
+    await expect(title).toBeVisible();
+    await expect(page.getByText('Up 11 since yesterday')).toBeVisible();
+    await expect(page.locator('.rsteps li')).toHaveCount(3);
+    await mapSettled(page);
+    if (info.project.name.startsWith('desktop')) {
+      // what the fixture claims: the title on two lines, each headline clamped from three lines to two
+      const lines = (h: { height: number } | null, lh: number) => Math.round((h?.height ?? 0) / lh);
+      expect(lines(await title.boundingBox(), 28)).toBe(2);
+      for (const text of WORST_HEADLINES) {
+        const link = page.getByRole('link', { name: `${text} (opens the source)` });
+        await expect(link).toHaveAttribute('title', text);
+        const { shown, full } = await link.evaluate((el) => ({ shown: el.clientHeight, full: el.scrollHeight }));
+        expect(Math.round(shown / 19), text).toBe(2);
+        expect(Math.round(full / 19), text).toBeGreaterThanOrEqual(3);
+      }
+    }
+    await shot(page, '6-risk-worst-case', info.project.name);
+    await sheetBodyHeight(page, info.project.name);
   });
 
   test('scenario', async ({ page }, info) => {

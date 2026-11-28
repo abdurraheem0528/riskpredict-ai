@@ -212,10 +212,13 @@ def test_advice_messages_carry_only_the_allowed_facts():
     msgs = advice_messages(a, sup)
     assert [m["role"] for m in msgs] == ["system", "user"]
     system, user = msgs[0]["content"], msgs[1]["content"]
-    assert "120 words" in system and "no new numbers" in system.lower().replace("do not add any new", "no new")
+    assert "exactly 3 steps" in system and "at most 16 words" in system  # the ui-2 prompt (§8)
+    assert "no new numbers" in system.lower().replace("do not add any new", "no new")
     assert "Strike at Nordwind Logistik depots (2026-11-24)" in user
     assert f"score: {a.score:.1f}" in user and "supplier \"Nordwind Logistik\"" in user
     assert "DEU" not in user  # entity attributes beyond kind and name stay out
+    # a company-name match is not a place: no Place: or Usual detour: line
+    assert "Place:" not in user and "Usual detour:" not in user
 
 
 def test_template_advice_is_deterministic_and_has_no_digits():

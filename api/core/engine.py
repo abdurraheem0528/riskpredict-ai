@@ -155,6 +155,19 @@ def headline(title: str | None, url: str | None = None) -> str:
     return fn(title, url) if fn is not None else (title or "")
 
 
+def where_label(match_type: str, match_value: str, *, city: str | None = None, countries: list[str] = (),
+                ports: list[str] = (), name: str | None = None) -> str:  # fmt: skip
+    """What a risk's strongest item matched, in words (``engine.where_label``: "the Netherlands",
+    "Bab el-Mandeb", "Rotterdam"); without the engine the value as stored, or for a hazard matched
+    by distance the entity's city or name."""
+    fn = _place_fn("where_label")
+    if fn is not None:
+        return fn(match_type, match_value, city=city, countries=list(countries), ports=list(ports), name=name)
+    if match_type == "geo_radius":
+        return city or name or match_value
+    return match_value
+
+
 def country_name(code: str) -> str:
     """``"TWN"`` → ``"Taiwan"`` (``engine.country_name``: pycountry's common name), else the code."""
     fn = _place_fn("country_name")

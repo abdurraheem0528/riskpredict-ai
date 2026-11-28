@@ -8,8 +8,15 @@ lock, so two passes over one workspace queue instead of racing, and its
 steps need. Nothing here computes a score.
 
 Groq only words advice (contracts decision 9). Its reply is checked: at most
-1,200 characters, no links, and no digits that were not in the prompt. Otherwise,
+1,200 characters, no links, no digits that were not in the prompt, at most 3
+non-empty lines of at most 20 words each and at most 60 words in all. Otherwise,
 or when Groq is down or out of quota, the engine's template text is stored.
+
+Every advice text is stored with ``engine.ADVICE_VERSION``, the prompt it was
+written under. On a worker run (not inside an API request), open risks whose Groq
+advice has another version (or none) are worded again, highest score first, in
+the Groq calls the run has left within ``ADVICE_PER_RUN``. Their old text stays
+until a new text replaces it: while Groq is unavailable it is kept as it is.
 """
 
 from __future__ import annotations
@@ -29,6 +36,10 @@ from worker.sync import Ctx, create_alert
 log = logging.getLogger("riskpredict.worker.scoring")
 URL_RE = re.compile(r"(https?://|www\.|\b[a-z0-9-]+\.(com|org|net|io|gov)\b)", re.I)
 NUM_RE = re.compile(r"\d+(?:[.,]\d+)*")
+# The dashboard shows one step per line, bullet or number dropped (web adviceSteps), and fits
+# three of at most 20 words on the risk page (risk-engine.md §8). The prompt asks for 16.
+BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s*")
+MAX_STEPS, MAX_STEP_WORDS, MAX_WORDS = 3, 20, 60
 
 
 @dataclass
@@ -39,10 +50,14 @@ class RunSummary:
     alerts: int
     advice_groq: int
     advice_template: int
+    advice_reworded: int = 0  # of advice_groq: stored advice of an older ADVICE_VERSION worded again
 
 
 def valid_advice(text: str, messages: list[dict]) -> bool:
     if not text or len(text) > 1200 or URL_RE.search(text):
+        return False
+    steps = [w for w in (len(BULLET_RE.sub("", line).split()) for line in text.splitlines()) if w]
+    if len(steps) > MAX_STEPS or any(w > MAX_STEP_WORDS for w in steps) or sum(steps) > MAX_WORDS:
         return False
     given = " ".join(str(m.get("content", "")) for m in messages)
     return all(n in given for n in NUM_RE.findall(text))
@@ -113,11 +128,30 @@ def previous_top_keys(conn) -> dict[UUID, set[str]]:
 SSE_FOR = {"created": "risk.created", "rescored": "risk.updated", "reopened": "risk.updated", "resolved": "risk.resolved"}
 
 
-def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSummary | None:
+# Open risks whose Groq advice was written under another prompt (or before versions were kept).
+STALE_ADVICE_SQL = """
+SELECT id, fingerprint FROM biz.risks
+WHERE status IN ('open', 'acknowledged', 'mitigating') AND advice_source = 'groq'
+  AND advice_version IS DISTINCT FROM %s
+ORDER BY score DESC, id
+"""
+
+
+def groq_advice_on(settings) -> bool:
+    return bool(settings.groq_api_key and settings.groq_advice_model)
+
+
+def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None, reword_advice: bool = False) -> RunSummary | None:
+    """One engine run, then alerts, events and advice. ``reword_advice`` (the worker's runs, not
+    a request's): also word again Groq advice of an older ``ADVICE_VERSION``, in the Groq calls
+    this run's own advice leaves within ``ADVICE_PER_RUN``."""
     eng = engine_iface.load()
     if eng is None:
         return None
     now = now or datetime.now(timezone.utc)
+    version = str(getattr(eng, "ADVICE_VERSION", "") or "") or None
+    per_run = ctx.settings.advice_per_run
+    groq_on = groq_advice_on(ctx.settings)
     with ctx.db.workspace_tx(ws) as conn:
         wsrow = conn.execute(
             "SELECT alert_min_score, share_watch_terms FROM biz.workspaces WHERE id = %s", (ws,)
@@ -188,12 +222,28 @@ def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSumm
                 a = by_fp.get(fp)
                 if rid not in queued and a is not None and ents.get(a.entity_id) is not None:
                     todo.append((rid, a, ents[a.entity_id]))
+        # Groq advice written under another prompt: worded again, highest score first, in the
+        # Groq calls this run's own advice leaves (§8). Never past them: a risk beyond would get
+        # the template in place of its Groq text.
+        reword: set[UUID] = set()
+        room = per_run - len(todo)
+        if reword_advice and version and groq_on and room > 0:
+            queued = {t[0] for t in todo}
+            for r in conn.execute(STALE_ADVICE_SQL, (version,)).fetchall():
+                a = by_fp.get(r["fingerprint"])
+                entity = ents.get(a.entity_id) if a is not None else None
+                if r["id"] in queued or entity is None:
+                    continue
+                todo.append((r["id"], a, entity))
+                reword.add(r["id"])
+                if len(reword) >= room:
+                    break
     ctx.flush()
 
-    groq_n = tmpl_n = 0
+    groq_n = tmpl_n = reworded = kept = 0
     for i, (rid, a, entity) in enumerate(todo):
         text, source, model = None, "template", None
-        if i < ctx.settings.advice_per_run and ctx.settings.groq_api_key and ctx.settings.groq_advice_model:
+        if i < per_run and groq_on:
             messages = eng.advice_messages(a, entity)
             try:
                 reply = chat(ctx.settings, ctx.settings.groq_advice_model, messages, purpose="advice",
@@ -203,19 +253,25 @@ def run_workspace(ctx: Ctx, ws: UUID, *, now: datetime | None = None) -> RunSumm
                 else:
                     log.info("advice falls back to the template (reply failed the checks)")
             except GroqUnavailable as exc:
+                if rid in reword:  # its old Groq text stays; the next run asks again
+                    kept += 1
+                    log.info("advice keeps its older wording for now (%s)", exc)
+                    continue
                 log.info("advice falls back to the template (%s)", exc)
         if text is None:
             text = eng.template_advice(a, entity)
         if source == "groq":
             groq_n += 1
+            reworded += int(rid in reword)
         else:
             tmpl_n += 1
         with ctx.db.workspace_tx(ws) as conn:
             conn.execute(
-                "UPDATE biz.risks SET advice = %s, advice_source = %s, advice_model = %s, advice_generated_at = now()"
-                " WHERE id = %s",
-                (text, source, model, rid),
+                "UPDATE biz.risks SET advice = %s, advice_source = %s, advice_model = %s, advice_version = %s,"
+                " advice_generated_at = now() WHERE id = %s",
+                (text, source, model, version, rid),
             )
     counts = dict(getattr(result, "counts", {}) or {})
-    log.info("engine run: %s; %d alerts; advice %d groq / %d template", counts, alerts, groq_n, tmpl_n)
-    return RunSummary(ws, str(getattr(result, "engine_version", "")), counts, alerts, groq_n, tmpl_n)
+    log.info("engine run: %s; %d alerts; advice %d groq (%d worded again) / %d template; %d older wordings kept",
+             counts, alerts, groq_n, reworded, tmpl_n, kept)  # fmt: skip
+    return RunSummary(ws, str(getattr(result, "engine_version", "")), counts, alerts, groq_n, tmpl_n, reworded)

@@ -186,3 +186,30 @@ def test_place_key_in_python_matches_the_sql(client, owner_db, places):
 ])  # fmt: skip
 def test_cut_headlines(title, cut):
     assert ser.is_cut(title) is cut
+
+
+def test_event_evidence_carries_its_headline_and_whether_it_was_cut(client, owner_db, places):
+    me, _, r = places
+    detail = client.get(f"/v1/risks/{r['eindhoven']}", headers=hdr(me)).json()
+    got = [(e["snapshot"]["title"], e["headline"], e["cut"]) for e in detail["evidence"]]
+    assert got == [
+        ("Dutch chipmakers react to new US Export Curbs: 'We Will", "Dutch chipmakers react to new US Export Curbs: 'We Will", True),
+        ("Dutch Government Lobbies Against US Chip Export Bill", "Dutch Government Lobbies Against US Chip Export Bill", False),
+        ("Netherlands weighs export licences for…", "Netherlands weighs export licences for…", True),
+    ]  # fmt: skip
+    # The headline as the engine reads it: the outlet dropped, the same text the lead uses.
+    route = client.get(f"/v1/risks/{r['route']}", headers=hdr(me)).json()
+    (ev,) = route["evidence"]
+    assert ev["headline"] == route["lead"]["title"] == "Houthis strike ships in the Red Sea" and ev["cut"] is False
+    assert ev["snapshot"]["title"] == "Houthis strike ships in the Red Sea - Example Times"
+    # A market move is not a report: no headline and no cut.
+    owner_db.execute(
+        "INSERT INTO biz.risk_evidence (workspace_id, risk_id, kind, anomaly_series, anomaly_key, anomaly_ts,"
+        " anomaly_method, match_type, match_value, match_confidence, signal, recency, contribution, snapshot)"
+        " VALUES (%s, %s, 'anomaly', 'fx.rate', 'EUR/MYR', '2026-11-26T00:00:00Z', 'robust_z', 'currency', 'EUR/MYR',"
+        " 0.9, 0.5, 0.9, 0.4, '{\"title\": \"EUR/MYR moved\"}')",
+        (me["workspace_id"], r["old"]),
+    )  # fmt: skip
+    old = client.get(f"/v1/risks/{r['old']}", headers=hdr(me)).json()
+    (an,) = old["evidence"]
+    assert an["kind"] == "anomaly" and "headline" not in an and "cut" not in an

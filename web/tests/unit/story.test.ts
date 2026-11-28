@@ -2,9 +2,9 @@
 // trend, the receipt, and where a score sits on the 0–100 bands. Test fixtures only.
 import { describe, expect, it } from 'vitest';
 import { countryProse, levelOf, placePhrase, type Where } from '../../src/lib/format';
-import { impactReason, latestRun, levelsLine, likelyReason, reachLine, receipt, trendText, whySentence } from '../../src/lib/story';
+import { headlineText, impactReason, latestReports, latestRun, levelsLine, likelyReason, reachLine, receipt, shownReports, trendText, whySentence } from '../../src/lib/story';
 import { scalePlace } from '../../src/ui/ScoreScale';
-import { riskDetail, risks } from '../fixtures/data';
+import { riskDetail, risks, worstCase } from '../fixtures/data';
 
 const w = (match_type: string, match_value: string, label: string): Where => ({ match_type, match_value, label });
 const names: Record<string, string> = { NLD: 'Netherlands', TWN: 'Taiwan', USA: 'United States of America', MHL: 'Marshall Is.', COD: 'Dem. Rep. Congo', MYS: 'Malaysia' };
@@ -158,5 +158,45 @@ describe('the score scale', () => {
   it('keeps scores on the bar', () => {
     expect(scalePlace(-5).at).toBe(0);
     expect(scalePlace(130).at).toBe(1);
+  });
+});
+
+describe('the news on the risk page', () => {
+  const rep = (title: string, cut = false, headline: string | undefined = title) => ({ headline, cut, snapshot: { title } });
+  it('shows the two strongest whole headlines, then fills with the strongest cut ones', () => {
+    const [c1, a, c2, b, c3] = [rep('Cut one: \'We Will', true), rep('A'), rep('Cut two…', true), rep('B'), rep('Cut three...', true)];
+    expect(shownReports([c1, a, c2, b, c3])).toEqual([a, b]);
+    expect(shownReports([c1, a, c2, c3])).toEqual([a, c1]); // one whole: the strongest cut one fills
+    expect(shownReports([c1, c2])).toEqual([c1, c2]);
+    expect(shownReports([a])).toEqual([a]);
+    expect(shownReports([])).toEqual([]);
+  });
+  it('the live Netherlands page: the cut ASML headline is not among the first two', () => {
+    const news = latestReports(riskDetail(risks[1]));
+    expect(news[0].cut).toBe(true);
+    expect(shownReports(news).map(headlineText)).toEqual([
+      'Dutch Government Lobbies Against US Chip Export Bill',
+      'Dutch cabinet weighs wider licence rules for chipmaking tool exports',
+    ]);
+  });
+  it('ends a cut headline with "…", wherever it shows', () => {
+    expect(headlineText(rep("ASML … Export Curbs: 'We Will", true))).toBe("ASML … Export Curbs: 'We Will…");
+    expect(headlineText(rep('Netherlands weighs export licences for…', true))).toBe('Netherlands weighs export licences for…');
+    expect(headlineText(rep('Netherlands weighs export licences for ...', true))).toBe('Netherlands weighs export licences for…');
+    expect(headlineText(rep('Whole headline', false))).toBe('Whole headline');
+  });
+  it('shows the API’s headline, else the stored title', () => {
+    expect(headlineText(rep('Houthis strike ships - Example Times', false, 'Houthis strike ships'))).toBe('Houthis strike ships');
+    expect(headlineText(rep('Stored title', false, undefined))).toBe('Stored title');
+    expect(headlineText(rep('Stored title', false, ''))).toBe('Stored title');
+  });
+  it('the worst-case fixture is at the limits it claims', () => {
+    expect(whySentence(worstCase, country)).toEqual({
+      text: 'Kolwezi Northern Copper and Cobalt Refining Complex, a critical site, Lubumbashi Electrolytic Cathode Processing Works, a critical site, and Likasi Hydrometallurgical Concentrate Storage Facility, a critical site are in the Democratic Republic of the Congo.',
+      named: true,
+    });
+    const steps = worstCase.advice!.text.split('\n');
+    expect(steps.map((x) => x.split(/\s+/).length)).toEqual([20, 20, 20]);
+    expect(latestReports(worstCase)).toHaveLength(3);
   });
 });

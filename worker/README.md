@@ -59,17 +59,23 @@ still due, `biz.worker_state.score_pending`) and the next worker run finishes it
    * **Scoring** when entities changed, when the feeds moved on since this workspace was
      last scored (`max(feeds.source_health.last_run_at)` against
      `biz.worker_state.feeds_seen_at`, kept in the database because every run is a fresh
-     process), when a request left `score_pending`, or when an open risk was scored by an
-     older `ENGINE_VERSION` (so a new engine cleans up every workspace on the next run):
+     process), when a request left `score_pending`, when an open risk was scored by an
+     older `ENGINE_VERSION` (so a new engine cleans up every workspace on the next run), or
+     (with a Groq key) when an open risk has Groq advice of an older `ADVICE_VERSION`:
      `engine.run_workspace` in one
      transaction (it takes the engine's per-workspace lock, so two passes over one workspace
      queue). `RunResult.changes` → alerts (`risk_new`, `risk_escalated`, `sanctions_match`)
      and events `risk.*` / `alert.created`; opted-in watch terms go to `feeds.watch_terms`;
      then `feeds.updated`.
-   * **Advice** when `engine.needs_new_advice` says so: `engine.advice_messages` → Groq
-     (`GROQ_ADVICE_MODEL`, default `openai/gpt-oss-20b`, low reasoning effort), accepted only
-     if ≤ 1,200 characters, without links and without digits that were not in the prompt;
-     otherwise `engine.template_advice`. At most `ADVICE_PER_RUN` (20) Groq calls per run;
+   * **Advice** when `engine.needs_new_advice` says so: `engine.advice_messages` (with the
+     risk's place and, for a chokepoint, its usual detour) → Groq (`GROQ_ADVICE_MODEL`,
+     default `openai/gpt-oss-20b`, low reasoning effort), accepted only if ≤ 1,200
+     characters, without links, without digits that were not in the prompt, in at most 3
+     lines of at most 20 words and at most 60 words in all; otherwise
+     `engine.template_advice`. Every text is stored with `engine.ADVICE_VERSION`. Then, in the
+     Groq calls left, open risks whose Groq advice has an older version are worded again,
+     highest score first; their old text stays until the new one replaces it (risk-engine.md
+     §8). At most `ADVICE_PER_RUN` (20) Groq calls per run;
      the calls follow Groq's rate-limit headers (waiting for the per-minute token reset, and
      stopping near the day's request limit). The reason for a fallback is logged as a short
      code only.

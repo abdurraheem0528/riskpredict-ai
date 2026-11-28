@@ -101,7 +101,7 @@ class Settings:
     groq_mapping_model: str = ""
     groq_advice_model: str = ""
     groq_base_url: str = "https://api.groq.com/openai/v1"
-    expected_schema_version: str = "050_serverless_state"
+    expected_schema_version: str = "060_advice_version"
     db_max_connections: int = 5
     db_max_idle_seconds: int = 60
     # work done inside a request (serverless: no background loop); Vercel stops at 300 s
@@ -142,7 +142,7 @@ class Settings:
             groq_api_key=_env("GROQ_API_KEY"),
             groq_mapping_model=_env("GROQ_MAPPING_MODEL") or DEFAULT_GROQ_MAPPING_MODEL,
             groq_advice_model=_env("GROQ_ADVICE_MODEL") or DEFAULT_GROQ_ADVICE_MODEL,
-            expected_schema_version=_env("EXPECTED_SCHEMA_VERSION", "050_serverless_state"),
+            expected_schema_version=_env("EXPECTED_SCHEMA_VERSION", "060_advice_version"),
             db_max_connections=_int("DB_MAX_CONNECTIONS", 5),
             inline_budget_seconds=_int("INLINE_BUDGET_SECONDS", 240),
             webhook_budget_seconds=_int("WEBHOOK_BUDGET_SECONDS", 20),

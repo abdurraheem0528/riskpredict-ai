@@ -54,7 +54,8 @@ class Worker:
 
     def workspace_pass(self, ws: UUID, *, score: bool = False, budget: passes.Budget | None = None) -> passes.PassResult:
         try:
-            result = passes.workspace_pass(self.ctx, ws, housekeeping=True, score=score, budget=budget)
+            result = passes.workspace_pass(self.ctx, ws, housekeeping=True, score=score, reword_advice=True,
+                                           budget=budget)  # fmt: skip
             if not result.exists:
                 self._forget(ws)
             else:
@@ -86,6 +87,9 @@ class Worker:
         latest = max(health.values(), default=None)
         eng = engine_iface.load()
         version = getattr(eng, "ENGINE_VERSION", None)
+        # Groq advice of an older prompt is worded again on the worker's runs (risk-engine.md §8):
+        # a workspace that has some is scored even when the feeds did not move.
+        advice_version = getattr(eng, "ADVICE_VERSION", None) if scoring.groq_advice_on(self.settings) else None
         stats = {"workspaces": len(workspaces), "done": 0, "scored": 0, "skipped": 0}
         for ws in workspaces:
             if self.stop.is_set() or budget.spent:
@@ -97,7 +101,8 @@ class Worker:
                 # ENGINE_VERSION cleans the workspace up without waiting for new feed rows.
                 stale = version is not None and conn.execute(
                     "SELECT EXISTS (SELECT 1 FROM biz.risks WHERE status IN ('open', 'acknowledged', 'mitigating')"
-                    " AND engine_version IS DISTINCT FROM %s) AS stale", (version,)
+                    " AND (engine_version IS DISTINCT FROM %s OR (%s::text IS NOT NULL AND advice_source = 'groq'"
+                    " AND advice_version IS DISTINCT FROM %s))) AS stale", (version, advice_version, advice_version)
                 ).fetchone()["stale"]  # fmt: skip
             seen = state["feeds_seen_at"] if state else None
             moved = latest is not None and (seen is None or latest > seen)

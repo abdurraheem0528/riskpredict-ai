@@ -1490,6 +1490,13 @@ export interface components {
                 source: string;
                 raw_id: string;
             };
+            /**
+             * @description Present for kind=event: `snapshot.title` as the engine reads it (a trailing outlet segment and a leading wire tag dropped, `engine.headline`), the same text `Risk.lead.title` uses. The dashboard shows it, falling back to `snapshot.title`.
+             * @example Houthis Strike Saudi Ports on Red Sea
+             */
+            headline?: string;
+            /** @description Present for kind=event: the feed cut the headline off (it ends in an ellipsis, or a quote opens and never closes, as in "… Export Curbs: 'We Will"). `Risk.lead` skips such a headline; the dashboard shows uncut reports first and a cut one with a closing "…". */
+            cut?: boolean;
             /** @description Present for kind=anomaly */
             anomaly?: {
                 series: string;
