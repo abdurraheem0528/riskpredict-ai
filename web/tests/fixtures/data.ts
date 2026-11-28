@@ -370,11 +370,12 @@ export function riskDetail(r: R): S['RiskDetail'] {
   };
 }
 // --- the worst case the risk page must fit at 1360 × 900 (e2e "risk at the limits") ---------------
-// Every part at the longest real data makes it: a place title on two lines, the longest
-// why-sentence (three entities with long names, each "a critical site"), a trend line, two
-// headlines of three lines (clamped to two) and three advice steps of 20 words (the most
-// worker valid_advice lets through) with long words. Served only by GET /v1/risks/{id}: it is
-// in no list, so the other screens are unchanged. Test fixture.
+// Every part at the longest real data makes it: a place title on two lines, a why-sentence on
+// three entities with long names, each "a critical site" (it names the first and counts the
+// other two), a trend line, two headlines of three lines (clamped to two) and three advice steps
+// of 20 words (the most worker valid_advice lets through) with long words. It fits by holding
+// steps back behind "2 more steps". Served only by GET /v1/risks/{id}: it is in no list, so the
+// other screens are unchanged. Test fixture.
 const WORST_SITES = [
   { id: '7d1f3c2a-0000-4000-8000-00000000e901', name: 'Kolwezi Northern Copper and Cobalt Refining Complex' },
   { id: '7d1f3c2a-0000-4000-8000-00000000e902', name: 'Lubumbashi Electrolytic Cathode Processing Works' },
@@ -527,3 +528,86 @@ export function scenarioFor(name: string, inputs: S['ScenarioInputs']): S['Scena
     },
   };
 }
+
+// --- pages real data comes close to (e2e "risk near the limits") -------------------------------
+// The Bab el-Mandeb page at another chokepoint, with three advice steps of three lines each (at
+// most 20 words, as worker valid_advice allows) and a long second headline clamped to two lines.
+// "Shipping through the Strait of Hormuz" is the page the ui-3 brief names; its place title sets
+// on one line at 1360 × 900 here (379 of 392 px), so "Shipping through the Cape of Good Hope",
+// which sets on two, is the same page with a two-line title. Neither chokepoint is in the
+// disruptions fixture, so the other screens' maps are unchanged; the risk's own point is at the
+// chokepoint. Served only by GET /v1/risks/{id}. Test fixtures.
+type ChokePage = {
+  n: number;
+  at: [id: string, label: string, lat: number, lon: number, countries: string[]];
+  routes: string[];
+  suppliers: [name: string, city: string, criticality: S['Criticality']][];
+  headlines: [string, string];
+  advice: [string, string, string];
+};
+function chokepointPage(p: ChokePage): S['RiskDetail'] {
+  const base = riskDetail(risks[0]);
+  const [cid, label, lat, lon, countries] = p.at;
+  const uuid = (k: number) => `7d1f3c2a-0000-4000-8000-0000000${String(p.n).padStart(2, '0')}e${String(k).padStart(2, '0')}`;
+  const routes = p.routes.map((name, k) => ({ id: uuid(k), name, kind: 'route' as const, city: null, criticality: null }));
+  const suppliers = p.suppliers.map(([name, city, criticality], k) => ({ id: uuid(10 + k), name, kind: 'supplier' as const, city, criticality }));
+  const evidence: S['Evidence'][] = p.headlines.map((title, k) => ({
+    ...base.evidence[k], evidence_key: `event:newsdata:${cid}-${k}`, event: { source: 'newsdata', raw_id: `${cid}-${k}` }, headline: title, cut: false, match_value: cid,
+    snapshot: { ...base.evidence[k].snapshot, title, url: `https://news.example.test/${cid}-${k}` },
+  }));
+  return {
+    ...base,
+    id: riskId(p.n),
+    entity: { id: routes[0].id, kind: 'route', name: routes[0].name, city: null },
+    title: `Shipping disruption news at ${label} on route ${routes[0].name}`,
+    countries, ports: [], lat, lon, place: null, evidence_count: evidence.length,
+    story: {
+      key: `logistics|chokepoint:${cid}`, risk_count: routes.length + suppliers.length, entity_count: routes.length + suppliers.length,
+      kind_counts: { route: routes.length, supplier: suppliers.length }, entities: [...routes, ...suppliers],
+    },
+    where: { match_type: 'chokepoint', match_value: cid, label },
+    lead: { title: p.headlines[0], source: 'newsdata', published_at: evidence[0].snapshot.published_at ?? null, url: evidence[0].snapshot.url ?? null, type: 'news' },
+    explanation: `Recent news reports about shipping disruption at ${label} reach ${routes[0].name}.`,
+    factors: {
+      ...base.factors,
+      story: `logistics|${evidence[0].evidence_key}`,
+      explain: {
+        ...base.factors.explain!,
+        matched: { match_type: 'chokepoint', match_value: cid, label: `chokepoint: ${label}`, matched_text: null, inferred_from: null, supported_by: null },
+        strongest: { evidence_key: evidence[0].evidence_key, title: p.headlines[0], source: 'newsdata', published_at: evidence[0].snapshot.published_at ?? null },
+      },
+    },
+    advice: { text: p.advice.join('\n'), source: 'groq', model: 'llama-test', generated_at: iso(2 * H) },
+    evidence,
+  };
+}
+export const hormuzCase = chokepointPage({
+  n: 98,
+  at: ['hormuz', 'Strait of Hormuz', 26.57, 56.25, ['IRN', 'OMN']],
+  routes: ['Jebel Ali to Rotterdam', 'Dammam to Antwerp', 'Hamad to Rotterdam'],
+  suppliers: [['Jubail Polymer Industries', 'Jubail', 'high'], ['Ras Laffan Specialty Solvents', 'Ras Laffan', 'medium']],
+  headlines: [
+    'Tanker Traffic Through Hormuz Slows as Insurers Raise War-Risk Premiums',
+    'Shipowners Hold Gulf Sailings as Navies Escort Tankers Through the Strait of Hormuz After a Week of Drone Attacks on Merchant Vessels',
+  ],
+  advice: [
+    'Ask your carriers which Jebel Ali and Dammam sailings are waiting for naval escorts, and what war-risk surcharges they quote.',
+    'Order ahead polymer resins and specialty solvents from Jubail and Ras Laffan that would run short first if tankers wait.',
+    'Check which supplier and customer contracts put the extra freight, insurance and demurrage costs of a Hormuz closure on you.',
+  ],
+});
+export const capeCase = chokepointPage({
+  n: 97,
+  at: ['cape_of_good_hope', 'Cape of Good Hope', -34.36, 18.47, ['ZAF']],
+  routes: ['Shanghai to Rotterdam', 'Singapore to Hamburg', 'Kaohsiung to Antwerp'],
+  suppliers: [['Penang Microsystems', 'Penang', 'high'], ['Kaohsiung Precision Optics', 'Kaohsiung', 'medium']],
+  headlines: [
+    'Winter Swells Off the Cape of Good Hope Delay Rerouted Container Ships',
+    'Carriers Add Weeks to Asia to Europe Schedules as Rerouted Ships Queue for Fuel at Cape Town and Port Louis During Winter Storms',
+  ],
+  advice: [
+    'Ask your carriers which Shanghai and Singapore sailings now detour around the Cape of Good Hope, and what surcharges apply.',
+    'Order ahead the semiconductor components from Penang and Kaohsiung that would run short first if deliveries arrive weeks later.',
+    'Check which supplier and customer contracts put the extra freight, bunker and insurance costs of the longer route on you.',
+  ],
+});

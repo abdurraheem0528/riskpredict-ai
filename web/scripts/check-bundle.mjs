@@ -20,6 +20,7 @@ const SAMPLE = [
   // test fixtures and mock tooling (tests/ only)
   'Kestrel Components', 'kestrel.test', 'Anatolia Fasteners', 'Lumen Display Co', 'mswjs', 'setupWorker', 'FakeEventSource',
   'Atlas Eindhoven Assembly Plant', 'Formosa Microcircuits', 'Penang Semicon Assembly', 'Pearl River PCB Works', 'news.example.test',
+  'Kolwezi Northern Copper', 'Jubail Polymer Industries',
 ];
 
 function* files(dir) {

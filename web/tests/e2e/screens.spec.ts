@@ -1,6 +1,16 @@
 import { http, HttpResponse } from 'msw';
+import type { Page } from '@playwright/test';
 import { test, expect, mapSettled, noSheetScroll, sheetBodyHeight, shot } from './fixtures';
-import { API, PENDING, WORST_HEADLINES, entities, risks, worstCase } from '../fixtures/data';
+import { API, PENDING, WORST_HEADLINES, capeCase, entities, hormuzCase, risks, worstCase } from '../fixtures/data';
+
+/** Lines of text in a box of the given line height. */
+const lines = (box: { height: number } | null, lh: number) => Math.round((box?.height ?? 0) / lh);
+
+/** Every advice step shows, and there is no toggle under them. */
+async function allSteps(page: Page) {
+  await expect(page.locator('.rsteps li')).toHaveCount(3);
+  await expect(page.getByRole('button', { name: /^\d more steps?$/ })).toHaveCount(0);
+}
 
 test.describe('signed out', () => {
   test.use({ signedIn: false });
@@ -128,10 +138,11 @@ test.describe('active workspace', () => {
     await expect(page.getByText('What to do')).toBeVisible();
     await expect(page.getByText('Up 3 since yesterday')).toBeVisible();
     await mapSettled(page);
-    // the whole page in one 1360 × 900 view: the sheet body does not scroll
+    // the whole page in one 1360 × 900 view: the sheet body does not scroll, and nothing is held back
     await shot(page, '6-risk', info.project.name);
     await sheetBodyHeight(page, info.project.name);
     await noSheetScroll(page, info.project.name, '.sbody');
+    await allSteps(page);
     // the numbers: one tap away, in place, above the action bar
     await page.getByRole('button', { name: 'More actions' }).click();
     await page.getByRole('menuitem', { name: 'Show the working' }).click();
@@ -160,25 +171,23 @@ test.describe('active workspace', () => {
     await shot(page, '6-risk-chokepoint', info.project.name);
     await sheetBodyHeight(page, info.project.name);
     await noSheetScroll(page, info.project.name, '.sbody');
+    await allSteps(page);
   });
 
   test('risk at the limits', async ({ page }, info) => {
     // The worst case real data can reach (tests/fixtures/data.ts `worstCase`): a two-line place,
-    // the longest why-sentence, a trend line, two three-line headlines clamped to two, and three
-    // advice steps of 20 long words. It does NOT fit one 1360 × 900 view under the ui-1 design
-    // rules: it needs 882 px of sheet body where there are 720 (the title and why-sentence alone
-    // take 88 px more than the Netherlands page's). Fitting it needs a design decision (smaller
-    // type, a clamp on the sentence or the steps, or a shorter receipt), which the ui-2 brief left
-    // to the owner, so the fit is measured and recorded here, not asserted; the fixture's claims are.
+    // a why-sentence on three long-named critical sites, a trend line, two three-line headlines
+    // clamped to two, and three advice steps of 20 long words. With all three steps it needs more
+    // sheet body than 1360 × 900 has, so where the sheet has a fixed height the last steps wait
+    // behind "2 more steps" and the page fits; the phone's bottom sheet scrolls and shows them all.
     await page.goto(`/risks/${worstCase.id}`);
     const title = page.getByRole('heading', { name: 'Labour unrest in the Democratic Republic of the Congo' });
     await expect(title).toBeVisible();
     await expect(page.getByText('Up 11 since yesterday')).toBeVisible();
-    await expect(page.locator('.rsteps li')).toHaveCount(3);
+    await expect(page.getByText('Kolwezi Northern Copper and Cobalt Refining Complex, a critical site, and 2 other sites are in the Democratic Republic of the Congo.')).toBeVisible();
     await mapSettled(page);
     if (info.project.name.startsWith('desktop')) {
       // what the fixture claims: the title on two lines, each headline clamped from three lines to two
-      const lines = (h: { height: number } | null, lh: number) => Math.round((h?.height ?? 0) / lh);
       expect(lines(await title.boundingBox(), 28)).toBe(2);
       for (const text of WORST_HEADLINES) {
         const link = page.getByRole('link', { name: `${text} (opens the source)` });
@@ -190,7 +199,64 @@ test.describe('active workspace', () => {
     }
     await shot(page, '6-risk-worst-case', info.project.name);
     await sheetBodyHeight(page, info.project.name);
+    await noSheetScroll(page, info.project.name, '.sbody');
+    if (info.project.name.startsWith('phone')) return allSteps(page);
+    // desktop and tablet: steps held back, the toggle under the last one shown; pressed, all three show
+    const shown = await page.locator('.rsteps li').count();
+    const toggle = page.getByRole('button', { name: `${3 - shown} more ${3 - shown === 1 ? 'step' : 'steps'}` });
+    if (info.project.name.startsWith('desktop')) expect(shown).toBeLessThan(3);
+    if (shown === 3) return expect(page.locator('.rsteps + .more')).toHaveCount(0);
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    test.info().annotations.push({ type: 'shown', description: `${info.project.name}: ${shown} of 3 steps, ${await page.locator('.rnews .ni').count()} news items` });
+    await toggle.click();
+    await expect(page.locator('.rsteps li')).toHaveCount(3);
+    await sheetBodyHeight(page, info.project.name, '.sbody', 'sheet-body, all steps');
+    const fewer = page.getByRole('button', { name: 'Fewer' }).last();
+    await expect(fewer).toHaveAttribute('aria-expanded', 'true');
+    // a 44 px hit area (the button and its ::after), and the keyboard's focus ring on it
+    expect(await fewer.evaluate((el) => { const a = getComputedStyle(el, '::after'); return el.getBoundingClientRect().height - parseFloat(a.top) - parseFloat(a.bottom); })).toBeGreaterThanOrEqual(44);
+    await shot(page, '6-risk-worst-case-steps', info.project.name);
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await expect(fewer).toBeFocused();
+    expect(await fewer.evaluate((el) => [el.matches(':focus-visible'), getComputedStyle(el).outlineStyle, getComputedStyle(el).outlineWidth])).toEqual([true, 'solid', '3px']);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.rsteps li')).toHaveCount(shown);
+    await expect(page.getByRole('button', { name: `${3 - shown} more ${3 - shown === 1 ? 'step' : 'steps'}` })).toBeFocused();
   });
+
+  // Pages real data comes close to (tests/fixtures/data.ts `hormuzCase`, `capeCase`): three advice
+  // steps of three lines each, and the place on one line (Hormuz, 379 of 392 px here) or two (the
+  // Cape of Good Hope). Each must fit one 1360 × 900 view.
+  for (const [name, d, place, titleLines] of [
+    ['hormuz', hormuzCase, 'the Strait of Hormuz', 1],
+    ['cape', capeCase, 'the Cape of Good Hope', 2],
+  ] as const)
+    test(`risk near the limits: ${place}`, async ({ page }, info) => {
+      await page.goto(`/risks/${d.id}`);
+      const title = page.getByRole('heading', { name: `Shipping through ${place}` });
+      await expect(title).toBeVisible();
+      await expect(page.getByText(`3 of your routes and 2 of your suppliers ship through ${place}.`)).toBeVisible();
+      await mapSettled(page);
+      await shot(page, `6-risk-${name}`, info.project.name);
+      await sheetBodyHeight(page, info.project.name);
+      await noSheetScroll(page, info.project.name, '.sbody');
+      const shown = await page.locator('.rsteps li').count();
+      test.info().annotations.push({ type: 'shown', description: `${info.project.name}: ${shown} of 3 steps, ${await page.locator('.rnews .ni').count()} news items` });
+      if (info.project.name.startsWith('phone')) return allSteps(page);
+      if (shown < 3) await page.getByRole('button', { name: `${3 - shown} more ${3 - shown === 1 ? 'step' : 'steps'}` }).click();
+      await expect(page.locator('.rsteps li')).toHaveCount(3);
+      await sheetBodyHeight(page, info.project.name, '.sbody', 'sheet-body, all steps');
+      if (info.project.name.startsWith('desktop')) {
+        // what the fixture claims: the title's lines, and each step on three
+        expect(lines(await title.boundingBox(), 28)).toBe(titleLines);
+        for (const [i, step] of d.advice!.text.split('\n').entries()) {
+          const li = page.locator('.rsteps li').nth(i);
+          await expect(li).toHaveText(step);
+          expect(lines(await li.boundingBox(), 18), step).toBe(3);
+        }
+      }
+    });
 
   test('scenario', async ({ page }, info) => {
     await page.goto('/scenarios');

@@ -607,6 +607,8 @@ html.rp-hidden *, html.rp-hidden *::before, html.rp-hidden *::after { animation-
 .more { position: relative; height: 32px; padding: 0 8px; margin: -6px -8px -6px 0; border: 0; border-radius: 16px; background: transparent; color: var(--accent); font: 500 13px/18px var(--font); cursor: pointer; }
 .more:hover { background: var(--accent-hover); color: var(--accent-press); }
 .more::after { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
+/* the same button under a list ("2 more steps"): its text in line with the steps' text */
+.more.under { align-self: flex-start; margin: -6px 0 -6px 6px; }
 /* the risk page's body: a little tighter, so the page fits one 1360 × 900 view */
 .sheet.w440 .sbody.rbody { gap: 14px; padding-top: 14px; }
 .rbody .how { border-top: 0; }

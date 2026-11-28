@@ -2,7 +2,8 @@
 // reaches you, the score on the 0–100 scale with its move, the two numbers it is made of, the
 // news behind it and what to do. Everything comes from GET /v1/risks/{id}; status changes are
 // PATCH /v1/risks/{id}; the formula is one tap away ("···" → Show the working).
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 import type { FeatureCollection, Point } from 'geojson';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDisruptions, useMapEntities, useRisk, useSeries, type RiskDetail, type S } from '../api/queries';
@@ -15,6 +16,7 @@ import { useDismiss } from '../app/TopBar';
 import { navigate } from '../lib/router';
 import { LEVELS, levelOf, fmtDate, fmtInt, feedName, scoreText } from '../lib/format';
 import { headlineText, latestReports, receipt, shownReports, trendText, whySentence } from '../lib/story';
+import { fitCounts, measureSheet, type Fit } from '../lib/fit';
 import { placeOf, countryName, portName } from '../map/geo';
 import { useMap, reducedMotion } from '../map/MapRoot';
 import { sheetPadding, useFit, boxOfPoints, type LonLat } from '../map/camera';
@@ -142,6 +144,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
   const [menu, setMenu] = useState(false);
   const [working, setWorking] = useState(false);
   const [allNews, setAllNews] = useState(false);
+  const [allSteps, setAllSteps] = useState(false);
   const ref = useDismiss(menu, () => setMenu(false));
   useGazetteer(); // country names in the place phrase and the sentences
 
@@ -170,16 +173,35 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
   const trend = trendText(r.history, r.score);
   const lvl = levelOf(r.score);
   const news = latestReports(r);
-  const shownNews = allNews ? news : shownReports(news);
   const others = r.story.entities.filter((e) => e.id !== r.entity.id);
   const workingRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (working && workingRef.current) revealInSheet(workingRef.current);
   }, [working]);
 
+  // Where the sheet has a fixed height, the page shows fewer steps (then fewer news items) rather
+  // than scroll; the rest are a tap away ("2 more steps", "All 3"). In the narrow layout, all show.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const stepsRef = useRef<HTMLUListElement>(null);
+  const stepsId = useId();
+  const candidates = shownReports(news); // the two news items shown by default
+  const stepKeys = steps.map((_, i) => `step:${i}`);
+  const newsKeys = candidates.map((e) => `news:${e.evidence_key}`);
+  const content = [r.id, ...steps, ...candidates.map((e) => `${e.evidence_key} ${headlineText(e)}`)].join('\n');
+  const fit = useSheetFit(bodyRef, content, stepKeys, newsKeys);
+  const held = fit ? steps.length - fit.steps : 0;
+  const shownSteps = allSteps || !held ? steps : steps.slice(0, fit!.steps);
+  const fitNews = shownReports(news, fit ? fit.news : 2);
+  const shownNews = allNews ? news : fitNews;
+  useEffect(() => {
+    // the whole "What to do" block, so "Fewer" is in view too
+    const block = stepsRef.current?.parentElement;
+    if (allSteps && block) revealInSheet(block);
+  }, [allSteps]);
+
   return (
     <>
-      <div className="sbody rbody">
+      <div className="sbody rbody" ref={bodyRef}>
       <SheetHead
         back={{ to: '/register', label: 'Risks', onClick: () => (window.history.length > 1 ? window.history.back() : navigate('/register')) }}
         right={
@@ -241,7 +263,7 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
       <Receipt rows={receipt(r, countryName)} large />
 
       {working && r.factors.explain && (
-        <div ref={workingRef}>
+        <div ref={workingRef} data-fit="skip">
           <HowScored explain={r.factors.explain} />
         </div>
       )}
@@ -250,18 +272,18 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div className="shd">
             <h2 style={{ margin: 0, font: 'inherit', fontSize: 15, lineHeight: '20px', fontWeight: 600 }}>The news</h2>
-            {news.length > 2 && (
+            {news.length > fitNews.length && (
               <button type="button" className="more" aria-expanded={allNews} onClick={() => setAllNews((a) => !a)}>
                 {allNews ? 'Fewer' : `All ${news.length}`}
               </button>
             )}
           </div>
-          <div className="rnews">
+          <div className="rnews" data-fit="list" data-fit-list="news">
             {shownNews.map((e) => {
               // At most two lines, cut with an ellipsis; the whole headline is the link's name and its tooltip.
               const text = headlineText(e);
               return (
-                <div className="ni" key={e.evidence_key}>
+                <div className="ni" key={e.evidence_key} data-fit-key={`news:${e.evidence_key}`}>
                   <span className="src">{[e.event ? feedName(e.event.source) : null, e.snapshot.published_at ? fmtDate(e.snapshot.published_at) : null].filter(Boolean).join(', ')}</span>
                   {e.snapshot.url ? (
                     <a className="clamp2" href={e.snapshot.url} target="_blank" rel="noopener noreferrer" title={text}>
@@ -284,13 +306,18 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
           {r.advice && <span className="t12">{r.advice.source === 'groq' ? 'Written by AI from these reports' : 'From the playbook'}</span>}
         </div>
         {steps.length ? (
-          <ul className="rsteps">
-            {steps.map((s, i) => (
-              <li key={i}>{s}</li>
+          <ul className="rsteps" id={stepsId} ref={stepsRef} data-fit="list" data-fit-list="steps">
+            {shownSteps.map((s, i) => (
+              <li key={i} data-fit-key={`step:${i}`}>{s}</li>
             ))}
           </ul>
         ) : (
           <span className="t13">Advice is written after the next scoring run.</span>
+        )}
+        {held > 0 && (
+          <button type="button" className="more under" data-fit="toggle" aria-expanded={allSteps} aria-controls={stepsId} onClick={() => setAllSteps((a) => !a)}>
+            {allSteps ? 'Fewer' : `${held} more ${held === 1 ? 'step' : 'steps'}`}
+          </button>
         )}
       </div>
 
@@ -333,6 +360,96 @@ function RiskBody({ r, editor }: { r: RiskDetail; editor: boolean }) {
       </div>
     </>
   );
+}
+
+// The narrow layout's sheet is a bottom sheet that scrolls by design (styles.css, ≤ 760 px).
+const NARROW = '(max-width: 760px)';
+function useNarrow(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      const q = window.matchMedia?.(NARROW);
+      q?.addEventListener?.('change', l);
+      return () => q?.removeEventListener?.('change', l);
+    },
+    () => !!window.matchMedia?.(NARROW).matches,
+    () => false,
+  );
+}
+
+/** The toggle's space before it has been shown once: the gap above it (8) and the button (32, less its two −6 margins). */
+const TOGGLE_SPACE = 28;
+/** Fewer is lower: steps go first, then news items. */
+const rank = (f: Fit) => f.news * 1000 + f.steps;
+
+/**
+ * How many advice steps and news items the risk page shows (lib/fit.ts): null shows them all, in
+ * the narrow layout and while every one is measured. `content` names what the page shows (a new
+ * one is measured again); `stepKeys` and `newsKeys` are the `data-fit-key`s of the steps and of
+ * the news items shown by default. It measures after each render, before paint, and again when
+ * the sheet body is resized or fonts finish loading (flushSync: no frame shows the in-between).
+ * Each height it measures is kept, so held-back items need not be shown again to be counted.
+ */
+function useSheetFit(body: RefObject<HTMLDivElement | null>, content: string, stepKeys: readonly string[], newsKeys: readonly string[]): Fit | null {
+  const narrow = useNarrow();
+  const [fit, setFit] = useState<Fit | null>(null);
+  const memo = useRef({ epoch: '', heights: new Map<string, number>(), toggle: null as number | null, settled: '' });
+  const fonts = useRef(0);
+  const run = useRef<() => void>(() => {});
+  // after each render, before paint; `run` is also what a resize or the fonts call
+  useLayoutEffect(() => {
+    run.current = measure;
+    measure();
+  });
+  function measure() {
+    const m = !narrow && body.current ? measureSheet(body.current) : null;
+    if (!m) return setFit(null);
+    const c = memo.current;
+    const epoch = `${content}|${m.width}|${fonts.current}`;
+    if (c.epoch !== epoch) Object.assign(c, { epoch, heights: new Map(), settled: '' });
+    for (const it of m.items) c.heights.set(it.key, it.height);
+    if (m.toggle != null) c.toggle = m.toggle;
+    const steps = stepKeys.map((k) => c.heights.get(k));
+    const news = newsKeys.map((k) => c.heights.get(k));
+    // one not measured yet: show every one, and measure again after that render
+    if (steps.includes(undefined) || news.includes(undefined)) return setFit(null);
+    let next = fitCounts({
+      available: m.available,
+      fixed: m.content - m.lists - (m.toggle ?? 0) - m.skip,
+      steps: steps as number[],
+      stepGap: m.gaps.steps ?? 0,
+      news: news as number[],
+      newsGap: m.gaps.news ?? 0,
+      toggle: c.toggle ?? TOGGLE_SPACE,
+    });
+    // With the same heights to go on, the counts only go down: they never swing back and forth.
+    const settled = `${epoch}|${m.available}|${c.toggle}`;
+    if (fit && c.settled === settled && rank(next) > rank(fit)) next = fit;
+    c.settled = settled;
+    if (!fit || fit.steps !== next.steps || fit.news !== next.news || fit.fits !== next.fits) setFit(next);
+  }
+  useEffect(() => {
+    const el = body.current;
+    if (!el) return;
+    const again = () => flushSync(() => run.current());
+    // the border box: a scrollbar coming or going does not count as a resize
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(again);
+    ro?.observe(el, { box: 'border-box' });
+    const f = typeof document !== 'undefined' ? document.fonts : undefined;
+    let live = true;
+    const refont = () => {
+      if (!live) return;
+      fonts.current++;
+      again();
+    };
+    f?.addEventListener?.('loadingdone', refont);
+    void f?.ready?.then(refont);
+    return () => {
+      live = false;
+      ro?.disconnect();
+      f?.removeEventListener?.('loadingdone', refont);
+    };
+  }, [body]);
+  return fit;
 }
 
 /** The numbers behind the score (factors.explain, engine 1.2.0), opened in place from the "···" menu. */

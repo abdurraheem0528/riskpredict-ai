@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -7,6 +7,31 @@ import { App, makeQueryClient } from '../../src/App';
 import { __resetAuth } from '../../src/api/auth';
 import { handlers } from '../fixtures/handlers';
 import { API, PENDING, WS, entities, risks, summary } from '../fixtures/data';
+import type { SheetMeasure } from '../../src/lib/fit';
+
+// jsdom lays nothing out, so the risk page's sheet measures no height and shows every step and
+// news item. A test that sets `sheet.available` gets a laid-out sheet instead: 400 px of blocks,
+// 54 px steps 6 px apart, 40 px news items 8 px apart, and 28 px for the toggle when it shows.
+const sheet = vi.hoisted(() => ({
+  available: 0,
+  measure(body: HTMLElement): SheetMeasure {
+    const items = [...body.querySelectorAll<HTMLElement>('[data-fit-key]')].map((el) => ({ key: el.dataset.fitKey!, height: el.dataset.fitKey!.startsWith('step') ? 54 : 40 }));
+    const list = (kind: string, gap: number) => {
+      const h = items.filter((i) => i.key.startsWith(kind)).map((i) => i.height);
+      return h.length ? h.reduce((a, b) => a + b, 0) + gap * (h.length - 1) : 0;
+    };
+    const lists = list('step', 6) + list('news', 8);
+    const toggle = body.querySelector('[data-fit="toggle"]') ? 28 : null;
+    return { available: this.available, width: 392, content: 400 + lists + (toggle ?? 0), items, lists, gaps: { steps: 6, news: 8 }, toggle, skip: 0 };
+  },
+}));
+vi.mock('../../src/lib/fit', async (load) => {
+  const fit = await load<typeof import('../../src/lib/fit')>();
+  return { ...fit, measureSheet: (body: HTMLElement) => (sheet.available ? sheet.measure(body) : fit.measureSheet(body)) };
+});
+afterEach(() => {
+  sheet.available = 0;
+});
 
 function boot(path: string, signedIn = true) {
   localStorage.clear();
@@ -229,6 +254,66 @@ describe('screens', () => {
     expect(screen.getByText('An unusual move in EUR/TWD')).toBeInTheDocument();
     expect(screen.queryByText('The news')).not.toBeInTheDocument();
     expect(screen.getByText('From the playbook')).toBeInTheDocument();
+  });
+
+  it('Risk: steps the sheet has no room for wait behind "2 more steps"', async () => {
+    // three steps and two news items need 662 px; two steps and the toggle 630; one step 570
+    sheet.available = 600;
+    boot(`/risks/${risks[1].id}`);
+    expect(await screen.findByRole('heading', { name: 'Trade policy in the Netherlands' })).toBeInTheDocument();
+    const steps = () => [...document.querySelectorAll('.rsteps li')].map((li) => li.textContent);
+    expect(steps()).toHaveLength(1);
+    expect(steps()[0]).toMatch(/^Ask the Eindhoven plant’s equipment suppliers/);
+    expect(document.querySelectorAll('.rnews .ni')).toHaveLength(2);
+    const more = screen.getByRole('button', { name: '2 more steps' });
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    expect(more).toHaveAttribute('aria-controls', document.querySelector('.rsteps')!.id);
+    expect(more).toHaveClass('more');
+    // the label stays as it was
+    expect(screen.getByText('Written by AI from these reports')).toBeInTheDocument();
+    await userEvent.click(more);
+    expect(steps()).toHaveLength(3);
+    expect(more).toHaveTextContent('Fewer');
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(more);
+    expect(steps()).toHaveLength(1);
+    expect(more).toHaveAccessibleName('2 more steps');
+  });
+
+  it('Risk: one step short of room says "1 more step"', async () => {
+    sheet.available = 640;
+    boot(`/risks/${risks[1].id}`);
+    expect(await screen.findByRole('button', { name: '1 more step' })).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelectorAll('.rsteps li')).toHaveLength(2);
+  });
+
+  it('Risk: with one step still too tall, a news item waits behind "All N"', async () => {
+    sheet.available = 560; // one step and both news items need 570
+    boot(`/risks/${risks[0].id}`); // Bab el-Mandeb: two reports, so no "All" button until one is held back
+    expect(await screen.findByRole('heading', { name: 'Shipping through Bab el-Mandeb' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.rsteps li')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: '2 more steps' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.rnews .ni')).toHaveLength(1);
+    const all = screen.getByRole('button', { name: 'All 2' });
+    await userEvent.click(all);
+    expect(document.querySelectorAll('.rnews .ni')).toHaveLength(2);
+    expect(all).toHaveTextContent('Fewer');
+  });
+
+  it('Risk: the narrow layout shows every step, with no toggle (its bottom sheet scrolls)', async () => {
+    sheet.available = 300;
+    const narrow = (q: string) => ({ matches: q === '(max-width: 760px)', media: q, addEventListener: () => {}, removeEventListener: () => {} });
+    window.matchMedia = vi.fn(narrow) as unknown as typeof window.matchMedia;
+    try {
+      boot(`/risks/${risks[1].id}`);
+      expect(await screen.findByRole('heading', { name: 'Trade policy in the Netherlands' })).toBeInTheDocument();
+      expect(document.querySelectorAll('.rsteps li')).toHaveLength(3);
+      expect(document.querySelectorAll('.rnews .ni')).toHaveLength(2);
+      expect(screen.queryByRole('button', { name: /more steps?$/ })).not.toBeInTheDocument();
+    } finally {
+      // @ts-expect-error jsdom has no matchMedia of its own
+      delete window.matchMedia;
+    }
   });
 
   it('Risk: a missing risk says so', async () => {
